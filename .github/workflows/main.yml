@@ -3,11 +3,11 @@ name: Build and deploy Aivenator
 on: [push]
 
 env:
-  aivenator_image: ghcr.io/${{ github.repository }}/aivenator
+  image_base: ghcr.io/${{ github.repository }}/aivenator
 
 jobs:
   build:
-    name: Checkout code and setup node
+    name: Build and push
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
@@ -15,9 +15,9 @@ jobs:
         run: |
           version=$(./version.sh)
           echo "version=${version}" >> $GITHUB_ENV
-          echo "AIVENATOR_IMAGE=${aivenator_image}:${version}" >> $GITHUB_ENV
+          echo "AIVENATOR_IMAGE=${image_base}:${version}" >> $GITHUB_ENV
       - name: Build aivenator docker image
-        run: docker build . --tag $AIVENATOR_IMAGE --tag ${aivenator_image}:latest
+        run: docker build . --tag $AIVENATOR_IMAGE --tag ${image_base}:latest
       - name: Login to GitHub Packages Docker Registry
         uses: docker/login-action@ab80d026d4753220c4243394c07c7d80f9638d06 # Use commit-sha1 instead of tag for security concerns
         with:
@@ -26,9 +26,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push docker images
         run: |
-          docker push --all-tags $AIVENATOR_IMAGE
+          docker push --all-tags ${image_base}
   deploy:
-    name: Deploy to Kubernetes
+    name: Deploy to nais-yaml
     if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
@@ -38,7 +38,7 @@ jobs:
       run: |
         version=$(./version.sh)
         echo "version=${version}" >> $GITHUB_ENV
-        echo "AIVENATOR_IMAGE=${aivenator_image}:${version}" >> $GITHUB_ENV
+        echo "AIVENATOR_IMAGE=${image_base}:${version}" >> $GITHUB_ENV
         echo "NAIS_YAML=${GITHUB_WORKSPACE}/nais-yaml" >> $GITHUB_ENV
     - name: Bump version in nais-yaml
       env:
