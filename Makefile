@@ -3,3 +3,6 @@ aivenator:
 
 test:
 	go test ./... -count=1
+
+mocks:
+	cd pkg && mockery --all --case snake --inpackage --testonly

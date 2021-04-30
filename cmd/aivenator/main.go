@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/nais/aivenator/pkg/credentials"
 	"os"
 	"os/signal"
 	"strings"
@@ -115,7 +116,7 @@ func main() {
 
 	logger.Info("Aivenator running")
 
-	go credentials(quit, logger, mgr)
+	go manageCredentials(quit, logger, mgr)
 
 	go janitor(quit, logger, mgr)
 
@@ -148,9 +149,19 @@ func janitor(quit QuitChannel, logger *log.Logger, mgr manager.Manager) {
 
 }
 
-// TODO: Reconcile AivenApplications
-func credentials(quit QuitChannel, logger *log.Logger, mgr manager.Manager) {
+func manageCredentials(quit QuitChannel, logger *log.Logger, mgr manager.Manager) {
+	reconciler := credentials.AivenApplicationReconciler{
+		Logger:  logger,
+		Client:  mgr.GetClient(),
+		Creator: credentials.NewCreator(),
+	}
 
+	if err := reconciler.SetupWithManager(mgr); err != nil {
+		quit <- fmt.Errorf("unable to set up reconciler: %s", err)
+		return
+	}
+
+	logger.Info("Aivenator started")
 }
 
 func init() {
