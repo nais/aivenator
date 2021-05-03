@@ -5,7 +5,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
 
@@ -24,12 +23,11 @@ func TestCreator_Apply(t *testing.T) {
 				secret.ObjectMeta.Annotations[key] = value
 			}
 		})
-	application := kafka_nais_io_v1.NewAivenApplicationBase("app", "ns")
-	secret := corev1.Secret{ObjectMeta: v1.ObjectMeta{}}
+	application := kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
 	c := Creator{handlers: []Handler{&mockHandler}}
 
 	// when
-	err := c.Apply(&application, &secret)
+	secret, err := c.CreateSecret(&application)
 
 	// then
 	assert.NoError(t, err)
