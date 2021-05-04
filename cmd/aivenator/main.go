@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -122,7 +123,10 @@ func main() {
 
 	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
 
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			select {
 			case err := <-quit:
@@ -138,10 +142,12 @@ func main() {
 	terminator := context.Background()
 	if err := mgr.Start(terminator); err != nil {
 		quit <- fmt.Errorf("manager stopped unexpectedly: %s", err)
+		wg.Wait()
 		return
 	}
 
 	quit <- fmt.Errorf("manager has stopped")
+	wg.Wait()
 }
 
 // TODO: Finds secrets that are no longer in use and cleans up associated service user before deleting secret
