@@ -3,7 +3,9 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"github.com/nais/aivenator/pkg/metrics"
 	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -13,6 +15,7 @@ import (
 )
 
 const requeueInterval = time.Second * 10
+const secretWriteTimeout = time.Second * 2
 
 type AivenApplicationReconciler struct {
 	client.Client
@@ -95,7 +98,36 @@ func (r *AivenApplicationReconciler) Process(ctx context.Context, application ka
 }
 
 func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
-	return fmt.Errorf("not implemented")
+	key := client.ObjectKey{
+		Namespace: secret.Namespace,
+		Name:      secret.Name,
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, secretWriteTimeout)
+	defer cancel()
+
+	old := &v1.Secret{}
+	err := r.Get(ctx, key, old)
+
+	if err != nil {
+		if errors.IsNotFound(err) {
+			logger.Infof("Creating secret")
+			err = r.Create(ctx, secret)
+		}
+	} else {
+		logger.Infof("Updating secret")
+		secret.ResourceVersion = old.ResourceVersion
+		err = r.Update(ctx, secret)
+	}
+
+	if err == nil {
+		metrics.KubernetesResourcesWritten.With(prometheus.Labels{
+			metrics.LabelResourceType: "secret",
+			metrics.LabelNamespace:    key.Namespace,
+		}).Inc()
+	}
+
+	return err
 }
 
 func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, application kafka_nais_io_v1.AivenApplication, logger *log.Entry) (bool, error) {
