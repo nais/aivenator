@@ -72,7 +72,12 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 				Creator: Creator{},
 			}
 
-			got, err := r.NeedsSynchronization(ctx, tt.application, log.NewEntry(r.Logger))
+			hash, err := tt.application.Hash()
+			if err != nil {
+				t.Errorf("Failed to generate hash: %s", err)
+				return
+			}
+			got, err := r.NeedsSynchronization(ctx, tt.application, hash, log.NewEntry(r.Logger))
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NeedsSynchronization() error = %v, wantErr %v", err, tt.wantErr)
 				return
