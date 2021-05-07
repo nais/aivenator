@@ -7,7 +7,10 @@ import (
 	"k8s.io/api/core/v1"
 )
 
+// TODO: When setting either type of fail, clear any success condition (or set it to false)
+
 func AivenFail(operation string, application *kafka_nais_io_v1.AivenApplication, err error, logger *logrus.Entry) {
+	// TODO: Unwrap aiven.Error and format message better
 	message := fmt.Errorf("operation %s failed in Aiven: %s", operation, err)
 	logger.Error(message)
 	application.Status.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/nais/aivenator/pkg/metrics"
+	"github.com/nais/aivenator/pkg/utils"
 	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -12,6 +13,8 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"time"
 )
 
@@ -45,7 +48,9 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}()
 
 	fail := func(err error, requeue bool) (ctrl.Result, error) {
-		logger.Error(err)
+		if err != nil {
+			logger.Error(err)
+		}
 		application.Status.SynchronizationState = rolloutFailed
 		cr := ctrl.Result{}
 		if requeue {
@@ -78,26 +83,14 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	hash, err := application.Hash()
 	if err != nil {
-		message := fmt.Errorf("unable to calculate synchronization hash: %s", err)
-		application.Status.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
-			Type:    kafka_nais_io_v1.AivenApplicationLocalFailure,
-			Status:  corev1.ConditionTrue,
-			Reason:  "HashFailed",
-			Message: message.Error(),
-		})
-		return fail(message, true)
+		utils.LocalFail("Hash", &application, err, logger)
+		return fail(nil, true)
 	}
 
 	needsSync, err := r.NeedsSynchronization(ctx, application, hash, logger)
 	if err != nil {
-		message := fmt.Errorf("failed to determine synchronization status: %s", err)
-		application.Status.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
-			Type:    kafka_nais_io_v1.AivenApplicationLocalFailure,
-			Status:  corev1.ConditionTrue,
-			Reason:  "NeedsSynchronizationFailed",
-			Message: message.Error(),
-		})
-		return fail(message, true)
+		utils.LocalFail("NeedsSynchronization", &application, err, logger)
+		return fail(nil, true)
 	}
 
 	if !needsSync {
@@ -107,27 +100,15 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	logger.Infof("Creating secret")
 	secret, err := r.Creator.CreateSecret(&application, logger)
 	if err != nil {
-		message := fmt.Errorf("failed to create secret: %s", err)
-		application.Status.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
-			Type:    kafka_nais_io_v1.AivenApplicationLocalFailure,
-			Status:  corev1.ConditionTrue,
-			Reason:  "CreateSecretFailed",
-			Message: message.Error(),
-		})
-		return fail(message, true)
+		utils.LocalFail("CreateSecret", &application, err, logger)
+		return fail(nil, true)
 	}
 
 	logger.Infof("Saving secret to cluster")
 	err = r.SaveSecret(ctx, secret, logger)
 	if err != nil {
-		message := fmt.Errorf("unable to save secret resource to cluster: %s", err)
-		application.Status.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
-			Type:    kafka_nais_io_v1.AivenApplicationLocalFailure,
-			Status:  corev1.ConditionTrue,
-			Reason:  "SaveSecretFailed",
-			Message: message.Error(),
-		})
-		return fail(message, true)
+		utils.LocalFail("SaveSecret", &application, err, logger)
+		return fail(nil, true)
 	}
 
 	success(&application, hash)
@@ -157,6 +138,14 @@ func success(application *kafka_nais_io_v1.AivenApplication, hash string) {
 func (r *AivenApplicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&kafka_nais_io_v1.AivenApplication{}).
+		WithEventFilter(predicate.Funcs{
+			DeleteFunc: func(event event.DeleteEvent) bool {
+				return false // The secrets will get deleted because of OwnerReference, and no other cleanup is needed
+			},
+			UpdateFunc: func(updateEvent event.UpdateEvent) bool {
+				return updateEvent.ObjectNew.GetGeneration() > updateEvent.ObjectOld.GetGeneration()
+			},
+		}).
 		Complete(r)
 }
 
