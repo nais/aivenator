@@ -5,7 +5,8 @@ import (
 	"github.com/aiven/aiven-go-client"
 	aivenator_aiven "github.com/nais/aivenator/pkg/aiven"
 	"github.com/nais/aivenator/pkg/aiven/service"
-	"github.com/nais/aivenator/pkg/metrics"
+	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"github.com/nais/aivenator/pkg/utils"
 	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
 	"github.com/nais/liberator/pkg/namegen"
 	log "github.com/sirupsen/logrus"
@@ -29,16 +30,14 @@ const (
 
 func NewKafkaHandler(aiven *aiven.Client) KafkaHandler {
 	return KafkaHandler{
-		aiven: aivenator_aiven.Interfaces{
-			CA:           aiven.CA,
-			Service:      aiven.Services,
-			ServiceUsers: aiven.ServiceUsers,
-		},
+		serviceuser: serviceuser.NewManager(aiven.ServiceUsers),
+		service:     service.NewManager(aiven.Services, aiven.CA),
 	}
 }
 
 type KafkaHandler struct {
-	aiven aivenator_aiven.Interfaces
+	serviceuser *serviceuser.Manager
+	service     *service.Manager
 }
 
 func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {
@@ -50,26 +49,31 @@ func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secr
 	}
 	serviceName := aivenator_aiven.DefaultKafkaService(application.Spec.Kafka.Pool)
 
-	aivenService, err := h.getService(application, projectName, serviceName, logger)
+	aivenService, err := h.service.Get(projectName, serviceName)
 	if err != nil {
+		aivenFail("GetService", application, err, logger)
 		return err
 	}
 
-	ca, err := h.getCA(application, projectName, logger)
+	ca, err := h.service.GetCA(projectName)
 	if err != nil {
+		aivenFail("GetCA", application, err, logger)
 		return err
 	}
 
-	aivenUser, err := h.createServiceUser(application, projectName, serviceName, logger)
+	serviceUserName := namegen.RandShortName(application.ServiceUserPrefix(), aivenator_aiven.MaxServiceUserNameLength)
+	aivenUser, err := h.serviceuser.Create(serviceUserName, projectName, serviceName)
 	if err != nil {
+		aivenFail("Create", application, err, logger)
 		return err
 	}
 	secret.ObjectMeta.Annotations[aivenator_aiven.ServiceUserAnnotation] = aivenUser.Username
+	logger.Infof("Created serviceName user %s", aivenUser.Username)
 
 	kafkaBrokerAddress := service.GetKafkaBrokerAddress(aivenService)
 	kafkaSchemaRegistryAddress := service.GetSchemaRegistryAddress(aivenService)
 
-	stringData := map[string]string{
+	utils.MergeInto(map[string]string{
 		KafkaCertificate:       aivenUser.AccessCert,
 		KafkaPrivateKey:        aivenUser.AccessKey,
 		KafkaBrokers:           kafkaBrokerAddress,
@@ -79,82 +83,21 @@ func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secr
 		KafkaCA:                ca,
 		KafkaCredStorePassword: "", // TODO: credStore.Secret,
 		KafkaSecretUpdated:     time.Now().Format(time.RFC3339),
-	}
+	}, secret.StringData)
 
-	// TODO: Merge stringData into secret
 	// TODO: Add binary data to secret
 	// TODO: Write some tests!
-	logger.Debug(stringData)
 
 	return nil
 }
 
-func (h KafkaHandler) getCA(application *kafka_nais_io_v1.AivenApplication, projectName string, logger *log.Entry) (string, error) {
-	var ca string
-	err := metrics.ObserveAivenLatency("CA_Get", projectName, func() error {
-		var err error
-		ca, err = h.aiven.CA.Get(projectName)
-		return err
+func aivenFail(operation string, application *kafka_nais_io_v1.AivenApplication, err error, logger *log.Entry) {
+	message := fmt.Errorf("operation %s failed in Aiven: %s", operation, err)
+	logger.Error(message)
+	application.Status.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
+		Type:    kafka_nais_io_v1.AivenApplicationAivenFailure,
+		Status:  v1.ConditionTrue,
+		Reason:  operation,
+		Message: message.Error(),
 	})
-	if err != nil {
-		message := fmt.Errorf("unable to get CA from Aiven: %s", err)
-		logger.Error(message)
-		application.Status.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
-			Type:    kafka_nais_io_v1.AivenApplicationAivenFailure,
-			Status:  v1.ConditionTrue,
-			Reason:  "CA_Get",
-			Message: message.Error(),
-		})
-		return "", err
-	}
-	return ca, nil
-}
-
-func (h KafkaHandler) getService(application *kafka_nais_io_v1.AivenApplication, projectName, serviceName string, logger *log.Entry) (*aiven.Service, error) {
-	var aivenService *aiven.Service
-	err := metrics.ObserveAivenLatency("Service_Get", projectName, func() error {
-		var err error
-		aivenService, err = h.aiven.Service.Get(projectName, serviceName)
-		return err
-	})
-	if err != nil {
-		message := fmt.Errorf("unable to get serviceName information from Aiven: %s", err)
-		logger.Error(message)
-		application.Status.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
-			Type:    kafka_nais_io_v1.AivenApplicationAivenFailure,
-			Status:  v1.ConditionTrue,
-			Reason:  "Service_Get",
-			Message: message.Error(),
-		})
-		return nil, err
-	}
-	return aivenService, nil
-}
-
-func (h KafkaHandler) createServiceUser(application *kafka_nais_io_v1.AivenApplication, projectName, serviceName string, logger *log.Entry) (*aiven.ServiceUser, error) {
-	serviceUserName := namegen.RandShortName(application.ServiceUserPrefix(), aivenator_aiven.MaxServiceUserNameLength)
-
-	req := aiven.CreateServiceUserRequest{
-		Username: serviceUserName,
-	}
-
-	var aivenUser *aiven.ServiceUser
-	err := metrics.ObserveAivenLatency("ServiceUser_Create", projectName, func() error {
-		var err error
-		aivenUser, err = h.aiven.ServiceUsers.Create(projectName, serviceName, req)
-		return err
-	})
-	if err != nil {
-		message := fmt.Errorf("unable to create serviceName user in Aiven: %s", err)
-		logger.Error(message)
-		application.Status.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
-			Type:    kafka_nais_io_v1.AivenApplicationAivenFailure,
-			Status:  v1.ConditionTrue,
-			Reason:  "ServiceUser_Create",
-			Message: message.Error(),
-		})
-		return nil, err
-	}
-	logger.Infof("Created serviceName user %s", aivenUser.Username)
-	return aivenUser, nil
 }

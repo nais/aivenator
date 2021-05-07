@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/metrics"
-	log "github.com/sirupsen/logrus"
 )
 
 type Interface interface {
@@ -15,29 +14,33 @@ type CA interface {
 	Get(project string) (string, error)
 }
 
-type Manager struct {
-	AivenService Interface
-	AivenCA      CA
-	Project      string
-	Service      string
-	Logger       *log.Entry
+func NewManager(aivenService Interface, aivenCA CA) *Manager {
+	return &Manager{
+		service: aivenService,
+		ca:      aivenCA,
+	}
 }
 
-func (r *Manager) Get() (*aiven.Service, error) {
+type Manager struct {
+	service Interface
+	ca      CA
+}
+
+func (r *Manager) Get(projectName, serviceName string) (*aiven.Service, error) {
 	var service *aiven.Service
-	err := metrics.ObserveAivenLatency("Service_Get", r.Project, func() error {
+	err := metrics.ObserveAivenLatency("Service_Get", projectName, func() error {
 		var err error
-		service, err = r.AivenService.Get(r.Project, r.Service)
+		service, err = r.service.Get(projectName, serviceName)
 		return err
 	})
 	return service, err
 }
 
-func (r *Manager) GetCA() (string, error) {
+func (r *Manager) GetCA(projectName string) (string, error) {
 	var ca string
-	err := metrics.ObserveAivenLatency("CA_Get", r.Project, func() error {
+	err := metrics.ObserveAivenLatency("CA_Get", projectName, func() error {
 		var err error
-		ca, err = r.AivenCA.Get(r.Project)
+		ca, err = r.ca.Get(projectName)
 		return err
 	})
 	return ca, err
