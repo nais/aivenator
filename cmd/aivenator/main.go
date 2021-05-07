@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/credentials"
 	"os"
 	"os/signal"
@@ -103,6 +104,12 @@ func main() {
 
 	logger.SetFormatter(logfmt)
 
+	aivenClient, err := aiven.NewTokenClient(viper.GetString(AivenToken), "")
+	if err != nil {
+		logger.Errorf("unable to set up aiven client: %s", err)
+		os.Exit(ExitConfig)
+	}
+
 	syncPeriod := viper.GetDuration(SyncPeriod)
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		SyncPeriod:         &syncPeriod,
@@ -111,13 +118,13 @@ func main() {
 	})
 
 	if err != nil {
-		logger.Println(err)
+		logger.Errorln(err)
 		os.Exit(ExitController)
 	}
 
 	logger.Info("Aivenator running")
 
-	go manageCredentials(quit, logger, mgr)
+	go manageCredentials(quit, aivenClient, logger, mgr)
 
 	go janitor(quit, logger, mgr)
 
@@ -155,11 +162,11 @@ func janitor(quit QuitChannel, logger *log.Logger, mgr manager.Manager) {
 
 }
 
-func manageCredentials(quit QuitChannel, logger *log.Logger, mgr manager.Manager) {
+func manageCredentials(quit QuitChannel, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager) {
 	reconciler := credentials.AivenApplicationReconciler{
 		Logger:  logger,
 		Client:  mgr.GetClient(),
-		Creator: credentials.NewCreator(),
+		Creator: credentials.NewCreator(aiven),
 	}
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {

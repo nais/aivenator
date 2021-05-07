@@ -4,6 +4,8 @@ package credentials
 
 import (
 	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	logrus "github.com/sirupsen/logrus"
+
 	mock "github.com/stretchr/testify/mock"
 
 	v1 "k8s.io/api/core/v1"
@@ -14,13 +16,13 @@ type MockHandler struct {
 	mock.Mock
 }
 
-// Apply provides a mock function with given fields: application, secret
-func (_m *MockHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *v1.Secret) error {
-	ret := _m.Called(application, secret)
+// Apply provides a mock function with given fields: application, secret, logger
+func (_m *MockHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *v1.Secret, logger *logrus.Entry) error {
+	ret := _m.Called(application, secret, logger)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*kafka_nais_io_v1.AivenApplication, *v1.Secret) error); ok {
-		r0 = rf(application, secret)
+	if rf, ok := ret.Get(0).(func(*kafka_nais_io_v1.AivenApplication, *v1.Secret, *logrus.Entry) error); ok {
+		r0 = rf(application, secret, logger)
 	} else {
 		r0 = ret.Error(0)
 	}

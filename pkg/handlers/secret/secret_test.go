@@ -61,7 +61,7 @@ func TestHandler_Apply(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := Handler{}
-			assert.NoError(t, s.Apply(&tt.args.application, &tt.args.secret))
+			assert.NoError(t, s.Apply(&tt.args.application, &tt.args.secret, nil))
 			tt.args.assert(tt.args)
 		})
 	}

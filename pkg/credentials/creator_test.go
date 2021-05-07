@@ -14,7 +14,7 @@ func TestCreator_Apply(t *testing.T) {
 	expectedAnnotations := make(map[string]string)
 	expectedAnnotations["one"] = "1"
 	mockHandler.
-		On("Apply", mock.AnythingOfType("*kafka_nais_io_v1.AivenApplication"), mock.AnythingOfType("*v1.Secret")).
+		On("Apply", mock.AnythingOfType("*kafka_nais_io_v1.AivenApplication"), mock.AnythingOfType("*v1.Secret"), mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
 			secret := args.Get(1).(*corev1.Secret)
@@ -27,7 +27,7 @@ func TestCreator_Apply(t *testing.T) {
 	c := Creator{handlers: []Handler{&mockHandler}}
 
 	// when
-	secret, err := c.CreateSecret(&application)
+	secret, err := c.CreateSecret(&application, nil)
 
 	// then
 	assert.NoError(t, err)

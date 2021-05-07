@@ -105,7 +105,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	logger.Infof("Creating secret")
-	secret, err := r.Creator.CreateSecret(&application)
+	secret, err := r.Creator.CreateSecret(&application, logger)
 	if err != nil {
 		message := fmt.Errorf("failed to create secret: %s", err)
 		application.Status.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
