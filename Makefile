@@ -1,7 +1,7 @@
 aivenator:
 	go build -o bin/aivenator cmd/aivenator/*.go
 
-test: mocks
+test:
 	go test ./... -count=1
 
 mocks:
