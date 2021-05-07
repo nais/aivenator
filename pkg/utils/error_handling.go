@@ -7,8 +7,6 @@ import (
 	"k8s.io/api/core/v1"
 )
 
-// TODO: When setting either type of fail, clear any success condition (or set it to false)
-
 func AivenFail(operation string, application *kafka_nais_io_v1.AivenApplication, err error, logger *logrus.Entry) {
 	// TODO: Unwrap aiven.Error and format message better
 	message := fmt.Errorf("operation %s failed in Aiven: %s", operation, err)
@@ -18,7 +16,7 @@ func AivenFail(operation string, application *kafka_nais_io_v1.AivenApplication,
 		Status:  v1.ConditionTrue,
 		Reason:  operation,
 		Message: message.Error(),
-	})
+	}, kafka_nais_io_v1.AivenApplicationSucceeded)
 }
 
 func LocalFail(operation string, application *kafka_nais_io_v1.AivenApplication, err error, logger *logrus.Entry) {
@@ -29,5 +27,5 @@ func LocalFail(operation string, application *kafka_nais_io_v1.AivenApplication,
 		Status:  v1.ConditionTrue,
 		Reason:  operation,
 		Message: message.Error(),
-	})
+	}, kafka_nais_io_v1.AivenApplicationSucceeded)
 }
