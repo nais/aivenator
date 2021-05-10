@@ -2,7 +2,6 @@ package certificate
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -12,13 +11,11 @@ import (
 
 type ExecGenerator struct {
 	secret string
-	logger *log.Entry
 }
 
-func NewExecGenerator(logger *log.Entry) ExecGenerator {
+func NewExecGenerator() ExecGenerator {
 	e := ExecGenerator{
 		secret: GetSecret(),
-		logger: logger.WithFields(log.Fields{"generator": "ExecGenerator"}),
 	}
 	return e
 }
@@ -64,9 +61,8 @@ func (e ExecGenerator) MakeKeystore(workdir, accessKey, accessCert string) ([]by
 		"-passout", "stdin",
 	)
 	cmd.Stdin = strings.NewReader(e.secret)
-	output, err := cmd.CombinedOutput()
+	_, err = cmd.CombinedOutput()
 	if err != nil {
-		e.logger.Errorf("Failed to generate keystore! Output from command: \n%s", output)
 		return nil, fmt.Errorf("failed to generate keystore: %w", err)
 	}
 	keystore, err := ioutil.ReadFile(keystorePath)
@@ -91,9 +87,8 @@ func (e ExecGenerator) MakeTruststore(workdir, caCert string) ([]byte, error) {
 		"-keystore", truststorePath,
 		"-storepass", e.secret,
 	)
-	output, err := cmd.CombinedOutput()
+	_, err = cmd.CombinedOutput()
 	if err != nil {
-		e.logger.Errorf("Failed to generate truststore! Output from command: \n%s", output)
 		return nil, fmt.Errorf("failed to generate truststore: %w", err)
 	}
 	truststore, err := ioutil.ReadFile(truststorePath)

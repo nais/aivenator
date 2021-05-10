@@ -32,12 +32,14 @@ func NewKafkaHandler(aiven *aiven.Client) KafkaHandler {
 	return KafkaHandler{
 		serviceuser: serviceuser.NewManager(aiven.ServiceUsers),
 		service:     service.NewManager(aiven.Services, aiven.CA),
+		generator:   certificate.NewExecGenerator(),
 	}
 }
 
 type KafkaHandler struct {
 	serviceuser serviceuser.ServiceUserManager
 	service     service.ServiceManager
+	generator   certificate.Generator
 }
 
 func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {
@@ -69,17 +71,19 @@ func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secr
 		utils.AivenFail("CreateServiceUser", application, err, logger)
 		return err
 	}
-	secret.ObjectMeta.Annotations[aivenator_aiven.ServiceUserAnnotation] = aivenUser.Username
+
+	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
+		aivenator_aiven.ServiceUserAnnotation: aivenUser.Username,
+	}))
 	logger.Infof("Created serviceName user %s", aivenUser.Username)
 
-	generator := certificate.NewExecGenerator(logger)
-	credStore, err := generator.MakeCredStores(aivenUser.AccessKey, aivenUser.AccessCert, ca)
+	credStore, err := h.generator.MakeCredStores(aivenUser.AccessKey, aivenUser.AccessCert, ca)
 	if err != nil {
 		utils.LocalFail("CreateCredStores", application, err, logger)
 		return err
 	}
 
-	utils.MergeIntoStringMap(map[string]string{
+	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		KafkaCertificate:       aivenUser.AccessCert,
 		KafkaPrivateKey:        aivenUser.AccessKey,
 		KafkaBrokers:           kafkaBrokerAddress,
@@ -89,14 +93,12 @@ func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secr
 		KafkaCA:                ca,
 		KafkaCredStorePassword: credStore.Secret,
 		KafkaSecretUpdated:     time.Now().Format(time.RFC3339),
-	}, secret.StringData)
+	})
 
-	utils.MergeIntoByteMap(map[string][]byte{
+	secret.Data = utils.MergeByteMap(secret.Data, map[string][]byte{
 		KafkaKeystore:   credStore.Keystore,
 		KafkaTruststore: credStore.Truststore,
-	}, secret.Data)
-
-	// TODO: Write some tests!
+	})
 
 	return nil
 }

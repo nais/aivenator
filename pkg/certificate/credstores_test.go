@@ -41,7 +41,7 @@ func TestCredStoreGenerator(t *testing.T) {
 		panic(err)
 	}
 
-	generator := NewExecGenerator(log.New())
+	generator := NewExecGenerator()
 
 	stores, err := generator.MakeCredStores(test_user.AccessKey, test_user.AccessCert, caCert)
 	if err != nil {
