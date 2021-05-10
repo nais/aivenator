@@ -6,24 +6,21 @@ import (
 	"github.com/nais/aivenator/pkg/metrics"
 )
 
-type Interface interface {
-	Get(project, service string) (*aiven.Service, error)
-}
-
-type CA interface {
-	Get(project string) (string, error)
-}
-
-func NewManager(aivenService Interface, aivenCA CA) *Manager {
+func NewManager(service *aiven.ServicesHandler, ca *aiven.CAHandler) ServiceManager {
 	return &Manager{
-		service: aivenService,
-		ca:      aivenCA,
+		service: service,
+		ca:      ca,
 	}
 }
 
+type ServiceManager interface {
+	Get(projectName, serviceName string) (*aiven.Service, error)
+	GetCA(projectName string) (string, error)
+}
+
 type Manager struct {
-	service Interface
-	ca      CA
+	service *aiven.ServicesHandler
+	ca      *aiven.CAHandler
 }
 
 func (r *Manager) Get(projectName, serviceName string) (*aiven.Service, error) {

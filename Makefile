@@ -5,7 +5,7 @@ test:
 	go test ./... -count=1
 
 mocks:
-	cd pkg && mockery --all --case snake --inpackage --testonly
+	cd pkg && mockery --all --case snake
 
 integration_test:
 	echo "*** Make sure to set the environment AIVEN_TOKEN to a valid token ***"

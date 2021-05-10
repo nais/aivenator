@@ -36,8 +36,8 @@ func NewKafkaHandler(aiven *aiven.Client) KafkaHandler {
 }
 
 type KafkaHandler struct {
-	serviceuser *serviceuser.Manager
-	service     *service.Manager
+	serviceuser serviceuser.ServiceUserManager
+	service     service.ServiceManager
 }
 
 func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {

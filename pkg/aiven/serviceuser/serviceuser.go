@@ -5,21 +5,21 @@ import (
 	"github.com/nais/aivenator/pkg/metrics"
 )
 
-type Interface interface {
-	Create(project, service string, req aiven.CreateServiceUserRequest) (*aiven.ServiceUser, error)
-}
-
-func NewManager(client Interface) *Manager {
+func NewManager(serviceUsers *aiven.ServiceUsersHandler) ServiceUserManager {
 	return &Manager{
-		client: client,
+		serviceUsers: serviceUsers,
 	}
 }
 
-type Manager struct {
-	client Interface
+type ServiceUserManager interface {
+	Create(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error)
 }
 
-func (m Manager) Create(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error) {
+type Manager struct {
+	serviceUsers *aiven.ServiceUsersHandler
+}
+
+func (m *Manager) Create(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error) {
 	req := aiven.CreateServiceUserRequest{
 		Username: serviceUserName,
 	}
@@ -27,7 +27,7 @@ func (m Manager) Create(serviceUserName, projectName, serviceName string) (*aive
 	var aivenUser *aiven.ServiceUser
 	err := metrics.ObserveAivenLatency("ServiceUser_Create", projectName, func() error {
 		var err error
-		aivenUser, err = m.client.Create(projectName, serviceName, req)
+		aivenUser, err = m.serviceUsers.Create(projectName, serviceName, req)
 		return err
 	})
 	if err != nil {

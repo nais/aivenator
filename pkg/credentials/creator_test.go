@@ -1,6 +1,7 @@
 package credentials
 
 import (
+	"github.com/nais/aivenator/pkg/mocks"
 	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -10,7 +11,7 @@ import (
 
 func TestCreator_Apply(t *testing.T) {
 	// given
-	mockHandler := MockHandler{}
+	mockHandler := mocks.Handler{}
 	expectedAnnotations := make(map[string]string)
 	expectedAnnotations["one"] = "1"
 	mockHandler.
