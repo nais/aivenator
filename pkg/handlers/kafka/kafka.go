@@ -11,6 +11,7 @@ import (
 	"github.com/nais/liberator/pkg/namegen"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"time"
 )
 
@@ -99,6 +100,8 @@ func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secr
 		KafkaKeystore:   credStore.Keystore,
 		KafkaTruststore: credStore.Truststore,
 	})
+
+	controllerutil.AddFinalizer(secret, kafka_nais_io_v1.AivenFinalizer)
 
 	return nil
 }

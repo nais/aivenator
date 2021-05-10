@@ -117,6 +117,7 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 			Annotations: map[string]string{
 				aiven2.ServiceUserAnnotation: serviceUserName,
 			},
+			Finalizers: []string{kafka_nais_io_v1.AivenFinalizer},
 		},
 		// Check these individually
 		Data:       secret.Data,
