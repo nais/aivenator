@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -29,13 +28,13 @@ import (
 
 var scheme = runtime.NewScheme()
 
-type QuitChannel chan error
-
 const (
 	ExitOK = iota
 	ExitController
 	ExitConfig
 	ExitRuntime
+	ExitCredentialsManager
+	ExitJanitor
 )
 
 // Configuration options
@@ -93,9 +92,6 @@ func formatter(logFormat string) (log.Formatter, error) {
 }
 
 func main() {
-	quit := make(QuitChannel, 1)
-	signals := make(chan os.Signal, 1)
-
 	logger := log.New()
 	logfmt, err := formatter(viper.GetString(LogFormat))
 	if err != nil {
@@ -125,21 +121,22 @@ func main() {
 
 	logger.Info("Aivenator running")
 
-	go manageCredentials(quit, aivenClient, logger, mgr)
+	if err := manageCredentials(aivenClient, logger, mgr); err != nil {
+		logger.Errorln(err)
+		os.Exit(ExitCredentialsManager)
+	}
 
-	go janitor(quit, logger, mgr)
+	if err := janitor(logger, mgr); err != nil {
+		logger.Errorln(err)
+		os.Exit(ExitJanitor)
+	}
 
-	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
-
-	wg := sync.WaitGroup{}
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
+
 		for {
 			select {
-			case err := <-quit:
-				logger.Errorf("terminating unexpectedly: %s", err)
-				os.Exit(ExitRuntime)
 			case sig := <-signals:
 				logger.Infof("exiting due to signal: %s", strings.ToUpper(sig.String()))
 				os.Exit(ExitOK)
@@ -149,21 +146,19 @@ func main() {
 
 	terminator := context.Background()
 	if err := mgr.Start(terminator); err != nil {
-		quit <- fmt.Errorf("manager stopped unexpectedly: %s", err)
-		wg.Wait()
-		return
+		logger.Errorln(fmt.Errorf("manager stopped unexpectedly: %s", err))
+		os.Exit(ExitRuntime)
 	}
 
-	quit <- fmt.Errorf("manager has stopped")
-	wg.Wait()
+	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
 // TODO: Finds secrets that are no longer in use and cleans up associated service user before deleting secret
-func janitor(quit QuitChannel, logger *log.Logger, mgr manager.Manager) {
-
+func janitor(logger *log.Logger, mgr manager.Manager) error {
+	return nil
 }
 
-func manageCredentials(quit QuitChannel, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager) {
+func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager) error {
 	reconciler := aiven_application.AivenApplicationReconciler{
 		Logger:  logger,
 		Client:  mgr.GetClient(),
@@ -171,11 +166,11 @@ func manageCredentials(quit QuitChannel, aiven *aiven.Client, logger *log.Logger
 	}
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
-		quit <- fmt.Errorf("unable to set up reconciler: %s", err)
-		return
+		return fmt.Errorf("unable to set up reconciler: %s", err)
 	}
 
-	logger.Info("Aivenator started")
+	logger.Info("Aiven Application reconciler setup")
+	return nil
 }
 
 func init() {
