@@ -26,6 +26,8 @@ func TestHandler_Apply(t *testing.T) {
 				secret: corev1.Secret{},
 				assert: func(a args) {
 					assert.Equal(t, "", a.secret.GetName())
+					assert.Equal(t, AivenatorSecretType, a.secret.Labels[SecretTypeLabel])
+					assert.Equal(t, a.application.GetNamespace(), a.secret.Labels[TeamLabel])
 					assert.Equal(t, a.application.GetNamespace(), a.secret.GetNamespace())
 				},
 			},

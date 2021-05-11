@@ -8,15 +8,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	TeamLabel           = "team"
+	SecretTypeLabel     = "type"
+	AivenatorSecretType = "aivenator.kafka.nais.io"
+)
+
 type Handler struct {
 }
 
-func (s Handler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *corev1.Secret, logger *log.Entry) error {
+func (s Handler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *corev1.Secret, _ *log.Entry) error {
 	secret.ObjectMeta = metav1.ObjectMeta{
 		Name:      application.Spec.SecretName,
 		Namespace: application.GetNamespace(),
 		Labels: map[string]string{
-			"team": application.GetNamespace(),
+			TeamLabel:       application.GetNamespace(),
+			SecretTypeLabel: AivenatorSecretType,
 		},
 		Annotations: map[string]string{
 			nais_io_v1alpha1.DeploymentCorrelationIDAnnotation: application.GetAnnotations()[nais_io_v1alpha1.DeploymentCorrelationIDAnnotation],

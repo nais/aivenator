@@ -9,6 +9,7 @@ import (
 	"github.com/nais/aivenator/pkg/credentials"
 	"os"
 	"os/signal"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 	"syscall"
 	"time"
@@ -46,6 +47,7 @@ const (
 	MetricsAddress               = "metrics-address"
 	Projects                     = "projects"
 	SyncPeriod                   = "sync-period"
+	JanitorPeriod                = "janitor-period"
 )
 
 const (
@@ -66,6 +68,7 @@ func init() {
 	flag.String(LogFormat, "text", "Log format, either 'text' or 'json'")
 	flag.Duration(KubernetesWriteRetryInterval, time.Second*10, "Requeueing interval when Kubernetes writes fail")
 	flag.Duration(SyncPeriod, time.Hour*1, "How often to re-synchronize all AivenApplication resources including credential rotation")
+	flag.Duration(JanitorPeriod, time.Hour*1, "How often to clean up unused secrets managed by Aivenator")
 	flag.StringSlice(Projects, []string{"nav-integration-test"}, "List of projects allowed to operate on")
 
 	flag.Parse()
@@ -121,16 +124,14 @@ func main() {
 	}
 
 	logger.Info("Aivenator running")
+	terminator := context.Background()
 
 	if err := manageCredentials(aivenClient, logger, mgr); err != nil {
 		logger.Errorln(err)
 		os.Exit(ExitCredentialsManager)
 	}
 
-	if err := janitor(logger, mgr); err != nil {
-		logger.Errorln(err)
-		os.Exit(ExitJanitor)
-	}
+	startJanitor(terminator, viper.GetDuration(JanitorPeriod), mgr.GetClient(), logger)
 
 	go func() {
 		signals := make(chan os.Signal, 1)
@@ -145,7 +146,6 @@ func main() {
 		}
 	}()
 
-	terminator := context.Background()
 	if err := mgr.Start(terminator); err != nil {
 		logger.Errorln(fmt.Errorf("manager stopped unexpectedly: %s", err))
 		os.Exit(ExitRuntime)
@@ -154,9 +154,21 @@ func main() {
 	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
-// TODO: Finds secrets that are no longer in use and deletes them
-func janitor(logger *log.Logger, mgr manager.Manager) error {
-	return nil
+func startJanitor(ctx context.Context, janitorInterval time.Duration, c client.Client, logger *log.Logger) {
+	logEntry := log.NewEntry(logger).WithFields(log.Fields{
+		"component": "janitor",
+	})
+
+	ticker := time.NewTicker(janitorInterval)
+	defer ticker.Stop()
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				secrets.CleanUnusedSecrets(ctx, c, logEntry)
+			}
+		}
+	}()
 }
 
 func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager) error {
