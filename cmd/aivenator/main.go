@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/controllers/aiven_application"
+	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/credentials"
 	"os"
 	"os/signal"
@@ -153,23 +154,35 @@ func main() {
 	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
-// TODO: Finds secrets that are no longer in use and cleans up associated service user before deleting secret
+// TODO: Finds secrets that are no longer in use and deletes them
 func janitor(logger *log.Logger, mgr manager.Manager) error {
 	return nil
 }
 
 func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager) error {
+	credentialsManager := credentials.NewManager(aiven)
 	reconciler := aiven_application.AivenApplicationReconciler{
 		Logger:  logger,
 		Client:  mgr.GetClient(),
-		Manager: credentials.NewManager(aiven),
+		Manager: credentialsManager,
 	}
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to set up reconciler: %s", err)
 	}
+	logger.Info("Aiven Application reconciler setup complete")
 
-	logger.Info("Aiven Application reconciler setup")
+	finalizer := secrets.SecretsFinalizer{
+		Logger:  logger,
+		Client:  mgr.GetClient(),
+		Manager: credentialsManager,
+	}
+
+	if err := finalizer.SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("unable to set up finalizer: %s", err)
+	}
+	logger.Info("Aiven Secret finalizer setup complete")
+
 	return nil
 }
 
