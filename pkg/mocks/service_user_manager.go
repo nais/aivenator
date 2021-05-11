@@ -34,3 +34,17 @@ func (_m *ServiceUserManager) Create(serviceUserName string, projectName string,
 
 	return r0, r1
 }
+
+// Delete provides a mock function with given fields: serviceUserName, projectName, serviceName
+func (_m *ServiceUserManager) Delete(serviceUserName string, projectName string, serviceName string) error {
+	ret := _m.Called(serviceUserName, projectName, serviceName)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
+		r0 = rf(serviceUserName, projectName, serviceName)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}

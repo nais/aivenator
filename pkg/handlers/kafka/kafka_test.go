@@ -3,7 +3,7 @@ package kafka
 import (
 	"fmt"
 	"github.com/aiven/aiven-go-client"
-	aiven2 "github.com/nais/aivenator/pkg/aiven"
+	aivenator_aiven "github.com/nais/aivenator/pkg/aiven"
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/mocks"
 	"github.com/nais/aivenator/pkg/utils"
@@ -21,6 +21,7 @@ const (
 	credStoreSecret = "my-secret"
 	serviceURI      = "http://example.com"
 	ca              = "my-ca"
+	pool            = "my-testing-pool"
 )
 
 const (
@@ -90,6 +91,28 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 	suite.applicationBuilder = kafka_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
 }
 
+func (suite *KafkaHandlerTestSuite) TestCleanupNoKafka() {
+	secret := &v1.Secret{}
+	err := suite.kafkaHandler.Cleanup(secret, suite.logger)
+
+	suite.NoError(err)
+}
+
+func (suite *KafkaHandlerTestSuite) TestCleanupServiceUser() {
+	secret := &v1.Secret{}
+	secret.SetAnnotations(map[string]string{
+		aivenator_aiven.ServiceUserAnnotation: serviceUserName,
+		aivenator_aiven.PoolAnnotation:        pool,
+	})
+	suite.mockServiceUsers.On("Delete", serviceUserName, pool, mock.Anything).
+		Return(nil)
+
+	err := suite.kafkaHandler.Cleanup(secret, suite.logger)
+
+	suite.NoError(err)
+	suite.mockServiceUsers.AssertCalled(suite.T(), "Delete", serviceUserName, pool, mock.Anything)
+}
+
 func (suite *KafkaHandlerTestSuite) TestNoKafka() {
 	application := suite.applicationBuilder.Build()
 	secret := &v1.Secret{}
@@ -104,7 +127,7 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 	application := suite.applicationBuilder.
 		WithSpec(kafka_nais_io_v1.AivenApplicationSpec{
 			Kafka: kafka_nais_io_v1.KafkaSpec{
-				Pool: "my-testing-pool",
+				Pool: pool,
 			},
 		}).
 		Build()
@@ -115,7 +138,8 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 	expected := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
-				aiven2.ServiceUserAnnotation: serviceUserName,
+				aivenator_aiven.ServiceUserAnnotation: serviceUserName,
+				aivenator_aiven.PoolAnnotation:        pool,
 			},
 			Finalizers: []string{kafka_nais_io_v1.AivenFinalizer},
 		},
@@ -136,7 +160,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(kafka_nais_io_v1.AivenApplicationSpec{
 			Kafka: kafka_nais_io_v1.KafkaSpec{
-				Pool: "my-testing-pool",
+				Pool: pool,
 			},
 		}).
 		Build()
@@ -159,7 +183,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetCAFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(kafka_nais_io_v1.AivenApplicationSpec{
 			Kafka: kafka_nais_io_v1.KafkaSpec{
-				Pool: "my-testing-pool",
+				Pool: pool,
 			},
 		}).
 		Build()
@@ -182,7 +206,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(kafka_nais_io_v1.AivenApplicationSpec{
 			Kafka: kafka_nais_io_v1.KafkaSpec{
-				Pool: "my-testing-pool",
+				Pool: pool,
 			},
 		}).
 		Build()
@@ -205,7 +229,7 @@ func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(kafka_nais_io_v1.AivenApplicationSpec{
 			Kafka: kafka_nais_io_v1.KafkaSpec{
-				Pool: "my-testing-pool",
+				Pool: pool,
 			},
 		}).
 		Build()

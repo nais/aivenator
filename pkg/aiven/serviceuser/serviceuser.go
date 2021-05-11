@@ -13,10 +13,15 @@ func NewManager(serviceUsers *aiven.ServiceUsersHandler) ServiceUserManager {
 
 type ServiceUserManager interface {
 	Create(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error)
+	Delete(serviceUserName, projectName, serviceName string) error
 }
 
 type Manager struct {
 	serviceUsers *aiven.ServiceUsersHandler
+}
+
+func (m *Manager) Delete(serviceUserName, projectName, serviceName string) error {
+	panic("implement me")
 }
 
 func (m *Manager) Create(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error) {

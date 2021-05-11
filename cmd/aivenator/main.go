@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/aiven/aiven-go-client"
+	"github.com/nais/aivenator/controllers/aiven_application"
 	"github.com/nais/aivenator/pkg/credentials"
 	"os"
 	"os/signal"
@@ -163,10 +164,10 @@ func janitor(quit QuitChannel, logger *log.Logger, mgr manager.Manager) {
 }
 
 func manageCredentials(quit QuitChannel, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager) {
-	reconciler := credentials.AivenApplicationReconciler{
+	reconciler := aiven_application.AivenApplicationReconciler{
 		Logger:  logger,
 		Client:  mgr.GetClient(),
-		Creator: credentials.NewCreator(aiven),
+		Manager: credentials.NewManager(aiven),
 	}
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {

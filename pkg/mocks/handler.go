@@ -29,3 +29,17 @@ func (_m *Handler) Apply(application *kafka_nais_io_v1.AivenApplication, secret 
 
 	return r0
 }
+
+// Cleanup provides a mock function with given fields: secret, logger
+func (_m *Handler) Cleanup(secret *v1.Secret, logger *logrus.Entry) error {
+	ret := _m.Called(secret, logger)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*v1.Secret, *logrus.Entry) error); ok {
+		r0 = rf(secret, logger)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}

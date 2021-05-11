@@ -11,14 +11,15 @@ import (
 
 type Handler interface {
 	Apply(application *kafka_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error
+	Cleanup(secret *v1.Secret, logger *log.Entry) error
 }
 
-type Creator struct {
+type Manager struct {
 	handlers []Handler
 }
 
-func NewCreator(aiven *aiven.Client) Creator {
-	return Creator{
+func NewManager(aiven *aiven.Client) Manager {
+	return Manager{
 		handlers: []Handler{
 			secret.Handler{},
 			kafka.NewKafkaHandler(aiven),
@@ -26,13 +27,23 @@ func NewCreator(aiven *aiven.Client) Creator {
 	}
 }
 
-func (c Creator) CreateSecret(application *kafka_nais_io_v1.AivenApplication, logger *log.Entry) (*v1.Secret, error) {
-	s := v1.Secret{}
+func (c Manager) CreateSecret(application *kafka_nais_io_v1.AivenApplication, logger *log.Entry) (*v1.Secret, error) {
+	s := &v1.Secret{}
 	for _, handler := range c.handlers {
-		err := handler.Apply(application, &s, logger)
+		err := handler.Apply(application, s, logger)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return &s, nil
+	return s, nil
+}
+
+func (c Manager) Cleanup(s *v1.Secret, logger *log.Entry) error {
+	for _, handler := range c.handlers {
+		err := handler.Cleanup(s, logger)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

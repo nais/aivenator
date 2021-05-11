@@ -27,3 +27,7 @@ func (s Handler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *c
 
 	return nil
 }
+
+func (s Handler) Cleanup(_ *corev1.Secret, _ *log.Entry) error {
+	return nil
+}

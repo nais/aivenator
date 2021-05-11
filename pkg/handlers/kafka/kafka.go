@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"fmt"
 	"github.com/aiven/aiven-go-client"
 	aivenator_aiven "github.com/nais/aivenator/pkg/aiven"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -75,6 +76,7 @@ func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secr
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
 		aivenator_aiven.ServiceUserAnnotation: aivenUser.Username,
+		aivenator_aiven.PoolAnnotation:        application.Spec.Kafka.Pool,
 	}))
 	logger.Infof("Created serviceName user %s", aivenUser.Username)
 
@@ -103,5 +105,23 @@ func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secr
 
 	controllerutil.AddFinalizer(secret, kafka_nais_io_v1.AivenFinalizer)
 
+	return nil
+}
+
+func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
+	annotations := secret.GetAnnotations()
+	if serviceUserName, okServiceUser := annotations[aivenator_aiven.ServiceUserAnnotation]; okServiceUser {
+		if projectName, okPool := annotations[aivenator_aiven.PoolAnnotation]; okPool {
+			serviceName := aivenator_aiven.DefaultKafkaService(projectName)
+			err := h.serviceuser.Delete(serviceUserName, projectName, serviceName)
+			if err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("missing pool annotation on secret %s in namespace %s, unable to delete service user %s",
+				secret.GetName(), secret.GetNamespace(), serviceUserName)
+		}
+
+	}
 	return nil
 }

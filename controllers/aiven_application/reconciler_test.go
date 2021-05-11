@@ -1,7 +1,8 @@
-package credentials
+package aiven_application
 
 import (
 	"context"
+	"github.com/nais/aivenator/pkg/credentials"
 	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -69,7 +70,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			r := AivenApplicationReconciler{
 				Client:  clientBuilder.Build(),
 				Logger:  log.New(),
-				Creator: Creator{},
+				Manager: credentials.Manager{},
 			}
 
 			hash, err := tt.application.Hash()

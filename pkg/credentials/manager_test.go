@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestCreator_Apply(t *testing.T) {
+func TestManager_Apply(t *testing.T) {
 	// given
 	mockHandler := mocks.Handler{}
 	expectedAnnotations := make(map[string]string)
@@ -25,12 +25,29 @@ func TestCreator_Apply(t *testing.T) {
 			}
 		})
 	application := kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
-	c := Creator{handlers: []Handler{&mockHandler}}
+	manager := Manager{handlers: []Handler{&mockHandler}}
 
 	// when
-	secret, err := c.CreateSecret(&application, nil)
+	secret, err := manager.CreateSecret(&application, nil)
 
 	// then
 	assert.NoError(t, err)
 	assert.Equal(t, secret.ObjectMeta.Annotations, expectedAnnotations)
+}
+
+func TestManager_Cleanup(t *testing.T) {
+	// given
+	mockHandler := mocks.Handler{}
+	mockHandler.
+		On("Cleanup", mock.AnythingOfType("*v1.Secret"), mock.Anything).
+		Return(nil)
+	secret := corev1.Secret{}
+	manager := Manager{handlers: []Handler{&mockHandler}}
+
+	// when
+	err := manager.Cleanup(&secret, nil)
+
+	// then
+	assert.NoError(t, err)
+	mockHandler.AssertCalled(t, "Cleanup", mock.AnythingOfType("*v1.Secret"), mock.Anything)
 }

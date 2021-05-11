@@ -1,8 +1,9 @@
-package credentials
+package aiven_application
 
 import (
 	"context"
 	"fmt"
+	"github.com/nais/aivenator/pkg/credentials"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
 	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
@@ -29,7 +30,7 @@ const (
 type AivenApplicationReconciler struct {
 	client.Client
 	Logger  *log.Logger
-	Creator Creator
+	Manager credentials.Manager
 }
 
 func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -98,7 +99,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	logger.Infof("Creating secret")
-	secret, err := r.Creator.CreateSecret(&application, logger)
+	secret, err := r.Manager.CreateSecret(&application, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
 		return fail(nil, true)
