@@ -44,6 +44,12 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	logger.Infof("Processing request")
 	defer func() {
 		logger.Infof("Finished processing request")
+		syncState := application.Status.SynchronizationState
+		if len(syncState) > 0 {
+			metrics.ApplicationsProcessed.With(prometheus.Labels{
+				metrics.LabelSyncState: syncState,
+			}).Inc()
+		}
 	}()
 
 	fail := func(err error, requeue bool) (ctrl.Result, error) {
@@ -77,6 +83,11 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		err := r.Status().Update(ctx, &application)
 		if err != nil {
 			logger.Errorf("Unable to update status of application: %s\nWanted to save status: %+v", err, application.Status)
+		} else {
+			metrics.KubernetesResourcesWritten.With(prometheus.Labels{
+				metrics.LabelResourceType: application.GroupVersionKind().String(),
+				metrics.LabelNamespace:    application.GetNamespace(),
+			}).Inc()
 		}
 	}()
 
@@ -173,8 +184,8 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 
 	if err == nil {
 		metrics.KubernetesResourcesWritten.With(prometheus.Labels{
-			metrics.LabelResourceType: "secret",
-			metrics.LabelNamespace:    key.Namespace,
+			metrics.LabelResourceType: secret.GroupVersionKind().String(),
+			metrics.LabelNamespace:    secret.GetNamespace(),
 		}).Inc()
 	}
 

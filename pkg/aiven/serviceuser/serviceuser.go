@@ -3,6 +3,7 @@ package serviceuser
 import (
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func NewManager(serviceUsers *aiven.ServiceUsersHandler) ServiceUserManager {
@@ -29,6 +30,7 @@ func (m *Manager) Delete(serviceUserName, projectName, serviceName string) error
 	if err != nil {
 		return err
 	}
+	metrics.ServiceUsersDeleted.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
 	return nil
 }
 
@@ -52,5 +54,7 @@ func (m *Manager) Create(serviceUserName, projectName, serviceName string) (*aiv
 	if err != nil {
 		return nil, err
 	}
+
+	metrics.ServiceUsersCreated.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
 	return aivenUser, nil
 }

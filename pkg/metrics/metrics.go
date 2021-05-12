@@ -20,16 +20,22 @@ const (
 )
 
 var (
-	TopicsProcessed = prometheus.NewCounterVec(prometheus.CounterOpts{
+	ApplicationsProcessed = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:      "aiven_applications_processed",
 		Namespace: Namespace,
 		Help:      "number of applications synchronized with aiven",
-	}, []string{LabelSyncState, LabelPool})
+	}, []string{LabelSyncState})
 
-	ServiceUsers = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name:      "service_users",
+	ServiceUsersCreated = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      "service_users_created",
 		Namespace: Namespace,
-		Help:      "number of service users",
+		Help:      "number of service users created",
+	}, []string{LabelPool})
+
+	ServiceUsersDeleted = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      "service_users_deleted",
+		Namespace: Namespace,
+		Help:      "number of service users deleted",
 	}, []string{LabelPool})
 
 	AivenLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -43,6 +49,12 @@ var (
 		Name:      "kubernetes_resources_written",
 		Namespace: Namespace,
 		Help:      "number of kubernetes resources written to the cluster",
+	}, []string{LabelNamespace, LabelResourceType})
+
+	KubernetesResourcesDeleted = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      "kubernetes_resources_deleted",
+		Namespace: Namespace,
+		Help:      "number of kubernetes resources deleted from the cluster",
 	}, []string{LabelNamespace, LabelResourceType})
 )
 
@@ -71,7 +83,9 @@ func Register(registry prometheus.Registerer) {
 	registry.MustRegister(
 		AivenLatency,
 		KubernetesResourcesWritten,
-		ServiceUsers,
-		TopicsProcessed,
+		KubernetesResourcesDeleted,
+		ServiceUsersCreated,
+		ServiceUsersDeleted,
+		ApplicationsProcessed,
 	)
 }

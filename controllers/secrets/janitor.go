@@ -3,7 +3,9 @@ package secrets
 import (
 	"context"
 	"github.com/nais/aivenator/pkg/handlers/secret"
+	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/liberator/pkg/kubernetes"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -60,6 +62,11 @@ func (j *Janitor) CleanUnusedSecrets() {
 		for _, oldSecret := range secretLists.Unused.Items {
 			if err := j.Delete(j.Ctx, &oldSecret); err != nil {
 				j.Logger.Errorf("failed to delete secret: %s", err)
+			} else {
+				metrics.KubernetesResourcesDeleted.With(prometheus.Labels{
+					metrics.LabelResourceType: oldSecret.GroupVersionKind().String(),
+					metrics.LabelNamespace:    oldSecret.GetNamespace(),
+				}).Inc()
 			}
 		}
 	}
