@@ -34,36 +34,35 @@ func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		"namespace":   req.Namespace,
 	})
 
-	fail := func(err error, requeue bool) (ctrl.Result, error) {
+	failRetry := func(err error) (ctrl.Result, error) {
 		if err != nil {
 			logger.Error(err)
 		}
 		cr := ctrl.Result{}
-		if requeue {
-			cr.RequeueAfter = requeueInterval
-		}
+		cr.RequeueAfter = requeueInterval
 		return cr, nil
 	}
 
 	err := s.Get(ctx, req.NamespacedName, &secret)
 	switch {
 	case errors.IsNotFound(err):
-		return fail(fmt.Errorf("resource deleted from cluster; noop"), false)
+		logger.Info("resource deleted from cluster; noop")
+		return ctrl.Result{}, nil
 	case err != nil:
-		return fail(fmt.Errorf("unable to retrieve resource from cluster: %s", err), true)
+		return failRetry(fmt.Errorf("unable to retrieve resource from cluster: %s", err))
 	}
 
 	logger.Info("Secret will be deleted, cleaning up external resources")
 	err = s.Manager.Cleanup(&secret, logger)
 	if err != nil {
-		return fail(fmt.Errorf("unable to clean up external resources: %s", err), true)
+		return failRetry(fmt.Errorf("unable to clean up external resources: %s", err))
 	}
 
 	controllerutil.RemoveFinalizer(&secret, kafka_nais_io_v1.AivenFinalizer)
 
 	err = s.Update(ctx, &secret)
 	if err != nil {
-		return fail(fmt.Errorf("failed to save updated secret: %s", err), true)
+		return failRetry(fmt.Errorf("failed to save updated secret: %s", err))
 	}
 
 	return ctrl.Result{}, nil
