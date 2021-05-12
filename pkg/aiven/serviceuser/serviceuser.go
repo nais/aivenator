@@ -21,12 +21,26 @@ type Manager struct {
 }
 
 func (m *Manager) Delete(serviceUserName, projectName, serviceName string) error {
-	panic("implement me")
+	err := metrics.ObserveAivenLatency("ServiceUser_Delete", projectName, func() error {
+		var err error
+		err = m.serviceUsers.Delete(projectName, serviceName, serviceUserName)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) Create(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error) {
 	req := aiven.CreateServiceUserRequest{
 		Username: serviceUserName,
+		// XXX: Needed because of https://github.com/aiven/aiven-go-client/issues/111
+		AccessControl: aiven.AccessControl{
+			RedisACLCategories: []string{},
+			RedisACLCommands:   []string{},
+			RedisACLKeys:       []string{},
+		},
 	}
 
 	var aivenUser *aiven.ServiceUser
