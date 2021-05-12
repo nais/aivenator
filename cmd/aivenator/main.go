@@ -155,26 +155,20 @@ func main() {
 }
 
 func startJanitor(ctx context.Context, janitorInterval time.Duration, c client.Client, logger *log.Logger) {
-	logEntry := log.NewEntry(logger).WithFields(log.Fields{
-		"component": "janitor",
-	})
+	janitor := secrets.Janitor{
+		Client: c,
+		Logger: logger.WithFields(log.Fields{"component": "Janitor"}),
+		Ctx:    ctx,
+	}
+	janitor.Start(janitorInterval)
 
-	ticker := time.NewTicker(janitorInterval)
-	defer ticker.Stop()
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				secrets.CleanUnusedSecrets(ctx, c, logEntry)
-			}
-		}
-	}()
+	logger.Info("Janitor started")
 }
 
 func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager) error {
 	credentialsManager := credentials.NewManager(aiven)
 	reconciler := aiven_application.AivenApplicationReconciler{
-		Logger:  logger,
+		Logger:  logger.WithFields(log.Fields{"component": "AivenApplicationReconciler"}),
 		Client:  mgr.GetClient(),
 		Manager: credentialsManager,
 	}
@@ -185,7 +179,7 @@ func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Mana
 	logger.Info("Aiven Application reconciler setup complete")
 
 	finalizer := secrets.SecretsFinalizer{
-		Logger:  logger,
+		Logger:  logger.WithFields(log.Fields{"component": "SecretsFinalizer"}),
 		Client:  mgr.GetClient(),
 		Manager: credentialsManager,
 	}

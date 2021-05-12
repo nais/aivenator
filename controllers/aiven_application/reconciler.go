@@ -29,16 +29,14 @@ const (
 
 type AivenApplicationReconciler struct {
 	client.Client
-	Logger  *log.Logger
+	Logger  *log.Entry
 	Manager credentials.Manager
 }
 
 func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var application kafka_nais_io_v1.AivenApplication
 
-	logger := log.NewEntry(r.Logger)
-
-	logger = logger.WithFields(log.Fields{
+	logger := r.Logger.WithFields(log.Fields{
 		"aiven_application": req.Name,
 		"namespace":         req.Namespace,
 	})

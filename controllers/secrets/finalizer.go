@@ -22,16 +22,14 @@ const (
 
 type SecretsFinalizer struct {
 	client.Client
-	Logger  *log.Logger
+	Logger  *log.Entry
 	Manager credentials.Manager
 }
 
 func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var secret v1.Secret
 
-	logger := log.NewEntry(s.Logger)
-
-	logger = logger.WithFields(log.Fields{
+	logger := s.Logger.WithFields(log.Fields{
 		"secret_name": req.Name,
 		"namespace":   req.Namespace,
 	})

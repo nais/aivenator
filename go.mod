@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/aiven/aiven-go-client v1.5.11
-	github.com/nais/liberator v0.0.0-20210511091603-1a09aa98d868
+	github.com/nais/liberator v0.0.0-20210512085400-f86de468c5af
 	github.com/prometheus/client_golang v1.7.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/pflag v1.0.5

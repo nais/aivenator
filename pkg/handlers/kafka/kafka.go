@@ -53,25 +53,27 @@ func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secr
 	}
 	serviceName := aivenator_aiven.DefaultKafkaService(application.Spec.Kafka.Pool)
 
+	logger = logger.WithFields(log.Fields{
+		"pool":    projectName,
+		"service": serviceName,
+	})
+
 	aivenService, err := h.service.Get(projectName, serviceName)
 	if err != nil {
-		utils.AivenFail("GetService", application, err, logger)
-		return err
+		return utils.AivenFail("GetService", application, err, logger)
 	}
 	kafkaBrokerAddress := service.GetKafkaBrokerAddress(aivenService)
 	kafkaSchemaRegistryAddress := service.GetSchemaRegistryAddress(aivenService)
 
 	ca, err := h.service.GetCA(projectName)
 	if err != nil {
-		utils.AivenFail("GetCA", application, err, logger)
-		return err
+		return utils.AivenFail("GetCA", application, err, logger)
 	}
 
 	serviceUserName := namegen.RandShortName(application.ServiceUserPrefix(), aivenator_aiven.MaxServiceUserNameLength)
 	aivenUser, err := h.serviceuser.Create(serviceUserName, projectName, serviceName)
 	if err != nil {
-		utils.AivenFail("CreateServiceUser", application, err, logger)
-		return err
+		return utils.AivenFail("CreateServiceUser", application, err, logger)
 	}
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
@@ -117,6 +119,10 @@ func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
 			if err != nil {
 				return err
 			}
+			logger.WithFields(log.Fields{
+				"pool":    projectName,
+				"service": serviceName,
+			}).Infof("Deleted service user %s", serviceUserName)
 		} else {
 			return fmt.Errorf("missing pool annotation on secret %s in namespace %s, unable to delete service user %s",
 				secret.GetName(), secret.GetNamespace(), serviceUserName)
