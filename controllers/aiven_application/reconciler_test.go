@@ -69,7 +69,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			}
 			r := AivenApplicationReconciler{
 				Client:  clientBuilder.Build(),
-				Logger:  log.New(),
+				Logger:  log.NewEntry(log.New()),
 				Manager: credentials.Manager{},
 			}
 
@@ -78,7 +78,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 				t.Errorf("Failed to generate hash: %s", err)
 				return
 			}
-			got, err := r.NeedsSynchronization(ctx, tt.application, hash, log.NewEntry(r.Logger))
+			got, err := r.NeedsSynchronization(ctx, tt.application, hash, r.Logger)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NeedsSynchronization() error = %v, wantErr %v", err, tt.wantErr)
 				return
