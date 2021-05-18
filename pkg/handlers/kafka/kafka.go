@@ -115,19 +115,23 @@ func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
 	if serviceUserName, okServiceUser := annotations[aivenator_aiven.ServiceUserAnnotation]; okServiceUser {
 		if projectName, okPool := annotations[aivenator_aiven.PoolAnnotation]; okPool {
 			serviceName := aivenator_aiven.DefaultKafkaService(projectName)
-			err := h.serviceuser.Delete(serviceUserName, projectName, serviceName)
-			if err != nil {
-				return err
-			}
-			logger.WithFields(log.Fields{
+			logger = logger.WithFields(log.Fields{
 				"pool":    projectName,
 				"service": serviceName,
-			}).Infof("Deleted service user %s", serviceUserName)
+			})
+			err := h.serviceuser.Delete(serviceUserName, projectName, serviceName)
+			if err != nil {
+				if aiven.IsNotFound(err) {
+					logger.Infof("Service user %s does not exist", serviceUserName)
+					return nil
+				}
+				return err
+			}
+			logger.Infof("Deleted service user %s", serviceUserName)
 		} else {
 			return fmt.Errorf("missing pool annotation on secret %s in namespace %s, unable to delete service user %s",
 				secret.GetName(), secret.GetNamespace(), serviceUserName)
 		}
-
 	}
 	return nil
 }

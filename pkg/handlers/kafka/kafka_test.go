@@ -113,6 +113,24 @@ func (suite *KafkaHandlerTestSuite) TestCleanupServiceUser() {
 	suite.mockServiceUsers.AssertCalled(suite.T(), "Delete", serviceUserName, pool, mock.Anything)
 }
 
+func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
+	secret := &v1.Secret{}
+	secret.SetAnnotations(map[string]string{
+		aivenator_aiven.ServiceUserAnnotation: serviceUserName,
+		aivenator_aiven.PoolAnnotation:        pool,
+	})
+	suite.mockServiceUsers.On("Delete", serviceUserName, pool, mock.Anything).
+		Return(aiven.Error{
+			Message: "Not Found",
+			Status:  404,
+		})
+
+	err := suite.kafkaHandler.Cleanup(secret, suite.logger)
+
+	suite.NoError(err)
+	suite.mockServiceUsers.AssertCalled(suite.T(), "Delete", serviceUserName, pool, mock.Anything)
+}
+
 func (suite *KafkaHandlerTestSuite) TestNoKafka() {
 	application := suite.applicationBuilder.Build()
 	secret := &v1.Secret{}
