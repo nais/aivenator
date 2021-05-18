@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"context"
+	"fmt"
 	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/liberator/pkg/kubernetes"
@@ -26,13 +27,16 @@ func (j *Janitor) Start(janitorInterval time.Duration) {
 		for {
 			select {
 			case <-ticker.C:
-				j.CleanUnusedSecrets()
+				err := j.CleanUnusedSecrets()
+				if err != nil {
+					j.Logger.Error(err)
+				}
 			}
 		}
 	}()
 }
 
-func (j *Janitor) CleanUnusedSecrets() {
+func (j *Janitor) CleanUnusedSecrets() error {
 	var secrets corev1.SecretList
 	var mLabels = client.MatchingLabels{
 		secret.SecretTypeLabel: secret.AivenatorSecretType,
@@ -42,16 +46,16 @@ func (j *Janitor) CleanUnusedSecrets() {
 		switch {
 		case errors.IsNotFound(err):
 			j.Logger.Info("found no secrets managed by Aivenator")
+			return nil
 		case err != nil:
-			j.Logger.Errorf("failed to retrieve list of secrets: %s", err)
+			return fmt.Errorf("failed to retrieve list of secrets: %s", err)
 		}
-		return
 	}
 
 	podList := corev1.PodList{}
 	err := j.List(j.Ctx, &podList)
 	if err != nil {
-		j.Logger.Errorf("failed to retrieve list of pods: %s", err)
+		return fmt.Errorf("failed to retrieve list of pods: %s", err)
 	}
 
 	secretLists := kubernetes.ListUsedAndUnusedSecretsForPods(secrets, podList)
@@ -61,7 +65,7 @@ func (j *Janitor) CleanUnusedSecrets() {
 
 		for _, oldSecret := range secretLists.Unused.Items {
 			if err := j.Delete(j.Ctx, &oldSecret); err != nil {
-				j.Logger.Errorf("failed to delete secret: %s", err)
+				return fmt.Errorf("failed to delete secret: %s", err)
 			} else {
 				metrics.KubernetesResourcesDeleted.With(prometheus.Labels{
 					metrics.LabelResourceType: oldSecret.GroupVersionKind().String(),
@@ -70,4 +74,5 @@ func (j *Janitor) CleanUnusedSecrets() {
 			}
 		}
 	}
+	return nil
 }
