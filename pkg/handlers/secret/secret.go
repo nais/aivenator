@@ -6,12 +6,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strconv"
 )
 
 const (
-	TeamLabel           = "team"
-	SecretTypeLabel     = "type"
-	AivenatorSecretType = "aivenator.kafka.nais.io"
+	TeamLabel                    = "team"
+	SecretTypeLabel              = "type"
+	AivenatorSecretType          = "aivenator.kafka.nais.io"
+	AivenatorProtectedAnnotation = "aivenator.kafka.nais.io/protected"
 )
 
 type Handler struct {
@@ -27,6 +29,7 @@ func (s Handler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *c
 		},
 		Annotations: map[string]string{
 			nais_io_v1alpha1.DeploymentCorrelationIDAnnotation: application.GetAnnotations()[nais_io_v1alpha1.DeploymentCorrelationIDAnnotation],
+			AivenatorProtectedAnnotation:                       strconv.FormatBool(application.Spec.Protected),
 		},
 	}
 

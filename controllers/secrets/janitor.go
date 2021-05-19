@@ -62,13 +62,15 @@ func (j *Janitor) CleanUnusedSecrets() error {
 		j.Logger.Infof("Found %d unused secrets managed by Aivenator", found)
 
 		for _, oldSecret := range secretLists.Unused.Items {
-			if err := j.Delete(j.Ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to delete secret: %s", err)
-			} else {
-				metrics.KubernetesResourcesDeleted.With(prometheus.Labels{
-					metrics.LabelResourceType: oldSecret.GroupVersionKind().String(),
-					metrics.LabelNamespace:    oldSecret.GetNamespace(),
-				}).Inc()
+			if protected, ok := oldSecret.GetAnnotations()[secret.AivenatorProtectedAnnotation]; !ok || protected != "true" {
+				if err := j.Delete(j.Ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
+					return fmt.Errorf("failed to delete secret: %s", err)
+				} else {
+					metrics.KubernetesResourcesDeleted.With(prometheus.Labels{
+						metrics.LabelResourceType: oldSecret.GroupVersionKind().String(),
+						metrics.LabelNamespace:    oldSecret.GetNamespace(),
+					}).Inc()
+				}
 			}
 		}
 	}

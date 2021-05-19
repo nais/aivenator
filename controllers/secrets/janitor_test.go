@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"strconv"
 	"testing"
 )
 
@@ -20,8 +21,8 @@ const (
 	Secret1Name = "secret1"
 	Secret2Name = "secret2"
 	Secret3Name = "secret3"
-
-	Pod1Name = "pod1"
+	Secret4Name = "secret4"
+	Secret5Name = "secret5"
 
 	Namespace = "namespace"
 )
@@ -61,30 +62,37 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 		makeSecret(Secret1Name, secret.AivenatorSecretType),
 		makeSecret(Secret2Name, "other.nais.io"),
 		makeSecret(Secret3Name, secret.AivenatorSecretType),
+		makeSecret(Secret4Name, secret.AivenatorSecretType, SecretIsProtected),
+		makeSecret(Secret5Name, secret.AivenatorSecretType, SecretHasNoAnnotations),
 		makePodForSecret(Secret3Name),
 	)
+
+	expected := []struct {
+		name   string
+		wanted bool
+		reason string
+	}{
+		{Secret1Name, false, "Unused secret should be deleted"},
+		{Secret2Name, true, "Unrelated secret should be kept"},
+		{Secret3Name, true, "Used secret should be kept"},
+		{Secret4Name, true, "Protected secret should be kept"},
+		{Secret5Name, false, "Unused secret should be deleted, even if annotations are nil"},
+	}
 
 	janitor := suite.buildJanitor(suite.clientBuilder.Build())
 	err := janitor.CleanUnusedSecrets()
 
 	suite.NoError(err)
 
-	expected := []struct {
-		name   string
-		wanted bool
-	}{
-		{Secret1Name, false},
-		{Secret2Name, true},
-		{Secret3Name, true},
-	}
-
 	for _, tt := range expected {
-		actual := &corev1.Secret{}
-		err = janitor.Client.Get(context.Background(), client.ObjectKey{
-			Namespace: Namespace,
-			Name:      tt.name,
-		}, actual)
-		suite.NotEqualf(tt.wanted, errors.IsNotFound(err), "Expected IsNotFound to return %v", !tt.wanted)
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err = janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: Namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
 	}
 }
 
@@ -221,8 +229,27 @@ func makePodForSecret(secretName string) *corev1.Pod {
 	}
 }
 
-func makeSecret(name, secretType string) *corev1.Secret {
-	return &corev1.Secret{
+type makeSecretOpts struct {
+	protected        bool
+	hasNoAnnotations bool
+}
+
+type MakeSecretOption func(opts *makeSecretOpts)
+
+func SecretHasNoAnnotations(opts *makeSecretOpts) {
+	opts.hasNoAnnotations = true
+}
+
+func SecretIsProtected(opts *makeSecretOpts) {
+	opts.protected = true
+}
+
+func makeSecret(name, secretType string, optFuncs ...MakeSecretOption) *corev1.Secret {
+	opts := &makeSecretOpts{}
+	for _, optFunc := range optFuncs {
+		optFunc(opts)
+	}
+	s := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: Namespace,
@@ -231,6 +258,12 @@ func makeSecret(name, secretType string) *corev1.Secret {
 			},
 		},
 	}
+	if !opts.hasNoAnnotations || opts.protected {
+		s.SetAnnotations(map[string]string{
+			secret.AivenatorProtectedAnnotation: strconv.FormatBool(opts.protected),
+		})
+	}
+	return s
 }
 
 func TestJanitor(t *testing.T) {
