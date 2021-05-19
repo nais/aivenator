@@ -6,6 +6,7 @@ test:
 
 mocks:
 	cd pkg && mockery --all --case snake
+	cd controllers && mockery --all --case snake
 
 integration_test:
 	echo "*** Make sure to set the environment AIVEN_TOKEN to a valid token ***"

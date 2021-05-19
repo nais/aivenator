@@ -15,9 +15,15 @@ import (
 )
 
 type Janitor struct {
-	client.Client
+	Client
 	Logger *log.Entry
 	Ctx    context.Context
+}
+
+type Client interface {
+	List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error
+	Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error
+	Get(ctx context.Context, key client.ObjectKey, obj client.Object) error
 }
 
 func (j *Janitor) Start(janitorInterval time.Duration) {
@@ -43,28 +49,20 @@ func (j *Janitor) CleanUnusedSecrets() error {
 	}
 
 	if err := j.List(j.Ctx, &secrets, mLabels); err != nil {
-		switch {
-		case errors.IsNotFound(err):
-			j.Logger.Info("found no secrets managed by Aivenator")
-			return nil
-		case err != nil:
-			return fmt.Errorf("failed to retrieve list of secrets: %s", err)
-		}
+		return fmt.Errorf("failed to retrieve list of secrets: %s", err)
 	}
 
 	podList := corev1.PodList{}
-	err := j.List(j.Ctx, &podList)
-	if err != nil {
+	if err := j.List(j.Ctx, &podList); err != nil {
 		return fmt.Errorf("failed to retrieve list of pods: %s", err)
 	}
 
 	secretLists := kubernetes.ListUsedAndUnusedSecretsForPods(secrets, podList)
-	found := len(secretLists.Unused.Items)
-	if found > 0 {
+	if found := len(secretLists.Unused.Items); found > 0 {
 		j.Logger.Infof("Found %d unused secrets managed by Aivenator", found)
 
 		for _, oldSecret := range secretLists.Unused.Items {
-			if err := j.Delete(j.Ctx, &oldSecret); err != nil {
+			if err := j.Delete(j.Ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to delete secret: %s", err)
 			} else {
 				metrics.KubernetesResourcesDeleted.With(prometheus.Labels{
