@@ -33,46 +33,57 @@ func (j *Janitor) Start(janitorInterval time.Duration) {
 		for {
 			select {
 			case <-ticker.C:
-				err := j.CleanUnusedSecrets()
-				if err != nil {
-					j.Logger.Error(err)
+				errs := j.CleanUnusedSecrets()
+				if len(errs) > 0 {
+					for _, err := range errs {
+						j.Logger.Error(err)
+					}
 				}
 			}
 		}
 	}()
 }
 
-func (j *Janitor) CleanUnusedSecrets() error {
+func (j *Janitor) CleanUnusedSecrets() []error {
 	var secrets corev1.SecretList
 	var mLabels = client.MatchingLabels{
 		secret.SecretTypeLabel: secret.AivenatorSecretType,
 	}
 
 	if err := j.List(j.Ctx, &secrets, mLabels); err != nil {
-		return fmt.Errorf("failed to retrieve list of secrets: %s", err)
+		return []error{fmt.Errorf("failed to retrieve list of secrets: %s", err)}
 	}
 
 	podList := corev1.PodList{}
 	if err := j.List(j.Ctx, &podList); err != nil {
-		return fmt.Errorf("failed to retrieve list of pods: %s", err)
+		return []error{fmt.Errorf("failed to retrieve list of pods: %s", err)}
 	}
 
+	errs := make([]error, 0)
 	secretLists := kubernetes.ListUsedAndUnusedSecretsForPods(secrets, podList)
 	if found := len(secretLists.Unused.Items); found > 0 {
-		j.Logger.Infof("Found %d unused secrets managed by Aivenator", found)
+		j.Logger.Debugf("Found %d unused secrets managed by Aivenator", found)
 
 		for _, oldSecret := range secretLists.Unused.Items {
+			logger := j.Logger.WithFields(log.Fields{
+				"secret_name": oldSecret.GetName(),
+				"namespace":   oldSecret.GetNamespace(),
+			})
 			if protected, ok := oldSecret.GetAnnotations()[secret.AivenatorProtectedAnnotation]; !ok || protected != "true" {
+				logger.Debugf("Deleting secret")
 				if err := j.Delete(j.Ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
-					return fmt.Errorf("failed to delete secret: %s", err)
+					err = fmt.Errorf("failed to delete secret %s in namespace %s: %s", oldSecret.GetName(), oldSecret.GetNamespace(), err)
+					errs = append(errs, err)
 				} else {
 					metrics.KubernetesResourcesDeleted.With(prometheus.Labels{
 						metrics.LabelResourceType: oldSecret.GroupVersionKind().String(),
 						metrics.LabelNamespace:    oldSecret.GetNamespace(),
 					}).Inc()
 				}
+			} else {
+				logger.Debugf("Secret is protected, leaving alone")
 			}
 		}
 	}
-	return nil
+	return errs
 }

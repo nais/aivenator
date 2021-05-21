@@ -52,9 +52,9 @@ func (suite *JanitorTestSuite) buildJanitor(client Client) *Janitor {
 
 func (suite *JanitorTestSuite) TestNoSecretsFound() {
 	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	err := janitor.CleanUnusedSecrets()
+	errs := janitor.CleanUnusedSecrets()
 
-	suite.NoError(err)
+	suite.Empty(errs)
 }
 
 func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
@@ -80,14 +80,14 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 	}
 
 	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	err := janitor.CleanUnusedSecrets()
+	errs := janitor.CleanUnusedSecrets()
 
-	suite.NoError(err)
+	suite.Empty(errs)
 
 	for _, tt := range expected {
 		suite.Run(tt.reason, func() {
 			actual := &corev1.Secret{}
-			err = janitor.Client.Get(context.Background(), client.ObjectKey{
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
 				Namespace: Namespace,
 				Name:      tt.name,
 			}, actual)
@@ -106,7 +106,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 	tests := []struct {
 		name         string
 		interactions []interaction
-		expected     error
+		expected     []error
 	}{
 		{
 			name: "TestErrorGettingSecrets",
@@ -118,7 +118,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 					nil,
 				},
 			},
-			expected: fmt.Errorf("failed to retrieve list of secrets: api error"),
+			expected: []error{fmt.Errorf("failed to retrieve list of secrets: api error")},
 		},
 		{
 			name: "TestErrorGettingPods",
@@ -136,7 +136,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 					nil,
 				},
 			},
-			expected: fmt.Errorf("failed to retrieve list of pods: api error"),
+			expected: []error{fmt.Errorf("failed to retrieve list of pods: api error")},
 		},
 		{
 			name: "TestErrorDeletingSecret",
@@ -164,7 +164,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 					nil,
 				},
 			},
-			expected: fmt.Errorf("failed to delete secret: api error"),
+			expected: []error{fmt.Errorf("failed to delete secret secret1 in namespace namespace: api error")},
 		},
 		{
 			name: "TestSecretNotFoundWhenDeleting",
@@ -192,7 +192,48 @@ func (suite *JanitorTestSuite) TestErrors() {
 					nil,
 				},
 			},
-			expected: nil,
+			expected: []error{},
+		},
+		{
+			name: "TestContinueAfterErrorDeletingSecret",
+			interactions: []interaction{
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]interface{}{nil},
+					func(arguments mock.Arguments) {
+						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
+							secretList.Items = []corev1.Secret{
+								*makeSecret(Secret1Name, secret.AivenatorSecretType),
+								*makeSecret(Secret2Name, secret.AivenatorSecretType),
+							}
+						}
+					},
+				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.PodList")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
+					"Delete",
+					[]interface{}{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
+						return s.GetName() == Secret1Name
+					})},
+					[]interface{}{fmt.Errorf("api error")},
+					nil,
+				},
+				{
+					"Delete",
+					[]interface{}{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
+						return s.GetName() == Secret2Name
+					})},
+					[]interface{}{nil},
+					nil,
+				},
+			},
+			expected: []error{fmt.Errorf("failed to delete secret secret1 in namespace namespace: api error")},
 		},
 	}
 
@@ -206,9 +247,10 @@ func (suite *JanitorTestSuite) TestErrors() {
 				}
 			}
 			janitor := suite.buildJanitor(mockClient)
-			err := janitor.CleanUnusedSecrets()
+			errs := janitor.CleanUnusedSecrets()
 
-			suite.Equal(tt.expected, err)
+			suite.Equal(tt.expected, errs)
+			mockClient.AssertExpectations(suite.T())
 		})
 	}
 }
