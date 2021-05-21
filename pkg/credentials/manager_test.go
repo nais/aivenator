@@ -2,7 +2,7 @@ package credentials
 
 import (
 	"github.com/nais/aivenator/pkg/mocks"
-	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
@@ -15,7 +15,7 @@ func TestManager_Apply(t *testing.T) {
 	expectedAnnotations := make(map[string]string)
 	expectedAnnotations["one"] = "1"
 	mockHandler.
-		On("Apply", mock.AnythingOfType("*kafka_nais_io_v1.AivenApplication"), mock.AnythingOfType("*v1.Secret"), mock.Anything).
+		On("Apply", mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"), mock.AnythingOfType("*v1.Secret"), mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
 			secret := args.Get(1).(*corev1.Secret)
@@ -24,7 +24,7 @@ func TestManager_Apply(t *testing.T) {
 				secret.ObjectMeta.Annotations[key] = value
 			}
 		})
-	application := kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
 	manager := Manager{handlers: []Handler{&mockHandler}}
 
 	// when

@@ -6,7 +6,7 @@ import (
 	"github.com/nais/aivenator/pkg/credentials"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
-	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -34,7 +34,7 @@ type AivenApplicationReconciler struct {
 }
 
 func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var application kafka_nais_io_v1.AivenApplication
+	var application aiven_nais_io_v1.AivenApplication
 
 	logger := r.Logger.WithFields(log.Fields{
 		"aiven_application": req.Name,
@@ -126,28 +126,28 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	return ctrl.Result{}, nil
 }
 
-func success(application *kafka_nais_io_v1.AivenApplication, hash string) {
+func success(application *aiven_nais_io_v1.AivenApplication, hash string) {
 	s := &application.Status
 	s.SynchronizationHash = hash
 	s.SynchronizationState = rolloutComplete
 	s.SynchronizedGeneration = application.GetGeneration()
-	s.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
-		Type:   kafka_nais_io_v1.AivenApplicationSucceeded,
+	s.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
+		Type:   aiven_nais_io_v1.AivenApplicationSucceeded,
 		Status: corev1.ConditionTrue,
 	})
-	s.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
-		Type:   kafka_nais_io_v1.AivenApplicationAivenFailure,
+	s.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
+		Type:   aiven_nais_io_v1.AivenApplicationAivenFailure,
 		Status: corev1.ConditionFalse,
 	})
-	s.AddCondition(kafka_nais_io_v1.AivenApplicationCondition{
-		Type:   kafka_nais_io_v1.AivenApplicationLocalFailure,
+	s.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
+		Type:   aiven_nais_io_v1.AivenApplicationLocalFailure,
 		Status: corev1.ConditionFalse,
 	})
 }
 
 func (r *AivenApplicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kafka_nais_io_v1.AivenApplication{}).
+		For(&aiven_nais_io_v1.AivenApplication{}).
 		WithEventFilter(predicate.Funcs{
 			DeleteFunc: func(event event.DeleteEvent) bool {
 				return false // The secrets will get deleted because of OwnerReference, and no other cleanup is needed
@@ -192,7 +192,7 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 	return err
 }
 
-func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, application kafka_nais_io_v1.AivenApplication, hash string, logger *log.Entry) (bool, error) {
+func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, application aiven_nais_io_v1.AivenApplication, hash string, logger *log.Entry) (bool, error) {
 	if application.Status.SynchronizationHash != hash {
 		logger.Infof("Hash changed; needs synchronization")
 		return true, nil

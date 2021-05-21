@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/nais/aivenator/pkg/credentials"
-	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -58,7 +58,7 @@ func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return failRetry(fmt.Errorf("unable to clean up external resources: %s", err))
 	}
 
-	controllerutil.RemoveFinalizer(&secret, kafka_nais_io_v1.AivenFinalizer)
+	controllerutil.RemoveFinalizer(&secret, aiven_nais_io_v1.AivenFinalizer)
 
 	err = s.Update(ctx, &secret)
 	if err != nil {
@@ -79,7 +79,7 @@ func (s *SecretsFinalizer) SetupWithManager(mgr ctrl.Manager) error {
 				return false // We've done our cleanup before the Delete event happens
 			},
 			UpdateFunc: func(updateEvent event.UpdateEvent) bool {
-				return controllerutil.ContainsFinalizer(updateEvent.ObjectNew, kafka_nais_io_v1.AivenFinalizer) &&
+				return controllerutil.ContainsFinalizer(updateEvent.ObjectNew, aiven_nais_io_v1.AivenFinalizer) &&
 					!updateEvent.ObjectNew.GetDeletionTimestamp().IsZero()
 			},
 			GenericFunc: func(genericEvent event.GenericEvent) bool {

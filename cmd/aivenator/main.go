@@ -15,7 +15,7 @@ import (
 	"time"
 
 	aivenatormetrics "github.com/nais/aivenator/pkg/metrics"
-	"github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	"github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -198,7 +198,7 @@ func init() {
 		panic(err)
 	}
 
-	err = kafka_nais_io_v1.AddToScheme(scheme)
+	err = aiven_nais_io_v1.AddToScheme(scheme)
 	if err != nil {
 		panic(err)
 	}

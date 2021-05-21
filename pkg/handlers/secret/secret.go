@@ -1,7 +1,7 @@
 package secret
 
 import (
-	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1alpha1 "github.com/nais/liberator/pkg/apis/nais.io/v1alpha1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -12,14 +12,14 @@ import (
 const (
 	TeamLabel                    = "team"
 	SecretTypeLabel              = "type"
-	AivenatorSecretType          = "aivenator.kafka.nais.io"
-	AivenatorProtectedAnnotation = "aivenator.kafka.nais.io/protected"
+	AivenatorSecretType          = "aivenator.aiven.nais.io"
+	AivenatorProtectedAnnotation = "aivenator.aiven.nais.io/protected"
 )
 
 type Handler struct {
 }
 
-func (s Handler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *corev1.Secret, _ *log.Entry) error {
+func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, _ *log.Entry) error {
 	secret.ObjectMeta = metav1.ObjectMeta{
 		Name:      application.Spec.SecretName,
 		Namespace: application.GetNamespace(),

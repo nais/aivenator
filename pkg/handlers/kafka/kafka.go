@@ -8,7 +8,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/utils"
-	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/nais/liberator/pkg/namegen"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
@@ -44,7 +44,7 @@ type KafkaHandler struct {
 	generator   certificate.Generator
 }
 
-func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {
+func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {
 	logger = logger.WithFields(log.Fields{"handler": "kafka"})
 	projectName := application.Spec.Kafka.Pool
 	if projectName == "" {
@@ -105,7 +105,7 @@ func (h KafkaHandler) Apply(application *kafka_nais_io_v1.AivenApplication, secr
 		KafkaTruststore: credStore.Truststore,
 	})
 
-	controllerutil.AddFinalizer(secret, kafka_nais_io_v1.AivenFinalizer)
+	controllerutil.AddFinalizer(secret, aiven_nais_io_v1.AivenFinalizer)
 
 	return nil
 }

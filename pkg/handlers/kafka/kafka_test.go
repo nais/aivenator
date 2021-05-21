@@ -7,7 +7,7 @@ import (
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/mocks"
 	"github.com/nais/aivenator/pkg/utils"
-	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -47,7 +47,7 @@ type KafkaHandlerTestSuite struct {
 	mockServices       *mocks.ServiceManager
 	mockGenerator      *mocks.Generator
 	kafkaHandler       KafkaHandler
-	applicationBuilder kafka_nais_io_v1.AivenApplicationBuilder
+	applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 }
 
 func (suite *KafkaHandlerTestSuite) SetupSuite() {
@@ -88,7 +88,7 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 		service:     suite.mockServices,
 		generator:   suite.mockGenerator,
 	}
-	suite.applicationBuilder = kafka_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
+	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
 }
 
 func (suite *KafkaHandlerTestSuite) TestCleanupNoKafka() {
@@ -143,8 +143,8 @@ func (suite *KafkaHandlerTestSuite) TestNoKafka() {
 func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 	suite.addDefaultMocks(enabled(ServicesGet, ServicesGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	application := suite.applicationBuilder.
-		WithSpec(kafka_nais_io_v1.AivenApplicationSpec{
-			Kafka: kafka_nais_io_v1.KafkaSpec{
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
 			},
 		}).
@@ -159,7 +159,7 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 				aivenator_aiven.ServiceUserAnnotation: serviceUserName,
 				aivenator_aiven.PoolAnnotation:        pool,
 			},
-			Finalizers: []string{kafka_nais_io_v1.AivenFinalizer},
+			Finalizers: []string{aiven_nais_io_v1.AivenFinalizer},
 		},
 		// Check these individually
 		Data:       secret.Data,
@@ -176,8 +176,8 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 
 func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 	application := suite.applicationBuilder.
-		WithSpec(kafka_nais_io_v1.AivenApplicationSpec{
-			Kafka: kafka_nais_io_v1.KafkaSpec{
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
 			},
 		}).
@@ -194,13 +194,13 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.Error(err)
-	suite.NotNil(application.Status.GetConditionOfType(kafka_nais_io_v1.AivenApplicationAivenFailure))
+	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
 }
 
 func (suite *KafkaHandlerTestSuite) TestServiceGetCAFailed() {
 	application := suite.applicationBuilder.
-		WithSpec(kafka_nais_io_v1.AivenApplicationSpec{
-			Kafka: kafka_nais_io_v1.KafkaSpec{
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
 			},
 		}).
@@ -217,13 +217,13 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetCAFailed() {
 	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.Error(err)
-	suite.NotNil(application.Status.GetConditionOfType(kafka_nais_io_v1.AivenApplicationAivenFailure))
+	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
 }
 
 func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 	application := suite.applicationBuilder.
-		WithSpec(kafka_nais_io_v1.AivenApplicationSpec{
-			Kafka: kafka_nais_io_v1.KafkaSpec{
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
 			},
 		}).
@@ -240,13 +240,13 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.Error(err)
-	suite.NotNil(application.Status.GetConditionOfType(kafka_nais_io_v1.AivenApplicationAivenFailure))
+	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
 }
 
 func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 	application := suite.applicationBuilder.
-		WithSpec(kafka_nais_io_v1.AivenApplicationSpec{
-			Kafka: kafka_nais_io_v1.KafkaSpec{
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
 			},
 		}).
@@ -259,7 +259,7 @@ func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.Error(err)
-	suite.NotNil(application.Status.GetConditionOfType(kafka_nais_io_v1.AivenApplicationLocalFailure))
+	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationLocalFailure))
 }
 
 func TestKafkaHandler(t *testing.T) {

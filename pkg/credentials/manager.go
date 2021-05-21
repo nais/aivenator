@@ -4,13 +4,13 @@ import (
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/handlers/kafka"
 	"github.com/nais/aivenator/pkg/handlers/secret"
-	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 )
 
 type Handler interface {
-	Apply(application *kafka_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error
+	Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error
 	Cleanup(secret *v1.Secret, logger *log.Entry) error
 }
 
@@ -27,7 +27,7 @@ func NewManager(aiven *aiven.Client) Manager {
 	}
 }
 
-func (c Manager) CreateSecret(application *kafka_nais_io_v1.AivenApplication, logger *log.Entry) (*v1.Secret, error) {
+func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, logger *log.Entry) (*v1.Secret, error) {
 	s := &v1.Secret{}
 	for _, handler := range c.handlers {
 		err := handler.Apply(application, s, logger)

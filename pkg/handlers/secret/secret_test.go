@@ -1,7 +1,7 @@
 package secret
 
 import (
-	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1alpha1 "github.com/nais/liberator/pkg/apis/nais.io/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -10,7 +10,7 @@ import (
 
 func TestHandler_Apply(t *testing.T) {
 	type args struct {
-		application kafka_nais_io_v1.AivenApplication
+		application aiven_nais_io_v1.AivenApplication
 		secret      corev1.Secret
 		assert      func(*testing.T, args)
 	}
@@ -21,7 +21,7 @@ func TestHandler_Apply(t *testing.T) {
 		{
 			name: "BaseApplication",
 			args: args{
-				application: kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
 					Build(),
 				secret: corev1.Secret{},
 				assert: func(t *testing.T, a args) {
@@ -35,8 +35,8 @@ func TestHandler_Apply(t *testing.T) {
 		{
 			name: "ApplicationWithSecretAndCorrelationId",
 			args: args{
-				application: kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-					WithSpec(kafka_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret"}).
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret"}).
 					WithAnnotation(nais_io_v1alpha1.DeploymentCorrelationIDAnnotation, "correlation-id").
 					Build(),
 				secret: corev1.Secret{},
@@ -49,7 +49,7 @@ func TestHandler_Apply(t *testing.T) {
 		{
 			name: "OwnerReference",
 			args: args{
-				application: kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
 					Build(),
 				secret: corev1.Secret{},
 				assert: func(t *testing.T, a args) {
@@ -62,8 +62,8 @@ func TestHandler_Apply(t *testing.T) {
 		{
 			name: "ProtectedSecret",
 			args: args{
-				application: kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-					WithSpec(kafka_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret", Protected: true}).
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret", Protected: true}).
 					Build(),
 				secret: corev1.Secret{},
 				assert: func(t *testing.T, a args) {

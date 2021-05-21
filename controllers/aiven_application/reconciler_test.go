@@ -3,7 +3,7 @@ package aiven_application
 import (
 	"context"
 	"github.com/nais/aivenator/pkg/credentials"
-	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,41 +14,41 @@ import (
 func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 	tests := []struct {
 		name        string
-		application kafka_nais_io_v1.AivenApplication
+		application aiven_nais_io_v1.AivenApplication
 		hasSecret   bool
 		want        bool
 		wantErr     bool
 	}{
 		{
 			name:        "EmptyApplication",
-			application: kafka_nais_io_v1.AivenApplication{},
+			application: aiven_nais_io_v1.AivenApplication{},
 			want:        true,
 		},
 		{
 			name:        "BaseApplication",
-			application: kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build(),
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build(),
 			want:        true,
 		},
 		{
 			name: "ChangedApplication",
-			application: kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithStatus(kafka_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "123"}).
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "123"}).
 				Build(),
 			want: true,
 		},
 		{
 			name: "UnchangedApplication",
-			application: kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithSpec(kafka_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
-				WithStatus(kafka_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "7884e7801510de37"}).
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "7884e7801510de37"}).
 				Build(),
 			hasSecret: true,
 		},
 		{
 			name: "UnchangedApplicationButSecretMissing",
-			application: kafka_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithSpec(kafka_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
-				WithStatus(kafka_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "7884e7801510de37"}).
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "7884e7801510de37"}).
 				Build(),
 			want: true,
 		},
