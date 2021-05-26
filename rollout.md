@@ -14,4 +14,5 @@ Plan for utrulling
 4. Aivenator: Deploy til alle clustere
 5. Naiserator: https://trello.com/c/pm2dj7IH/89-opprett-aivenapplication-ressurser-ved-deploy-av-applikasjon
 6. Vent til alle applikasjoner som bruker Aiven Kafka har blitt deployet
-7. Slett alle secrets med "aiven-migration: true" label
+7. Fjern secret håndtering fra Kafkarator
+8. Slett alle secrets med "aiven-migration: true" label
