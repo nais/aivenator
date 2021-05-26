@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	AppLabel                     = "app"
 	TeamLabel                    = "team"
 	SecretTypeLabel              = "type"
 	AivenatorSecretType          = "aivenator.aiven.nais.io"
@@ -24,6 +25,7 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *c
 		Name:      application.Spec.SecretName,
 		Namespace: application.GetNamespace(),
 		Labels: map[string]string{
+			AppLabel:        application.GetName(),
 			TeamLabel:       application.GetNamespace(),
 			SecretTypeLabel: AivenatorSecretType,
 		},

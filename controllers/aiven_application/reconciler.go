@@ -14,7 +14,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"time"
 )
@@ -27,10 +27,20 @@ const (
 	rolloutFailed   = "RolloutFailed"
 )
 
+func NewReconciler(mgr manager.Manager, logger *log.Logger, credentialsManager credentials.Manager, credentialsJanitor credentials.Janitor) AivenApplicationReconciler {
+	return AivenApplicationReconciler{
+		Client:  mgr.GetClient(),
+		Logger:  logger.WithFields(log.Fields{"component": "AivenApplicationReconciler"}),
+		Manager: credentialsManager,
+		Janitor: credentialsJanitor,
+	}
+}
+
 type AivenApplicationReconciler struct {
 	client.Client
 	Logger  *log.Entry
 	Manager credentials.Manager
+	Janitor credentials.Janitor
 }
 
 func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -123,6 +133,13 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	success(&application, hash)
 
+	errs := r.Janitor.CleanUnusedSecrets(ctx, application.GetName(), application.GetNamespace())
+	if len(errs) > 0 {
+		for _, err := range errs {
+			logger.Error(err)
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -148,14 +165,11 @@ func success(application *aiven_nais_io_v1.AivenApplication, hash string) {
 func (r *AivenApplicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&aiven_nais_io_v1.AivenApplication{}).
-		WithEventFilter(predicate.Funcs{
-			DeleteFunc: func(event event.DeleteEvent) bool {
-				return false // The secrets will get deleted because of OwnerReference, and no other cleanup is needed
-			},
-			UpdateFunc: func(updateEvent event.UpdateEvent) bool {
-				return updateEvent.ObjectNew.GetGeneration() > updateEvent.ObjectOld.GetGeneration()
-			},
-		}).
+		WithEventFilter(predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			predicate.AnnotationChangedPredicate{},
+			predicate.LabelChangedPredicate{},
+		)).
 		Complete(r)
 }
 

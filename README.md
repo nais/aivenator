@@ -6,13 +6,15 @@ Provision credentials for Aiven services in the NAIS plattform.
 Architecture overview
 ---------------------
 
-Aivenator has three main components:
+Aivenator has two main components:
 
 ### AivenApplication Synchronizer
 
 This component watches AivenApplication objects, and provisions requested credentials and places them in the requested Secret.
 It will provision credentials for the requested Aiven services into one secret.
 It is the responsibility of the deployment system to mount the secret in the application.
+
+At the end of a reconciliation, it will look for existing secrets that are not in use, and delete them.
 
 Mode of operation: Reconciliation
 
@@ -22,13 +24,6 @@ When a secret managed by Aivenator is deleted, Kubernetes will first require fin
 This component is a finalizer, which makes sure to delete related service users from Aiven.
 
 Mode of operation: Reconciliation
-
-### Secret janitor
-
-This component runs at a scheduled interval, looking for secrets managed by Aivenator, which is not in use.
-It will then delete these secrets (which triggers the Secret Finalizer).
-
-Mode of operation: Go routine with ticker
 
 Adding support for new Aiven services
 -------------------------------------
@@ -44,7 +39,7 @@ It should use information in the AivenApplication to make changes to the Secret.
 It is important that it should not overwrite or delete information already present in the secret.
 
 On Cleanup the handler is given a Secret (and a logger).
-It should use information in the Secret to make neecessary cleanup.
+It should use information in the Secret to make necessary cleanup.
 This means it is important that any information needed is added as annotations or labels in the Apply method.
 
 

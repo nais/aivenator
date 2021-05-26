@@ -1,4 +1,4 @@
-package secrets
+package credentials
 
 import (
 	"context"
@@ -11,13 +11,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
 )
 
 type Janitor struct {
 	Client
 	Logger *log.Entry
-	Ctx    context.Context
 }
 
 type Client interface {
@@ -26,36 +24,19 @@ type Client interface {
 	Get(ctx context.Context, key client.ObjectKey, obj client.Object) error
 }
 
-func (j *Janitor) Start(janitorInterval time.Duration) {
-	ticker := time.NewTicker(janitorInterval)
-	go func() {
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				errs := j.CleanUnusedSecrets()
-				if len(errs) > 0 {
-					for _, err := range errs {
-						j.Logger.Error(err)
-					}
-				}
-			}
-		}
-	}()
-}
-
-func (j *Janitor) CleanUnusedSecrets() []error {
+func (j *Janitor) CleanUnusedSecrets(ctx context.Context, appName, namespace string) []error {
 	var secrets corev1.SecretList
 	var mLabels = client.MatchingLabels{
+		secret.AppLabel:        appName,
 		secret.SecretTypeLabel: secret.AivenatorSecretType,
 	}
 
-	if err := j.List(j.Ctx, &secrets, mLabels); err != nil {
+	if err := j.List(ctx, &secrets, mLabels, client.InNamespace(namespace)); err != nil {
 		return []error{fmt.Errorf("failed to retrieve list of secrets: %s", err)}
 	}
 
 	podList := corev1.PodList{}
-	if err := j.List(j.Ctx, &podList); err != nil {
+	if err := j.List(ctx, &podList); err != nil {
 		return []error{fmt.Errorf("failed to retrieve list of pods: %s", err)}
 	}
 
@@ -71,7 +52,7 @@ func (j *Janitor) CleanUnusedSecrets() []error {
 			})
 			if protected, ok := oldSecret.GetAnnotations()[secret.AivenatorProtectedAnnotation]; !ok || protected != "true" {
 				logger.Debugf("Deleting secret")
-				if err := j.Delete(j.Ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
+				if err := j.Delete(ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
 					err = fmt.Errorf("failed to delete secret %s in namespace %s: %s", oldSecret.GetName(), oldSecret.GetNamespace(), err)
 					errs = append(errs, err)
 				} else {

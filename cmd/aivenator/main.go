@@ -9,7 +9,6 @@ import (
 	"github.com/nais/aivenator/pkg/credentials"
 	"os"
 	"os/signal"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 	"syscall"
 	"time"
@@ -36,7 +35,6 @@ const (
 	ExitConfig
 	ExitRuntime
 	ExitCredentialsManager
-	ExitJanitor
 )
 
 // Configuration options
@@ -44,10 +42,10 @@ const (
 	AivenToken                   = "aiven-token"
 	KubernetesWriteRetryInterval = "kubernetes-write-retry-interval"
 	LogFormat                    = "log-format"
+	LogLevel                     = "log-level"
 	MetricsAddress               = "metrics-address"
 	Projects                     = "projects"
 	SyncPeriod                   = "sync-period"
-	JanitorPeriod                = "janitor-period"
 )
 
 const (
@@ -65,10 +63,10 @@ func init() {
 
 	flag.String(AivenToken, "", "Administrator credentials for Aiven")
 	flag.String(MetricsAddress, "127.0.0.1:8080", "The address the metric endpoint binds to.")
-	flag.String(LogFormat, "text", "Log format, either 'text' or 'json'")
+	flag.String(LogFormat, "text", "Log format, either \"text\" or \"json\"")
+	flag.String(LogLevel, "info", logLevelHelp())
 	flag.Duration(KubernetesWriteRetryInterval, time.Second*10, "Requeueing interval when Kubernetes writes fail")
 	flag.Duration(SyncPeriod, time.Hour*1, "How often to re-synchronize all AivenApplication resources including credential rotation")
-	flag.Duration(JanitorPeriod, time.Hour*1, "How often to clean up unused secrets managed by Aivenator")
 	flag.StringSlice(Projects, []string{"nav-integration-test"}, "List of projects allowed to operate on")
 
 	flag.Parse()
@@ -77,6 +75,20 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func logLevelHelp() string {
+	help := strings.Builder{}
+	help.WriteString("Log level, one of: ")
+	notFirst := false
+	for _, level := range log.AllLevels {
+		if notFirst {
+			help.WriteString(", ")
+		}
+		help.WriteString(fmt.Sprintf("\"%s\"", level.String()))
+		notFirst = true
+	}
+	return help.String()
 }
 
 func formatter(logFormat string) (log.Formatter, error) {
@@ -104,6 +116,12 @@ func main() {
 	}
 
 	logger.SetFormatter(logfmt)
+	level, err := log.ParseLevel(viper.GetString(LogLevel))
+	if err != nil {
+		logger.Error(err)
+		os.Exit(ExitConfig)
+	}
+	logger.SetLevel(level)
 
 	aivenClient, err := aiven.NewTokenClient(viper.GetString(AivenToken), "")
 	if err != nil {
@@ -131,8 +149,6 @@ func main() {
 		os.Exit(ExitCredentialsManager)
 	}
 
-	startJanitor(terminator, viper.GetDuration(JanitorPeriod), mgr.GetClient(), logger)
-
 	go func() {
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
@@ -154,24 +170,15 @@ func main() {
 	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
-func startJanitor(ctx context.Context, janitorInterval time.Duration, c client.Client, logger *log.Logger) {
-	janitor := secrets.Janitor{
-		Client: c,
-		Logger: logger.WithFields(log.Fields{"component": "Janitor"}),
-		Ctx:    ctx,
-	}
-	janitor.Start(janitorInterval)
-
-	logger.Info("Janitor started")
-}
-
 func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager) error {
 	credentialsManager := credentials.NewManager(aiven)
-	reconciler := aiven_application.AivenApplicationReconciler{
-		Logger:  logger.WithFields(log.Fields{"component": "AivenApplicationReconciler"}),
-		Client:  mgr.GetClient(),
-		Manager: credentialsManager,
+	credentialsJanitor := credentials.Janitor{
+		Client: mgr.GetClient(),
+		Logger: logger.WithFields(log.Fields{
+			"component": "AivenApplicationJanitor",
+		}),
 	}
+	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, credentialsJanitor)
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to set up reconciler: %s", err)
