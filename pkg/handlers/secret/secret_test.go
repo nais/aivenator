@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"testing"
+	"time"
 )
 
 func TestHandler_Apply(t *testing.T) {
@@ -68,6 +69,20 @@ func TestHandler_Apply(t *testing.T) {
 				secret: corev1.Secret{},
 				assert: func(t *testing.T, a args) {
 					assert.Equal(t, "true", a.secret.GetAnnotations()[AivenatorProtectedAnnotation])
+				},
+			},
+		},
+		{
+			name: "HasTimestamp",
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+					Build(),
+				secret: corev1.Secret{},
+				assert: func(t *testing.T, a args) {
+					value := a.secret.StringData[AivenSecretUpdatedKey]
+					timestamp, err := time.Parse(time.RFC3339, value)
+					assert.NoError(t, err)
+					assert.WithinDuration(t, time.Now(), timestamp, time.Second*10)
 				},
 			},
 		},
