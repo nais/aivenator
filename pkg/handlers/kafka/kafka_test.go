@@ -3,7 +3,6 @@ package kafka
 import (
 	"fmt"
 	"github.com/aiven/aiven-go-client"
-	aivenator_aiven "github.com/nais/aivenator/pkg/aiven"
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/mocks"
 	"github.com/nais/aivenator/pkg/utils"
@@ -101,8 +100,8 @@ func (suite *KafkaHandlerTestSuite) TestCleanupNoKafka() {
 func (suite *KafkaHandlerTestSuite) TestCleanupServiceUser() {
 	secret := &v1.Secret{}
 	secret.SetAnnotations(map[string]string{
-		aivenator_aiven.ServiceUserAnnotation: serviceUserName,
-		aivenator_aiven.PoolAnnotation:        pool,
+		ServiceUserAnnotation: serviceUserName,
+		PoolAnnotation:        pool,
 	})
 	suite.mockServiceUsers.On("Delete", serviceUserName, pool, mock.Anything).
 		Return(nil)
@@ -116,8 +115,8 @@ func (suite *KafkaHandlerTestSuite) TestCleanupServiceUser() {
 func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
 	secret := &v1.Secret{}
 	secret.SetAnnotations(map[string]string{
-		aivenator_aiven.ServiceUserAnnotation: serviceUserName,
-		aivenator_aiven.PoolAnnotation:        pool,
+		ServiceUserAnnotation: serviceUserName,
+		PoolAnnotation:        pool,
 	})
 	suite.mockServiceUsers.On("Delete", serviceUserName, pool, mock.Anything).
 		Return(aiven.Error{
@@ -156,8 +155,8 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 	expected := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
-				aivenator_aiven.ServiceUserAnnotation: serviceUserName,
-				aivenator_aiven.PoolAnnotation:        pool,
+				ServiceUserAnnotation: serviceUserName,
+				PoolAnnotation:        pool,
 			},
 			Finalizers: []string{aiven_nais_io_v1.AivenFinalizer},
 		},

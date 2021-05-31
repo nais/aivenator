@@ -16,6 +16,7 @@ import (
 	"time"
 )
 
+// Keys in secret
 const (
 	KafkaBrokers           = "KAFKA_BROKERS"
 	KafkaSchemaRegistry    = "KAFKA_SCHEMA_REGISTRY"
@@ -28,6 +29,12 @@ const (
 	KafkaSecretUpdated     = "KAFKA_SECRET_UPDATED"
 	KafkaKeystore          = "client.keystore.p12"
 	KafkaTruststore        = "client.truststore.jks"
+)
+
+// Annotations
+const (
+	ServiceUserAnnotation = "kafka.aiven.nais.io/serviceUser"
+	PoolAnnotation        = "kafka.aiven.nais.io/pool"
 )
 
 func NewKafkaHandler(aiven *aiven.Client) KafkaHandler {
@@ -51,7 +58,7 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 		logger.Debugf("No Kafka pool specified; noop")
 		return nil
 	}
-	serviceName := aivenator_aiven.DefaultKafkaService(application.Spec.Kafka.Pool)
+	serviceName := DefaultKafkaService(application.Spec.Kafka.Pool)
 
 	logger = logger.WithFields(log.Fields{
 		"pool":    projectName,
@@ -77,8 +84,8 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 	}
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
-		aivenator_aiven.ServiceUserAnnotation: aivenUser.Username,
-		aivenator_aiven.PoolAnnotation:        application.Spec.Kafka.Pool,
+		ServiceUserAnnotation: aivenUser.Username,
+		PoolAnnotation:        application.Spec.Kafka.Pool,
 	}))
 	logger.Infof("Created serviceName user %s", aivenUser.Username)
 
@@ -112,9 +119,9 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 
 func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
 	annotations := secret.GetAnnotations()
-	if serviceUserName, okServiceUser := annotations[aivenator_aiven.ServiceUserAnnotation]; okServiceUser {
-		if projectName, okPool := annotations[aivenator_aiven.PoolAnnotation]; okPool {
-			serviceName := aivenator_aiven.DefaultKafkaService(projectName)
+	if serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]; okServiceUser {
+		if projectName, okPool := annotations[PoolAnnotation]; okPool {
+			serviceName := DefaultKafkaService(projectName)
 			logger = logger.WithFields(log.Fields{
 				"pool":    projectName,
 				"service": serviceName,
@@ -134,4 +141,8 @@ func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
 		}
 	}
 	return nil
+}
+
+func DefaultKafkaService(project string) string {
+	return project + "-kafka"
 }
