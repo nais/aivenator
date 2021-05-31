@@ -3,6 +3,7 @@ package kafka
 import (
 	"fmt"
 	"github.com/aiven/aiven-go-client"
+	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/mocks"
 	"github.com/nais/aivenator/pkg/utils"
@@ -158,7 +159,7 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 				ServiceUserAnnotation: serviceUserName,
 				PoolAnnotation:        pool,
 			},
-			Finalizers: []string{aiven_nais_io_v1.AivenFinalizer},
+			Finalizers: []string{constants.AivenatorFinalizer},
 		},
 		// Check these individually
 		Data:       secret.Data,

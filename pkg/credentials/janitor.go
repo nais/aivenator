@@ -3,7 +3,7 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"github.com/nais/aivenator/pkg/handlers/secret"
+	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/liberator/pkg/kubernetes"
 	"github.com/prometheus/client_golang/prometheus"
@@ -27,8 +27,8 @@ type Client interface {
 func (j *Janitor) CleanUnusedSecrets(ctx context.Context, appName, namespace string) []error {
 	var secrets corev1.SecretList
 	var mLabels = client.MatchingLabels{
-		secret.AppLabel:        appName,
-		secret.SecretTypeLabel: secret.AivenatorSecretType,
+		constants.AppLabel:        appName,
+		constants.SecretTypeLabel: constants.AivenatorSecretType,
 	}
 
 	if err := j.List(ctx, &secrets, mLabels, client.InNamespace(namespace)); err != nil {
@@ -50,7 +50,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, appName, namespace str
 				"secret_name": oldSecret.GetName(),
 				"namespace":   oldSecret.GetNamespace(),
 			})
-			if protected, ok := oldSecret.GetAnnotations()[secret.AivenatorProtectedAnnotation]; !ok || protected != "true" {
+			if protected, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedAnnotation]; !ok || protected != "true" {
 				logger.Debugf("Deleting secret")
 				if err := j.Delete(ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
 					err = fmt.Errorf("failed to delete secret %s in namespace %s: %s", oldSecret.GetName(), oldSecret.GetNamespace(), err)

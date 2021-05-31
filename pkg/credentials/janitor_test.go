@@ -3,8 +3,8 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/controllers/mocks"
-	"github.com/nais/aivenator/pkg/handlers/secret"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -60,8 +60,8 @@ func (suite *JanitorTestSuite) buildJanitor(client Client) *Janitor {
 
 func (suite *JanitorTestSuite) TestNoSecretsFound() {
 	suite.clientBuilder.WithRuntimeObjects(
-		makeSecret(Secret1Name, NotMyNamespace, secret.AivenatorSecretType, NotMyAppName),
-		makeSecret(Secret2Name, NotMyNamespace, secret.AivenatorSecretType, MyAppName),
+		makeSecret(Secret1Name, NotMyNamespace, constants.AivenatorSecretType, NotMyAppName),
+		makeSecret(Secret2Name, NotMyNamespace, constants.AivenatorSecretType, MyAppName),
 	)
 	janitor := suite.buildJanitor(suite.clientBuilder.Build())
 	errs := janitor.CleanUnusedSecrets(suite.ctx, MyAppName, MyNamespace)
@@ -81,13 +81,13 @@ type secretSetup struct {
 
 func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 	secrets := []secretSetup{
-		{Secret1Name, MyNamespace, secret.AivenatorSecretType, MyAppName, []MakeSecretOption{}, false, "Unused secret should be deleted"},
-		{Secret1Name, NotMyNamespace, secret.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret in another namespace should be kept"},
+		{Secret1Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, false, "Unused secret should be deleted"},
+		{Secret1Name, NotMyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret in another namespace should be kept"},
 		{Secret2Name, MyNamespace, NotMySecretType, MyAppName, []MakeSecretOption{}, true, "Unrelated secret should be kept"},
-		{Secret3Name, MyNamespace, secret.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Used secret should be kept"},
-		{Secret4Name, MyNamespace, secret.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected}, true, "Protected secret should be kept"},
-		{Secret5Name, MyNamespace, secret.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretHasNoAnnotations}, false, "Unused secret should be deleted, even if annotations are nil"},
-		{Secret6Name, MyNamespace, secret.AivenatorSecretType, NotMyAppName, []MakeSecretOption{}, true, "Secret belonging to different app should be kept"},
+		{Secret3Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Used secret should be kept"},
+		{Secret4Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected}, true, "Protected secret should be kept"},
+		{Secret5Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretHasNoAnnotations}, false, "Unused secret should be deleted, even if annotations are nil"},
+		{Secret6Name, MyNamespace, constants.AivenatorSecretType, NotMyAppName, []MakeSecretOption{}, true, "Secret belonging to different app should be kept"},
 	}
 	for _, s := range secrets {
 		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
@@ -164,7 +164,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 					[]interface{}{nil},
 					func(arguments mock.Arguments) {
 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
-							secretList.Items = []corev1.Secret{*makeSecret(Secret1Name, MyNamespace, secret.AivenatorSecretType, MyAppName)}
+							secretList.Items = []corev1.Secret{*makeSecret(Secret1Name, MyNamespace, constants.AivenatorSecretType, MyAppName)}
 						}
 					},
 				},
@@ -192,7 +192,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 					[]interface{}{nil},
 					func(arguments mock.Arguments) {
 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
-							secretList.Items = []corev1.Secret{*makeSecret(Secret1Name, MyNamespace, secret.AivenatorSecretType, MyAppName)}
+							secretList.Items = []corev1.Secret{*makeSecret(Secret1Name, MyNamespace, constants.AivenatorSecretType, MyAppName)}
 						}
 					},
 				},
@@ -221,8 +221,8 @@ func (suite *JanitorTestSuite) TestErrors() {
 					func(arguments mock.Arguments) {
 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
 							secretList.Items = []corev1.Secret{
-								*makeSecret(Secret1Name, MyNamespace, secret.AivenatorSecretType, MyAppName),
-								*makeSecret(Secret2Name, MyNamespace, secret.AivenatorSecretType, MyAppName),
+								*makeSecret(Secret1Name, MyNamespace, constants.AivenatorSecretType, MyAppName),
+								*makeSecret(Secret2Name, MyNamespace, constants.AivenatorSecretType, MyAppName),
 							}
 						}
 					},
@@ -313,15 +313,15 @@ func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSec
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				secret.AppLabel:        appName,
-				secret.TeamLabel:       namespace,
-				secret.SecretTypeLabel: secretType,
+				constants.AppLabel:        appName,
+				constants.TeamLabel:       namespace,
+				constants.SecretTypeLabel: secretType,
 			},
 		},
 	}
 	if !opts.hasNoAnnotations || opts.protected {
 		s.SetAnnotations(map[string]string{
-			secret.AivenatorProtectedAnnotation: strconv.FormatBool(opts.protected),
+			constants.AivenatorProtectedAnnotation: strconv.FormatBool(opts.protected),
 		})
 	}
 	return s

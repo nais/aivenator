@@ -1,6 +1,7 @@
 package secret
 
 import (
+	"github.com/nais/aivenator/constants"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1alpha1 "github.com/nais/liberator/pkg/apis/nais.io/v1alpha1"
 	"github.com/stretchr/testify/assert"
@@ -26,9 +27,9 @@ func TestHandler_Apply(t *testing.T) {
 					Build(),
 				secret: corev1.Secret{},
 				assert: func(t *testing.T, a args) {
-					assert.Equal(t, AivenatorSecretType, a.secret.Labels[SecretTypeLabel])
-					assert.Equal(t, a.application.GetName(), a.secret.Labels[AppLabel])
-					assert.Equal(t, a.application.GetNamespace(), a.secret.Labels[TeamLabel])
+					assert.Equal(t, constants.AivenatorSecretType, a.secret.Labels[constants.SecretTypeLabel])
+					assert.Equal(t, a.application.GetName(), a.secret.Labels[constants.AppLabel])
+					assert.Equal(t, a.application.GetNamespace(), a.secret.Labels[constants.TeamLabel])
 					assert.Equal(t, a.application.GetNamespace(), a.secret.GetNamespace())
 				},
 			},
@@ -68,7 +69,7 @@ func TestHandler_Apply(t *testing.T) {
 					Build(),
 				secret: corev1.Secret{},
 				assert: func(t *testing.T, a args) {
-					assert.Equal(t, "true", a.secret.GetAnnotations()[AivenatorProtectedAnnotation])
+					assert.Equal(t, "true", a.secret.GetAnnotations()[constants.AivenatorProtectedAnnotation])
 				},
 			},
 		},

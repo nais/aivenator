@@ -1,6 +1,7 @@
 package secret
 
 import (
+	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1alpha1 "github.com/nais/liberator/pkg/apis/nais.io/v1alpha1"
@@ -12,13 +13,6 @@ import (
 )
 
 const (
-	AppLabel        = "app"
-	TeamLabel       = "team"
-	SecretTypeLabel = "type"
-
-	AivenatorSecretType          = "aivenator.aiven.nais.io"
-	AivenatorProtectedAnnotation = "aivenator.aiven.nais.io/protected"
-
 	AivenSecretUpdatedKey = "AIVEN_SECRET_UPDATED"
 )
 
@@ -30,13 +24,13 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *c
 		Name:      application.Spec.SecretName,
 		Namespace: application.GetNamespace(),
 		Labels: map[string]string{
-			AppLabel:        application.GetName(),
-			TeamLabel:       application.GetNamespace(),
-			SecretTypeLabel: AivenatorSecretType,
+			constants.AppLabel:        application.GetName(),
+			constants.TeamLabel:       application.GetNamespace(),
+			constants.SecretTypeLabel: constants.AivenatorSecretType,
 		},
 		Annotations: map[string]string{
 			nais_io_v1alpha1.DeploymentCorrelationIDAnnotation: application.GetAnnotations()[nais_io_v1alpha1.DeploymentCorrelationIDAnnotation],
-			AivenatorProtectedAnnotation:                       strconv.FormatBool(application.Spec.Protected),
+			constants.AivenatorProtectedAnnotation:             strconv.FormatBool(application.Spec.Protected),
 		},
 	}
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
