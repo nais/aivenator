@@ -18,11 +18,11 @@ type Manager struct {
 	handlers []Handler
 }
 
-func NewManager(aiven *aiven.Client) Manager {
+func NewManager(aiven *aiven.Client, projects []string) Manager {
 	return Manager{
 		handlers: []Handler{
 			secret.Handler{},
-			kafka.NewKafkaHandler(aiven),
+			kafka.NewKafkaHandler(aiven, projects),
 		},
 	}
 }

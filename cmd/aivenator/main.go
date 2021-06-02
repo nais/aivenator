@@ -129,6 +129,8 @@ func main() {
 		os.Exit(ExitConfig)
 	}
 
+	allowedProjects := viper.GetStringSlice(Projects)
+
 	syncPeriod := viper.GetDuration(SyncPeriod)
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		SyncPeriod:         &syncPeriod,
@@ -144,7 +146,7 @@ func main() {
 	logger.Info("Aivenator running")
 	terminator := context.Background()
 
-	if err := manageCredentials(aivenClient, logger, mgr); err != nil {
+	if err := manageCredentials(aivenClient, logger, mgr, allowedProjects); err != nil {
 		logger.Errorln(err)
 		os.Exit(ExitCredentialsManager)
 	}
@@ -170,8 +172,8 @@ func main() {
 	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
-func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager) error {
-	credentialsManager := credentials.NewManager(aiven)
+func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string) error {
+	credentialsManager := credentials.NewManager(aiven, projects)
 	credentialsJanitor := credentials.Janitor{
 		Client: mgr.GetClient(),
 		Logger: logger.WithFields(log.Fields{

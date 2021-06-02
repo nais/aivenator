@@ -11,6 +11,7 @@ import (
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/nais/liberator/pkg/namegen"
+	"github.com/nais/liberator/pkg/strings"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -38,11 +39,12 @@ const (
 	PoolAnnotation        = "kafka.aiven.nais.io/pool"
 )
 
-func NewKafkaHandler(aiven *aiven.Client) KafkaHandler {
+func NewKafkaHandler(aiven *aiven.Client, projects []string) KafkaHandler {
 	return KafkaHandler{
 		serviceuser: serviceuser.NewManager(aiven.ServiceUsers),
 		service:     service.NewManager(aiven.Services, aiven.CA),
 		generator:   certificate.NewExecGenerator(),
+		projects:    projects,
 	}
 }
 
@@ -50,6 +52,7 @@ type KafkaHandler struct {
 	serviceuser serviceuser.ServiceUserManager
 	service     service.ServiceManager
 	generator   certificate.Generator
+	projects    []string
 }
 
 func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {
@@ -65,6 +68,12 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 		"pool":    projectName,
 		"service": serviceName,
 	})
+
+	if !strings.ContainsString(h.projects, projectName) {
+		err := fmt.Errorf("pool %s is not allowed in this cluster", projectName)
+		utils.LocalFail("ValidatePool", application, err, logger)
+		return err
+	}
 
 	aivenService, err := h.service.Get(projectName, serviceName)
 	if err != nil {

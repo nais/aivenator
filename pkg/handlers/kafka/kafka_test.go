@@ -22,6 +22,7 @@ const (
 	serviceURI      = "http://example.com"
 	ca              = "my-ca"
 	pool            = "my-testing-pool"
+	invalidPool     = "not-my-testing-pool"
 )
 
 const (
@@ -87,6 +88,7 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 		serviceuser: suite.mockServiceUsers,
 		service:     suite.mockServices,
 		generator:   suite.mockGenerator,
+		projects:    []string{"nav-integration-test", "my-testing-pool"},
 	}
 	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
 }
@@ -241,6 +243,22 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
+}
+
+func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
+	suite.addDefaultMocks(enabled(ServicesGet, ServicesGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
+	application := suite.applicationBuilder.
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: aiven_nais_io_v1.KafkaSpec{
+				Pool: invalidPool,
+			},
+		}).
+		Build()
+	secret := &v1.Secret{}
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
+
+	suite.Error(err)
+	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationLocalFailure))
 }
 
 func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
