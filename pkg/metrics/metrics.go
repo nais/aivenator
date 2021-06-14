@@ -56,6 +56,12 @@ var (
 		Namespace: Namespace,
 		Help:      "number of kubernetes resources deleted from the cluster",
 	}, []string{LabelNamespace, LabelResourceType})
+
+	SecretsProtected = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      "secrets_protected",
+		Namespace: Namespace,
+		Help:      "number of secrets found for deletion, but protected by annotation",
+	}, []string{LabelNamespace})
 )
 
 func ObserveAivenLatency(operation, pool string, fun func() error) error {
@@ -87,5 +93,6 @@ func Register(registry prometheus.Registerer) {
 		ServiceUsersCreated,
 		ServiceUsersDeleted,
 		ApplicationsProcessed,
+		SecretsProtected,
 	)
 }

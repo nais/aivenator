@@ -97,7 +97,7 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 		ServiceUserAnnotation: aivenUser.Username,
 		PoolAnnotation:        application.Spec.Kafka.Pool,
 	}))
-	logger.Infof("Created serviceName user %s", aivenUser.Username)
+	logger.Infof("Created serviceuser %s", aivenUser.Username)
 
 	credStore, err := h.generator.MakeCredStores(aivenUser.AccessKey, aivenUser.AccessCert, ca)
 	if err != nil {

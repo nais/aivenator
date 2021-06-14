@@ -63,6 +63,9 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, appName, namespace str
 				}
 			} else {
 				logger.Debugf("Secret is protected, leaving alone")
+				metrics.SecretsProtected.With(prometheus.Labels{
+					metrics.LabelNamespace: oldSecret.GetNamespace(),
+				}).Inc()
 			}
 		}
 	}
