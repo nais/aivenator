@@ -133,7 +133,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	success(&application, hash)
 
-	errs := r.Janitor.CleanUnusedSecrets(ctx, application.GetName(), application.GetNamespace())
+	errs := r.Janitor.CleanUnusedSecrets(ctx, application)
 	if len(errs) > 0 {
 		for _, err := range errs {
 			logger.Error(err)
@@ -187,7 +187,7 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 
 	if err != nil {
 		if errors.IsNotFound(err) {
-			logger.Infof("Creating secret")
+			logger.Infof("Saving secret")
 			err = r.Create(ctx, secret)
 		}
 	} else {

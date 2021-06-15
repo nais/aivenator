@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/metrics"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/nais/liberator/pkg/kubernetes"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -24,14 +25,14 @@ type Client interface {
 	Get(ctx context.Context, key client.ObjectKey, obj client.Object) error
 }
 
-func (j *Janitor) CleanUnusedSecrets(ctx context.Context, appName, namespace string) []error {
+func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais_io_v1.AivenApplication) []error {
 	var secrets corev1.SecretList
 	var mLabels = client.MatchingLabels{
-		constants.AppLabel:        appName,
+		constants.AppLabel:        application.GetName(),
 		constants.SecretTypeLabel: constants.AivenatorSecretType,
 	}
 
-	if err := j.List(ctx, &secrets, mLabels, client.InNamespace(namespace)); err != nil {
+	if err := j.List(ctx, &secrets, mLabels, client.InNamespace(application.GetNamespace())); err != nil {
 		return []error{fmt.Errorf("failed to retrieve list of secrets: %s", err)}
 	}
 
@@ -50,6 +51,12 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, appName, namespace str
 				"secret_name": oldSecret.GetName(),
 				"namespace":   oldSecret.GetNamespace(),
 			})
+
+			if oldSecret.GetName() == application.Spec.SecretName {
+				logger.Debugf("Will not delete currently requested secret")
+				continue
+			}
+
 			if protected, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedAnnotation]; !ok || protected != "true" {
 				logger.Debugf("Deleting secret")
 				if err := j.Delete(ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {

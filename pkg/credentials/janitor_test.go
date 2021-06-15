@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/controllers/mocks"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -27,6 +28,7 @@ const (
 	Secret4Name = "secret4"
 	Secret5Name = "secret5"
 	Secret6Name = "secret6"
+	Secret7Name = "secret7"
 
 	MyNamespace    = "namespace"
 	NotMyNamespace = "not-my-namespace"
@@ -64,7 +66,8 @@ func (suite *JanitorTestSuite) TestNoSecretsFound() {
 		makeSecret(Secret2Name, NotMyNamespace, constants.AivenatorSecretType, MyAppName),
 	)
 	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	errs := janitor.CleanUnusedSecrets(suite.ctx, MyAppName, MyNamespace)
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).Build()
+	errs := janitor.CleanUnusedSecrets(suite.ctx, application)
 
 	suite.Empty(errs)
 }
@@ -88,6 +91,7 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 		{Secret4Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected}, true, "Protected secret should be kept"},
 		{Secret5Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretHasNoAnnotations}, false, "Unused secret should be deleted, even if annotations are nil"},
 		{Secret6Name, MyNamespace, constants.AivenatorSecretType, NotMyAppName, []MakeSecretOption{}, true, "Secret belonging to different app should be kept"},
+		{Secret7Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret currently requested should be kept"},
 	}
 	for _, s := range secrets {
 		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
@@ -97,7 +101,12 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 	)
 
 	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	errs := janitor.CleanUnusedSecrets(suite.ctx, MyAppName, MyNamespace)
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			SecretName: Secret7Name,
+		}).
+		Build()
+	errs := janitor.CleanUnusedSecrets(suite.ctx, application)
 
 	suite.Empty(errs)
 
@@ -264,7 +273,8 @@ func (suite *JanitorTestSuite) TestErrors() {
 				}
 			}
 			janitor := suite.buildJanitor(mockClient)
-			errs := janitor.CleanUnusedSecrets(suite.ctx, "", "")
+			application := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
+			errs := janitor.CleanUnusedSecrets(suite.ctx, application)
 
 			suite.Equal(tt.expected, errs)
 			mockClient.AssertExpectations(suite.T())
