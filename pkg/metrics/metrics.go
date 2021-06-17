@@ -42,7 +42,7 @@ var (
 		Name:      "aiven_latency",
 		Namespace: Namespace,
 		Help:      "latency in aiven api operations",
-		Buckets:   prometheus.LinearBuckets(0.05, 0.05, 100),
+		Buckets:   []float64{.005, .010, .015, .020, .025, .030, .035, .040, .045, .050, .1, .2, .3, .4, .5, 1, 2, 3, 4, 5, 10, 15, 20},
 	}, []string{LabelAivenOperation, LabelStatus, LabelPool})
 
 	KubernetesResourcesWritten = prometheus.NewCounterVec(prometheus.CounterOpts{
