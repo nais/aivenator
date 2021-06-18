@@ -43,6 +43,12 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 
 	errs := make([]error, 0)
 	secretLists := kubernetes.ListUsedAndUnusedSecretsForPods(secrets, podList)
+	counters := struct {
+		Protected int
+		InUse     int
+	}{
+		InUse: len(secretLists.Used.Items),
+	}
 	if found := len(secretLists.Unused.Items); found > 0 {
 		j.Logger.Debugf("Found %d unused secrets managed by Aivenator", found)
 
@@ -54,6 +60,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 
 			if oldSecret.GetName() == application.Spec.SecretName {
 				logger.Debugf("Will not delete currently requested secret")
+				counters.InUse += 1
 				continue
 			}
 
@@ -69,12 +76,20 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 					}).Inc()
 				}
 			} else {
+				counters.Protected += 1
 				logger.Debugf("Secret is protected, leaving alone")
-				metrics.SecretsProtected.With(prometheus.Labels{
-					metrics.LabelNamespace: oldSecret.GetNamespace(),
-				}).Inc()
 			}
 		}
 	}
+
+	metrics.SecretsManaged.With(prometheus.Labels{
+		metrics.LabelNamespace:   application.GetNamespace(),
+		metrics.LabelSecretState: "protected",
+	}).Set(float64(counters.Protected))
+	metrics.SecretsManaged.With(prometheus.Labels{
+		metrics.LabelNamespace:   application.GetNamespace(),
+		metrics.LabelSecretState: "in_use",
+	}).Set(float64(counters.InUse))
+
 	return errs
 }

@@ -17,6 +17,7 @@ const (
 	LabelResourceType   = "resource_type"
 	LabelStatus         = "status"
 	LabelSyncState      = "synchronization_state"
+	LabelSecretState    = "state"
 )
 
 var (
@@ -57,11 +58,11 @@ var (
 		Help:      "number of kubernetes resources deleted from the cluster",
 	}, []string{LabelNamespace, LabelResourceType})
 
-	SecretsProtected = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name:      "secrets_protected",
+	SecretsManaged = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name:      "secrets_managed",
 		Namespace: Namespace,
-		Help:      "number of secrets found for deletion, but protected by annotation",
-	}, []string{LabelNamespace})
+		Help:      "number of secrets managed",
+	}, []string{LabelNamespace, LabelSecretState})
 )
 
 func ObserveAivenLatency(operation, pool string, fun func() error) error {
@@ -93,6 +94,6 @@ func Register(registry prometheus.Registerer) {
 		ServiceUsersCreated,
 		ServiceUsersDeleted,
 		ApplicationsProcessed,
-		SecretsProtected,
+		SecretsManaged,
 	)
 }
