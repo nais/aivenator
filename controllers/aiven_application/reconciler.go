@@ -95,7 +95,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			logger.Errorf("Unable to update status of application: %s\nWanted to save status: %+v", err, application.Status)
 		} else {
 			metrics.KubernetesResourcesWritten.With(prometheus.Labels{
-				metrics.LabelResourceType: application.GroupVersionKind().String(),
+				metrics.LabelResourceType: "AivenApplication",
 				metrics.LabelNamespace:    application.GetNamespace(),
 			}).Inc()
 		}
@@ -198,7 +198,7 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 
 	if err == nil {
 		metrics.KubernetesResourcesWritten.With(prometheus.Labels{
-			metrics.LabelResourceType: secret.GroupVersionKind().String(),
+			metrics.LabelResourceType: "Secret",
 			metrics.LabelNamespace:    secret.GetNamespace(),
 		}).Inc()
 	}
