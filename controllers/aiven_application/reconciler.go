@@ -55,11 +55,12 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	defer func() {
 		logger.Infof("Finished processing request")
 		syncState := application.Status.SynchronizationState
-		if len(syncState) > 0 {
-			metrics.ApplicationsProcessed.With(prometheus.Labels{
-				metrics.LabelSyncState: syncState,
-			}).Inc()
+		if syncState == "" {
+			syncState = "unknown"
 		}
+		metrics.ApplicationsProcessed.With(prometheus.Labels{
+			metrics.LabelSyncState: syncState,
+		}).Inc()
 	}()
 
 	fail := func(err error, requeue bool) (ctrl.Result, error) {
@@ -116,6 +117,18 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if !needsSync {
 		return ctrl.Result{}, nil
 	}
+
+	processingStart := time.Now()
+	defer func() {
+		used := time.Now().Sub(processingStart)
+		syncState := application.Status.SynchronizationState
+		if syncState == "" {
+			syncState = "unknown"
+		}
+		metrics.ApplicationProcessingTime.With(prometheus.Labels{
+			metrics.LabelSyncState: syncState,
+		}).Observe(used.Seconds())
+	}()
 
 	logger.Infof("Creating secret")
 	secret, err := r.Manager.CreateSecret(&application, logger)
