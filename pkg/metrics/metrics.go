@@ -101,6 +101,7 @@ func Register(registry prometheus.Registerer) {
 		ServiceUsersCreated,
 		ServiceUsersDeleted,
 		ApplicationsProcessed,
+		ApplicationProcessingTime,
 		SecretsManaged,
 	)
 }
