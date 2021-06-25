@@ -31,7 +31,7 @@ var (
 		Name:      "aiven_application_processing_time_seconds",
 		Namespace: Namespace,
 		Help:      "seconds from observed to synchronised successfully",
-		Buckets:   prometheus.ExponentialBuckets(0.1, 1.4, 20),
+		Buckets:   prometheus.LinearBuckets(1.0, 1.0, 20),
 	}, []string{LabelSyncState})
 
 	ServiceUsersCreated = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -50,7 +50,7 @@ var (
 		Name:      "aiven_latency",
 		Namespace: Namespace,
 		Help:      "latency in aiven api operations",
-		Buckets:   prometheus.ExponentialBuckets(0.025, 1.42, 20),
+		Buckets:   prometheus.ExponentialBuckets(0.02, 2, 14),
 	}, []string{LabelAivenOperation, LabelStatus, LabelPool})
 
 	KubernetesResourcesWritten = prometheus.NewCounterVec(prometheus.CounterOpts{
