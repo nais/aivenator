@@ -1,4 +1,4 @@
-title: Aivenator Grabana Test
+title: Aivenator
 editable: true
 tags: [generated, yaml]
 auto_refresh: 1m
@@ -17,6 +17,7 @@ variables:
       type: prometheus
       regex: $env-(gcp|fss|sbs)
       include_all: true
+      hide: true
   - query:
       name: aiven_op
       label: Aiven Operation
@@ -24,6 +25,7 @@ variables:
       request: "label_values(aivenator_aiven_latency_bucket, operation)"
       include_all: true
       default_all: true
+      hide: true
 
 rows:
   - name: Status in $ds
@@ -122,6 +124,26 @@ rows:
             - prometheus:
                 query: sum(aivenator_aiven_applications_processed) by (synchronization_state)
                 legend: "{{ synchronization_state }}"
+      - heatmap:
+          title: Processing time - $ds
+          datasource: $ds
+          repeat: ds
+          data_format: time_series_buckets
+          hide_zero_buckets: true
+          transparent: true
+          span: 4
+          tooltip:
+            show: true
+            showhistogram: false
+            decimals: 0
+          yaxis:
+            format: "dtdurations"
+            decimals: 0
+          targets:
+            - prometheus:
+                query: sum(increase(aivenator_aiven_application_processing_time_seconds_bucket[$__interval])) by (le)
+                legend: "{{ le }}"
+                format: heatmap
   - name: Resource usage
     collapse: true
     panels:
@@ -248,6 +270,6 @@ rows:
             decimals: 0
           targets:
             - prometheus:
-                query: sum(increase(aivenator_aiven_latency_bucket[$__interval])) by (le)
+                query: sum(increase(aivenator_aiven_latency_bucket{operation="$aiven_op"}[$__interval])) by (le)
                 legend: "{{ le }}"
                 format: heatmap
