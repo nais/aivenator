@@ -5,6 +5,9 @@ auto_refresh: 1m
 time: ["now-24h", "now"]
 timezone: default # valid values are: utc, browser, default
 
+# Render to JSON using https://github.com/K-Phoen/grabana v0.17.0 or newer
+# Import into Grafana using UI (remember to select folder)
+
 variables:
   - custom:
       name: env
@@ -17,7 +20,7 @@ variables:
       type: prometheus
       regex: $env-(gcp|fss|sbs)
       include_all: true
-      hide: true
+      hide: variable
   - query:
       name: aiven_op
       label: Aiven Operation
@@ -25,7 +28,7 @@ variables:
       request: "label_values(aivenator_aiven_latency_bucket, operation)"
       include_all: true
       default_all: true
-      hide: true
+      hide: variable
 
 rows:
   - name: Status in $ds
@@ -113,7 +116,6 @@ rows:
                 instant: true
   - name: Applications
     panels:
-      # TODO: Add more details for processing time, success etc.
       - graph:
           title: AivenApplications processed - $ds
           datasource: $ds
@@ -125,6 +127,7 @@ rows:
                 query: sum(aivenator_aiven_applications_processed) by (synchronization_state)
                 legend: "{{ synchronization_state }}"
       - heatmap:
+          # Must be done manually in Grafana after import: Set max datapoints to 25
           title: Processing time - $ds
           datasource: $ds
           repeat: ds
@@ -137,7 +140,7 @@ rows:
             showhistogram: false
             decimals: 0
           yaxis:
-            format: "dtdurations"
+            unit: "dtdurations"
             decimals: 0
           targets:
             - prometheus:
@@ -251,9 +254,9 @@ rows:
   - name: Aiven Latency - $aiven_op
     repeat_for: aiven_op
     collapse: true
-    # Must be done manually in Grafana after import: Set color, max datapoints
     panels:
       - heatmap:
+          # Must be done manually in Grafana after import: Set max datapoints to 25
           title: $ds
           datasource: $ds
           repeat: ds
@@ -266,7 +269,7 @@ rows:
             showhistogram: false
             decimals: 0
           yaxis:
-            format: "dtdurations"
+            unit: "dtdurations"
             decimals: 0
           targets:
             - prometheus:
