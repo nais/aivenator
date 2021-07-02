@@ -75,12 +75,10 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 		return err
 	}
 
-	aivenService, err := h.service.Get(projectName, serviceName)
+	addresses, err := h.service.GetServiceAddresses(projectName, serviceName)
 	if err != nil {
 		return utils.AivenFail("GetService", application, err, logger)
 	}
-	kafkaBrokerAddress := service.GetKafkaBrokerAddress(aivenService)
-	kafkaSchemaRegistryAddress := service.GetSchemaRegistryAddress(aivenService)
 
 	ca, err := h.service.GetCA(projectName)
 	if err != nil {
@@ -108,8 +106,8 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		KafkaCertificate:       aivenUser.AccessCert,
 		KafkaPrivateKey:        aivenUser.AccessKey,
-		KafkaBrokers:           kafkaBrokerAddress,
-		KafkaSchemaRegistry:    kafkaSchemaRegistryAddress,
+		KafkaBrokers:           addresses.KafkaBroker,
+		KafkaSchemaRegistry:    addresses.SchemaRegistry,
 		KafkaSchemaUser:        aivenUser.Username,
 		KafkaSchemaPassword:    aivenUser.Password,
 		KafkaCA:                ca,

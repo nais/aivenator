@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/constants"
+	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/mocks"
 	"github.com/nais/aivenator/pkg/utils"
@@ -26,7 +27,7 @@ const (
 )
 
 const (
-	ServicesGet = iota
+	ServicesGetAddresses = iota
 	ServicesGetCA
 	ServiceUsersCreate
 	GeneratorMakeCredStores
@@ -56,9 +57,12 @@ func (suite *KafkaHandlerTestSuite) SetupSuite() {
 }
 
 func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
-	if _, ok := enabled[ServicesGet]; ok {
-		suite.mockServices.On("Get", mock.Anything, mock.Anything).
-			Return(&aiven.Service{URI: serviceURI, Components: nil}, nil)
+	if _, ok := enabled[ServicesGetAddresses]; ok {
+		suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything).
+			Return(&service.ServiceAddresses{
+				KafkaBroker:    serviceURI,
+				SchemaRegistry: "",
+			}, nil)
 	}
 	if _, ok := enabled[ServicesGetCA]; ok {
 		suite.mockServices.On("GetCA", mock.Anything).
@@ -143,7 +147,7 @@ func (suite *KafkaHandlerTestSuite) TestNoKafka() {
 }
 
 func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
-	suite.addDefaultMocks(enabled(ServicesGet, ServicesGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServicesGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			Kafka: aiven_nais_io_v1.KafkaSpec{
@@ -186,7 +190,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 		Build()
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
-	suite.mockServices.On("Get", mock.Anything, mock.Anything).
+	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything).
 		Return(nil, &aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
@@ -208,7 +212,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetCAFailed() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	suite.addDefaultMocks(enabled(ServicesGet, ServiceUsersCreate, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServiceUsersCreate, GeneratorMakeCredStores))
 	suite.mockServices.On("GetCA", mock.Anything).
 		Return("", &aiven.Error{
 			Message:  "aiven-error",
@@ -231,7 +235,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	suite.addDefaultMocks(enabled(ServicesGet, ServicesGetCA, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServicesGetCA, GeneratorMakeCredStores))
 	suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, &aiven.Error{
 			Message:  "aiven-error",
@@ -246,7 +250,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 }
 
 func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
-	suite.addDefaultMocks(enabled(ServicesGet, ServicesGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServicesGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			Kafka: aiven_nais_io_v1.KafkaSpec{
@@ -270,7 +274,7 @@ func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	suite.addDefaultMocks(enabled(ServicesGet, ServicesGetCA, ServiceUsersCreate))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServicesGetCA, ServiceUsersCreate))
 	suite.mockGenerator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("local-fail"))
 
