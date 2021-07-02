@@ -71,7 +71,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 					errs = append(errs, err)
 				} else {
 					metrics.KubernetesResourcesDeleted.With(prometheus.Labels{
-						metrics.LabelResourceType: oldSecret.GroupVersionKind().String(),
+						metrics.LabelResourceType: "Secret",
 						metrics.LabelNamespace:    oldSecret.GetNamespace(),
 					}).Inc()
 				}
