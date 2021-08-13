@@ -28,8 +28,8 @@ const (
 
 const (
 	ServicesGetAddresses = iota
-	ServicesGetCA
 	ServiceUsersCreate
+	ProjectGetCA
 	GeneratorMakeCredStores
 )
 
@@ -45,6 +45,7 @@ type KafkaHandlerTestSuite struct {
 	suite.Suite
 
 	logger             *log.Entry
+	mockProjects       *mocks.ProjectManager
 	mockServiceUsers   *mocks.ServiceUserManager
 	mockServices       *mocks.ServiceManager
 	mockGenerator      *mocks.Generator
@@ -64,8 +65,8 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 				SchemaRegistry: "",
 			}, nil)
 	}
-	if _, ok := enabled[ServicesGetCA]; ok {
-		suite.mockServices.On("GetCA", mock.Anything).
+	if _, ok := enabled[ProjectGetCA]; ok {
+		suite.mockProjects.On("GetCA", mock.Anything).
 			Return(ca, nil)
 	}
 	if _, ok := enabled[ServiceUsersCreate]; ok {
@@ -87,8 +88,10 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 func (suite *KafkaHandlerTestSuite) SetupTest() {
 	suite.mockServiceUsers = &mocks.ServiceUserManager{}
 	suite.mockServices = &mocks.ServiceManager{}
+	suite.mockProjects = &mocks.ProjectManager{}
 	suite.mockGenerator = &mocks.Generator{}
 	suite.kafkaHandler = KafkaHandler{
+		project:     suite.mockProjects,
 		serviceuser: suite.mockServiceUsers,
 		service:     suite.mockServices,
 		generator:   suite.mockGenerator,
@@ -147,7 +150,7 @@ func (suite *KafkaHandlerTestSuite) TestNoKafka() {
 }
 
 func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServicesGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			Kafka: aiven_nais_io_v1.KafkaSpec{
@@ -189,7 +192,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	suite.addDefaultMocks(enabled(ServicesGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything).
 		Return(nil, &aiven.Error{
 			Message:  "aiven-error",
@@ -203,7 +206,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
 }
 
-func (suite *KafkaHandlerTestSuite) TestServiceGetCAFailed() {
+func (suite *KafkaHandlerTestSuite) TestProjectGetCAFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			Kafka: aiven_nais_io_v1.KafkaSpec{
@@ -213,7 +216,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetCAFailed() {
 		Build()
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServiceUsersCreate, GeneratorMakeCredStores))
-	suite.mockServices.On("GetCA", mock.Anything).
+	suite.mockProjects.On("GetCA", mock.Anything).
 		Return("", &aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
@@ -235,7 +238,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServicesGetCA, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores))
 	suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, &aiven.Error{
 			Message:  "aiven-error",
@@ -250,7 +253,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 }
 
 func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServicesGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			Kafka: aiven_nais_io_v1.KafkaSpec{
@@ -274,7 +277,7 @@ func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServicesGetCA, ServiceUsersCreate))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate))
 	suite.mockGenerator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("local-fail"))
 

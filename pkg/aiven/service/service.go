@@ -8,13 +8,11 @@ import (
 
 type ServiceManager interface {
 	Get(projectName, serviceName string) (*aiven.Service, error)
-	GetCA(projectName string) (string, error)
 	GetServiceAddresses(projectName, serviceName string) (*ServiceAddresses, error)
 }
 
 type Manager struct {
 	service      *aiven.ServicesHandler
-	ca           *aiven.CAHandler
 	addressCache map[cacheKey]*ServiceAddresses
 }
 
@@ -28,10 +26,9 @@ type ServiceAddresses struct {
 	SchemaRegistry string
 }
 
-func NewManager(service *aiven.ServicesHandler, ca *aiven.CAHandler) ServiceManager {
+func NewManager(service *aiven.ServicesHandler) ServiceManager {
 	return &Manager{
 		service:      service,
-		ca:           ca,
 		addressCache: map[cacheKey]*ServiceAddresses{},
 	}
 }
@@ -65,16 +62,6 @@ func (r *Manager) Get(projectName, serviceName string) (*aiven.Service, error) {
 		return err
 	})
 	return service, err
-}
-
-func (r *Manager) GetCA(projectName string) (string, error) {
-	var ca string
-	err := metrics.ObserveAivenLatency("CA_Get", projectName, func() error {
-		var err error
-		ca, err = r.ca.Get(projectName)
-		return err
-	})
-	return ca, err
 }
 
 func GetKafkaBrokerAddress(service *aiven.Service) string {

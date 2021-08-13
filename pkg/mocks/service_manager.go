@@ -37,28 +37,7 @@ func (_m *ServiceManager) Get(projectName string, serviceName string) (*aiven.Se
 	return r0, r1
 }
 
-// GetCA provides a mock function with given fields: projectName
-func (_m *ServiceManager) GetCA(projectName string) (string, error) {
-	ret := _m.Called(projectName)
-
-	var r0 string
-	if rf, ok := ret.Get(0).(func(string) string); ok {
-		r0 = rf(projectName)
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(string) error); ok {
-		r1 = rf(projectName)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetURIs provides a mock function with given fields: projectName, serviceName
+// GetServiceAddresses provides a mock function with given fields: projectName, serviceName
 func (_m *ServiceManager) GetServiceAddresses(projectName string, serviceName string) (*service.ServiceAddresses, error) {
 	ret := _m.Called(projectName, serviceName)
 

@@ -5,6 +5,7 @@ import (
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/constants"
 	aivenator_aiven "github.com/nais/aivenator/pkg/aiven"
+	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/certificate"
@@ -41,14 +42,16 @@ const (
 
 func NewKafkaHandler(aiven *aiven.Client, projects []string) KafkaHandler {
 	return KafkaHandler{
+		project:     project.NewManager(aiven.CA),
 		serviceuser: serviceuser.NewManager(aiven.ServiceUsers),
-		service:     service.NewManager(aiven.Services, aiven.CA),
+		service:     service.NewManager(aiven.Services),
 		generator:   certificate.NewExecGenerator(),
 		projects:    projects,
 	}
 }
 
 type KafkaHandler struct {
+	project     project.ProjectManager
 	serviceuser serviceuser.ServiceUserManager
 	service     service.ServiceManager
 	generator   certificate.Generator
@@ -80,7 +83,7 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 		return utils.AivenFail("GetService", application, err, logger)
 	}
 
-	ca, err := h.service.GetCA(projectName)
+	ca, err := h.project.GetCA(projectName)
 	if err != nil {
 		return utils.AivenFail("GetCA", application, err, logger)
 	}
