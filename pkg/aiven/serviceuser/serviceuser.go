@@ -37,12 +37,6 @@ func (m *Manager) Delete(serviceUserName, projectName, serviceName string) error
 func (m *Manager) Create(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error) {
 	req := aiven.CreateServiceUserRequest{
 		Username: serviceUserName,
-		// XXX: Needed because of https://github.com/aiven/aiven-go-client/issues/111
-		AccessControl: aiven.AccessControl{
-			RedisACLCategories: []string{},
-			RedisACLCommands:   []string{},
-			RedisACLKeys:       []string{},
-		},
 	}
 
 	var aivenUser *aiven.ServiceUser
