@@ -12,21 +12,29 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Generate image environment variable
+        id: set-image-tag
         run: |
           version=$(./version.sh)
           echo "version=${version}" >> $GITHUB_ENV
+          echo "::set-output name=version::${version}"
           echo "AIVENATOR_IMAGE=${image_base}:${version}" >> $GITHUB_ENV
-      - name: Build aivenator docker image
-        run: docker build . --tag $AIVENATOR_IMAGE --tag ${image_base}:latest
+          echo "::set-output name=image::${AIVENATOR_IMAGE}"
       - name: Login to GitHub Packages Docker Registry
         uses: docker/login-action@ab80d026d4753220c4243394c07c7d80f9638d06 # Use commit-sha1 instead of tag for security concerns
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Push docker images
-        run: |
-          docker push --all-tags ${image_base}
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: ${{ env.image_base }}:latest,${{ env.AIVENATOR_IMAGE }}
+    outputs:
+      image: "${{ steps.set-image-tag.outputs.image }}"
+      version: "${{ steps.set-image-tag.outputs.version }}"
+
   deploy:
     name: Deploy to nais-yaml
     if: github.ref == 'refs/heads/main'
@@ -52,8 +60,8 @@ jobs:
         cd $NAIS_YAML
         git config user.email "aura@nav.no"
         git config user.name "NAIS deploy pipeline"
-        sed -E -i "s#aivenator_image: .+#aivenator_image: ${AIVENATOR_IMAGE}#" vars/aivenator.yaml
+        sed -E -i "s#aivenator_image: ${image_base}.+#aivenator_image: ${{ needs.build.outputs.image }}#" vars/aivenator.yaml
         git add .
         git --no-pager diff --cached
-        git commit -a -m "Bump Aivenator to version ${version}"
+        git commit --no-verify -a -m "Bump Aivenator to version ${{ needs.build.outputs.version }}"
         git push
