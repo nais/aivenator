@@ -1,13 +1,17 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
+
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 )
+
+var UnrecoverableError = errors.New("UnrecoverableError")
 
 func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, logger *logrus.Entry) error {
 	errorMessage := err

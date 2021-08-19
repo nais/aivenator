@@ -2,21 +2,24 @@ package aiven_application
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/nais/aivenator/pkg/credentials"
-	"github.com/nais/aivenator/pkg/metrics"
-	"github.com/nais/aivenator/pkg/utils"
+	"time"
+
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"time"
+
+	"github.com/nais/aivenator/pkg/credentials"
+	"github.com/nais/aivenator/pkg/metrics"
+	"github.com/nais/aivenator/pkg/utils"
 )
 
 const (
@@ -63,24 +66,26 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}).Inc()
 	}()
 
-	fail := func(err error, requeue bool) (ctrl.Result, error) {
+	fail := func(err error) (ctrl.Result, error) {
 		if err != nil {
 			logger.Error(err)
 		}
 		application.Status.SynchronizationState = rolloutFailed
 		cr := ctrl.Result{}
-		if requeue {
+
+		if !errors.Is(err, utils.UnrecoverableError) {
 			cr.RequeueAfter = requeueInterval
 		}
+
 		return cr, nil
 	}
 
 	err := r.Get(ctx, req.NamespacedName, &application)
 	switch {
-	case errors.IsNotFound(err):
-		return fail(fmt.Errorf("resource deleted from cluster; noop"), false)
+	case k8serrors.IsNotFound(err):
+		return fail(fmt.Errorf("resource deleted from cluster; noop: %w", utils.UnrecoverableError))
 	case err != nil:
-		return fail(fmt.Errorf("unable to retrieve resource from cluster: %s", err), true)
+		return fail(fmt.Errorf("unable to retrieve resource from cluster: %s", err))
 	}
 
 	logger = logger.WithFields(log.Fields{
@@ -105,13 +110,13 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	hash, err := application.Hash()
 	if err != nil {
 		utils.LocalFail("Hash", &application, err, logger)
-		return fail(nil, true)
+		return fail(err)
 	}
 
 	needsSync, err := r.NeedsSynchronization(ctx, application, hash, logger)
 	if err != nil {
 		utils.LocalFail("NeedsSynchronization", &application, err, logger)
-		return fail(nil, true)
+		return fail(err)
 	}
 
 	if !needsSync {
@@ -134,14 +139,14 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	secret, err := r.Manager.CreateSecret(&application, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
-		return fail(nil, true)
+		return fail(err)
 	}
 
 	logger.Infof("Saving secret to cluster")
 	err = r.SaveSecret(ctx, secret, logger)
 	if err != nil {
 		utils.LocalFail("SaveSecret", &application, err, logger)
-		return fail(nil, true)
+		return fail(err)
 	}
 
 	success(&application, hash)
@@ -199,7 +204,7 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 	err := r.Get(ctx, key, old)
 
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			logger.Infof("Saving secret")
 			err = r.Create(ctx, secret)
 		}
@@ -232,7 +237,7 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 	old := corev1.Secret{}
 	err := r.Get(ctx, key, &old)
 	switch {
-	case errors.IsNotFound(err):
+	case k8serrors.IsNotFound(err):
 		logger.Infof("Secret not found; needs synchronization")
 		return true, nil
 	case err != nil:
