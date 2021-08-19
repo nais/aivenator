@@ -60,7 +60,7 @@ jobs:
         cd $NAIS_YAML
         git config user.email "aura@nav.no"
         git config user.name "NAIS deploy pipeline"
-        sed -E -i "s#aivenator_image:.+#aivenator_image: ${{ needs.build.outputs.image }}#" vars/global.yaml
+        sed -E -i "s#aivenator_image:.+#aivenator_image: ${AIVENATOR_IMAGE}#" vars/global.yaml
         git add .
         git --no-pager diff --cached
         git commit --no-verify -a -m "Bump Aivenator to version ${{ needs.build.outputs.version }}"
