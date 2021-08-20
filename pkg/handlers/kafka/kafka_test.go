@@ -1,20 +1,23 @@
 package kafka
 
 import (
+	"errors"
 	"fmt"
+	"testing"
+
 	"github.com/aiven/aiven-go-client"
-	"github.com/nais/aivenator/constants"
-	"github.com/nais/aivenator/pkg/aiven/service"
-	"github.com/nais/aivenator/pkg/certificate"
-	"github.com/nais/aivenator/pkg/mocks"
-	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
+
+	"github.com/nais/aivenator/constants"
+	"github.com/nais/aivenator/pkg/aiven/service"
+	"github.com/nais/aivenator/pkg/certificate"
+	"github.com/nais/aivenator/pkg/mocks"
+	"github.com/nais/aivenator/pkg/utils"
 )
 
 const (
@@ -265,6 +268,7 @@ func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
 	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.Error(err)
+	suite.True(errors.Is(err, utils.UnrecoverableError))
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationLocalFailure))
 }
 

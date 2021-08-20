@@ -26,7 +26,10 @@ type Handler struct {
 func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, _ *log.Entry) error {
 	secretName := application.Spec.SecretName
 
-	if len(validation.IsDNS1123Label(secretName)) > 0 {
+	errors := validation.IsDNS1123Label(secretName)
+	hasErrors := len(errors) > 0
+
+	if hasErrors {
 		return fmt.Errorf("invalid secret name '%s': %w", secretName, utils.UnrecoverableError)
 	}
 

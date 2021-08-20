@@ -120,14 +120,16 @@ func TestHandler_Apply(t *testing.T) {
 			s := Handler{}
 			err := s.Apply(&tt.args.application, &tt.args.secret, nil)
 
-			if !tt.args.assertUnrecoverable {
-				assert.NoError(t, err)
-			} else {
+			if tt.args.assertUnrecoverable {
 				assert.Error(t, err)
 				assert.True(t, errors.Is(err, utils.UnrecoverableError))
-				return
+			} else {
+				assert.NoError(t, err)
 			}
-			tt.args.assert(t, tt.args)
+
+			if tt.args.assert != nil {
+				tt.args.assert(t, tt.args)
+			}
 		})
 	}
 }
