@@ -22,7 +22,7 @@ type cacheKey struct {
 }
 
 type ServiceAddresses struct {
-	KafkaBroker    string
+	ServiceURI     string
 	SchemaRegistry string
 }
 
@@ -46,7 +46,7 @@ func (r *Manager) GetServiceAddresses(projectName, serviceName string) (*Service
 			return nil, err
 		}
 		addresses = &ServiceAddresses{
-			KafkaBroker:    GetKafkaBrokerAddress(aivenService),
+			ServiceURI:     GetServiceURI(aivenService),
 			SchemaRegistry: GetSchemaRegistryAddress(aivenService),
 		}
 		r.addressCache[key] = addresses
@@ -64,7 +64,7 @@ func (r *Manager) Get(projectName, serviceName string) (*aiven.Service, error) {
 	return service, err
 }
 
-func GetKafkaBrokerAddress(service *aiven.Service) string {
+func GetServiceURI(service *aiven.Service) string {
 	return service.URI
 }
 

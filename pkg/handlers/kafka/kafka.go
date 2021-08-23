@@ -111,7 +111,7 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		KafkaCertificate:       aivenUser.AccessCert,
 		KafkaPrivateKey:        aivenUser.AccessKey,
-		KafkaBrokers:           addresses.KafkaBroker,
+		KafkaBrokers:           addresses.ServiceURI,
 		KafkaSchemaRegistry:    addresses.SchemaRegistry,
 		KafkaSchemaUser:        aivenUser.Username,
 		KafkaSchemaPassword:    aivenUser.Password,
