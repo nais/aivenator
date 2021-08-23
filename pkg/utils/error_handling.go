@@ -23,10 +23,14 @@ func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication,
 		if err != nil {
 			errorMessage = fmt.Errorf("got aiven error %s, but failed to decompose as JSON: %s", aivenErr, err)
 		} else {
-			errorMessage = fmt.Errorf("%s", apiMessage.Message)
+			if 400 <= aivenErr.Status && aivenErr.Status < 500 {
+				errorMessage = fmt.Errorf("%s: %w", apiMessage.Message, UnrecoverableError)
+			} else {
+				errorMessage = fmt.Errorf("%s", apiMessage.Message)
+			}
 		}
 	}
-	message := fmt.Errorf("operation %s failed in Aiven: %s", operation, errorMessage)
+	message := fmt.Errorf("operation %s failed in Aiven: %w", operation, errorMessage)
 	logger.Error(message)
 	application.Status.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
 		Type:    aiven_nais_io_v1.AivenApplicationAivenFailure,
