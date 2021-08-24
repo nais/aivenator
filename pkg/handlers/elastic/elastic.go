@@ -3,7 +3,6 @@ package elastic
 import (
 	"fmt"
 	"github.com/aiven/aiven-go-client"
-	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -11,14 +10,19 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"time"
 )
 
 // Annotations
 const (
 	ServiceUserAnnotation = "elastic.aiven.nais.io/serviceUser"
 	ProjectAnnotation     = "elastic.aiven.nais.io/project"
+)
+
+// Environment variables
+const (
+	ElasticUser     = "ELASTIC_USERNAME"
+	ElasticPassword = "ELASTIC_PASSWORD"
+	ElasticURI      = "ELASTIC_URI"
 )
 
 func NewElasticHandler(aiven *aiven.Client, projectName string) ElasticHandler {
@@ -52,11 +56,6 @@ func (h ElasticHandler) Apply(application *aiven_nais_io_v1.AivenApplication, se
 		return utils.AivenFail("GetService", application, err, logger)
 	}
 
-	ca, err := h.project.GetCA(h.projectName)
-	if err != nil {
-		return utils.AivenFail("GetCA", application, err, logger)
-	}
-
 	serviceUserName := fmt.Sprintf("%s%s", application.GetNamespace(), selectSuffix(spec.Access))
 
 	aivenUser, err := h.serviceuser.Get(serviceUserName, h.projectName, serviceName)
@@ -70,30 +69,11 @@ func (h ElasticHandler) Apply(application *aiven_nais_io_v1.AivenApplication, se
 	}))
 	logger.Infof("Fetched serviceuser %s", aivenUser.Username)
 
-	credStore, err := h.generator.MakeCredStores(aivenUser.AccessKey, aivenUser.AccessCert, ca)
-	if err != nil {
-		utils.LocalFail("CreateCredStores", application, err, logger)
-		return err
-	}
-
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
-		KafkaCertificate:       aivenUser.AccessCert,
-		KafkaPrivateKey:        aivenUser.AccessKey,
-		KafkaBrokers:           addresses.ServiceURI,
-		KafkaSchemaRegistry:    addresses.SchemaRegistry,
-		KafkaSchemaUser:        aivenUser.Username,
-		KafkaSchemaPassword:    aivenUser.Password,
-		KafkaCA:                ca,
-		KafkaCredStorePassword: credStore.Secret,
-		KafkaSecretUpdated:     time.Now().Format(time.RFC3339),
+		ElasticUser:     aivenUser.Username,
+		ElasticPassword: aivenUser.Password,
+		ElasticURI:      addresses.ServiceURI,
 	})
-
-	secret.Data = utils.MergeByteMap(secret.Data, map[string][]byte{
-		KafkaKeystore:   credStore.Keystore,
-		KafkaTruststore: credStore.Truststore,
-	})
-
-	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
 	return nil
 }
