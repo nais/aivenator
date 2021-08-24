@@ -51,6 +51,11 @@ func (h ElasticHandler) Apply(application *aiven_nais_io_v1.AivenApplication, se
 		"service": serviceName,
 	})
 
+	// Check if application has elastic enabled
+	if (aiven_nais_io_v1.ElasticSpec{}) == spec {
+		return nil
+	}
+
 	addresses, err := h.service.GetServiceAddresses(h.projectName, serviceName)
 	if err != nil {
 		return utils.AivenFail("GetService", application, err, logger)
