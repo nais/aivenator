@@ -40,7 +40,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			name: "UnchangedApplication",
 			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
-				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "7884e7801510de37"}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
 				Build(),
 			hasSecret: true,
 		},
@@ -48,7 +48,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			name: "UnchangedApplicationButSecretMissing",
 			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
-				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "7884e7801510de37"}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
 				Build(),
 			want: true,
 		},
@@ -84,7 +84,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 				return
 			}
 			if got != tt.want {
-				t.Errorf("NeedsSynchronization() got = %v, want %v", got, tt.want)
+				t.Errorf("NeedsSynchronization() got = %v, want %v; actual hash: %v", got, tt.want, hash)
 			}
 		})
 	}

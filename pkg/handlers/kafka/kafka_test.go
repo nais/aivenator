@@ -156,7 +156,7 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Kafka: aiven_nais_io_v1.KafkaSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
 			},
 		}).
@@ -189,7 +189,7 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Kafka: aiven_nais_io_v1.KafkaSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
 			},
 		}).
@@ -212,7 +212,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 func (suite *KafkaHandlerTestSuite) TestProjectGetCAFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Kafka: aiven_nais_io_v1.KafkaSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
 			},
 		}).
@@ -235,7 +235,7 @@ func (suite *KafkaHandlerTestSuite) TestProjectGetCAFailed() {
 func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Kafka: aiven_nais_io_v1.KafkaSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
 			},
 		}).
@@ -259,7 +259,7 @@ func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Kafka: aiven_nais_io_v1.KafkaSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
 				Pool: invalidPool,
 			},
 		}).
@@ -275,7 +275,7 @@ func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
 func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Kafka: aiven_nais_io_v1.KafkaSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
 			},
 		}).
