@@ -46,6 +46,7 @@ const (
 	MetricsAddress               = "metrics-address"
 	Projects                     = "projects"
 	SyncPeriod                   = "sync-period"
+	MainProject                  = "main-project"
 )
 
 const (
@@ -68,6 +69,7 @@ func init() {
 	flag.Duration(KubernetesWriteRetryInterval, time.Second*10, "Requeueing interval when Kubernetes writes fail")
 	flag.Duration(SyncPeriod, time.Hour*1, "How often to re-synchronize all AivenApplication resources including credential rotation")
 	flag.StringSlice(Projects, []string{"nav-integration-test"}, "List of projects allowed to operate on")
+	flag.String(MainProject, "nav-integration-test", "Main project to operate on for services that only allow one")
 
 	flag.Parse()
 
@@ -146,7 +148,7 @@ func main() {
 	logger.Info("Aivenator running")
 	terminator := context.Background()
 
-	if err := manageCredentials(aivenClient, logger, mgr, allowedProjects); err != nil {
+	if err := manageCredentials(aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject)); err != nil {
 		logger.Errorln(err)
 		os.Exit(ExitCredentialsManager)
 	}
@@ -172,8 +174,8 @@ func main() {
 	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
-func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string) error {
-	credentialsManager := credentials.NewManager(aiven, projects)
+func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, projectName string) error {
+	credentialsManager := credentials.NewManager(aiven, projects, projectName)
 	credentialsJanitor := credentials.Janitor{
 		Client: mgr.GetClient(),
 		Logger: logger.WithFields(log.Fields{

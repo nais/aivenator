@@ -14,11 +14,25 @@ func NewManager(serviceUsers *aiven.ServiceUsersHandler) ServiceUserManager {
 
 type ServiceUserManager interface {
 	Create(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error)
+	Get(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error)
 	Delete(serviceUserName, projectName, serviceName string) error
 }
 
 type Manager struct {
 	serviceUsers *aiven.ServiceUsersHandler
+}
+
+func (m *Manager) Get(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error) {
+	var aivenUser *aiven.ServiceUser
+	err := metrics.ObserveAivenLatency("ServiceUser_Get", projectName, func() error {
+		var err error
+		aivenUser, err = m.serviceUsers.Get(projectName, serviceName, serviceUserName)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return aivenUser, nil
 }
 
 func (m *Manager) Delete(serviceUserName, projectName, serviceName string) error {

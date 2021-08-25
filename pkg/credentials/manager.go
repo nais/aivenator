@@ -2,6 +2,7 @@ package credentials
 
 import (
 	"github.com/aiven/aiven-go-client"
+	"github.com/nais/aivenator/pkg/handlers/elastic"
 	"github.com/nais/aivenator/pkg/handlers/kafka"
 	"github.com/nais/aivenator/pkg/handlers/secret"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -18,11 +19,12 @@ type Manager struct {
 	handlers []Handler
 }
 
-func NewManager(aiven *aiven.Client, projects []string) Manager {
+func NewManager(aiven *aiven.Client, projects []string, projectName string) Manager {
 	return Manager{
 		handlers: []Handler{
 			secret.Handler{},
 			kafka.NewKafkaHandler(aiven, projects),
+			elastic.NewElasticHandler(aiven, projectName),
 		},
 	}
 }

@@ -1,0 +1,9 @@
+apiVersion: aiven.nais.io/v1
+kind: AivenApplication
+metadata:
+  name: karapace-test
+  namespace: aura
+spec:
+  secretName: kafka-nav-prod-karapace-test-1234567
+  kafka:
+    pool: nav-prod
