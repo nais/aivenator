@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	serviceUserName = "service-username"
+	namespace       = "team-a"
+	serviceUserName = "team-a"
 	servicePassword = "service-password"
 	projectName     = "my-project"
 	serviceURI      = "http://example.com"
@@ -78,7 +79,7 @@ func (suite *ElasticHandlerTestSuite) SetupTest() {
 		service:     suite.mockServices,
 		projectName: projectName,
 	}
-	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
+	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", namespace)
 }
 
 func (suite *ElasticHandlerTestSuite) TestNoElastic() {
@@ -121,17 +122,17 @@ func (suite *ElasticHandlerTestSuite) TestElasticOk() {
 	})
 }
 
-/*
 func (suite *ElasticHandlerTestSuite) TestServiceGetFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			Elastic: aiven_nais_io_v1.ElasticSpec{
-				Pool: pool,
+				Instance: instance,
+				Access:   access,
 			},
 		}).
 		Build()
 	secret := &v1.Secret{}
-	suite.addDefaultMocks(enabled(ProjectGetCA, ServiceUsersGet, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ServiceUsersGet))
 	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything).
 		Return(nil, &aiven.Error{
 			Message:  "aiven-error",
@@ -144,19 +145,19 @@ func (suite *ElasticHandlerTestSuite) TestServiceGetFailed() {
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
 }
-*/
-/*
-func (suite *ElasticHandlerTestSuite) TestServiceUsersCreateFailed() {
+
+func (suite *ElasticHandlerTestSuite) TestServiceUsersGetFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			Elastic: aiven_nais_io_v1.ElasticSpec{
-				Pool: pool,
+				Instance: instance,
+				Access:   access,
 			},
 		}).
 		Build()
 	secret := &v1.Secret{}
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores))
-	suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything).
+	suite.addDefaultMocks(enabled(ServicesGetAddresses))
+	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, &aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
@@ -168,7 +169,54 @@ func (suite *ElasticHandlerTestSuite) TestServiceUsersCreateFailed() {
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
 }
-*/
+
+func (suite *ElasticHandlerTestSuite) TestCorrectServiceUserSelected() {
+	testData := []struct {
+		access   string
+		username string
+	}{
+		{
+			access:   "read",
+			username: serviceUserName + "-r",
+		},
+		{
+			access:   "readwrite",
+			username: serviceUserName + "-rw",
+		},
+		{
+			access:   "write",
+			username: serviceUserName + "-w",
+		},
+		{
+			access:   "admin",
+			username: serviceUserName,
+		},
+	}
+
+	for _, t := range testData {
+		suite.Run(t.access, func() {
+			suite.addDefaultMocks(enabled(ServicesGetAddresses))
+			suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything).
+				Return(&aiven.ServiceUser{
+					Username: t.username,
+					Password: servicePassword,
+				}, nil).Once()
+			application := suite.applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Elastic: aiven_nais_io_v1.ElasticSpec{
+						Instance: instance,
+						Access:   t.access,
+					},
+				}).
+				Build()
+			secret := &v1.Secret{}
+			err := suite.elasticHandler.Apply(&application, secret, suite.logger)
+
+			suite.NoError(err)
+			suite.Equal(t.username, secret.StringData[ElasticUser])
+		})
+	}
+}
 
 func TestElasticHandler(t *testing.T) {
 	elasticTestSuite := new(ElasticHandlerTestSuite)
