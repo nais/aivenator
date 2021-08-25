@@ -24,6 +24,7 @@ type cacheKey struct {
 type ServiceAddresses struct {
 	ServiceURI     string
 	SchemaRegistry string
+	ElasticSearch  string
 }
 
 func NewManager(service *aiven.ServicesHandler) ServiceManager {
@@ -47,6 +48,7 @@ func (r *Manager) GetServiceAddresses(projectName, serviceName string) (*Service
 		}
 		addresses = &ServiceAddresses{
 			ServiceURI:     GetServiceURI(aivenService),
+			ElasticSearch:  GetElasticSearchAddress(aivenService),
 			SchemaRegistry: GetSchemaRegistryAddress(aivenService),
 		}
 		r.addressCache[key] = addresses
@@ -72,6 +74,14 @@ func GetSchemaRegistryAddress(service *aiven.Service) string {
 	schemaRegistryComponent := findComponent("schema_registry", service.Components)
 	if schemaRegistryComponent != nil {
 		return fmt.Sprintf("https://%s:%d", schemaRegistryComponent.Host, schemaRegistryComponent.Port)
+	}
+	return ""
+}
+
+func GetElasticSearchAddress(service *aiven.Service) string {
+	elasticComponent := findComponent("elasticsearch", service.Components)
+	if elasticComponent != nil {
+		return fmt.Sprintf("https://%s:%d", elasticComponent.Host, elasticComponent.Port)
 	}
 	return ""
 }

@@ -76,7 +76,7 @@ func (h ElasticHandler) Apply(application *aiven_nais_io_v1.AivenApplication, se
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		ElasticUser:     aivenUser.Username,
 		ElasticPassword: aivenUser.Password,
-		ElasticURI:      addresses.ServiceURI,
+		ElasticURI:      addresses.ElasticSearch,
 	})
 
 	return nil
