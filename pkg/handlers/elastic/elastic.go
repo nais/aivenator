@@ -44,17 +44,16 @@ type ElasticHandler struct {
 func (h ElasticHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {
 	logger = logger.WithFields(log.Fields{"handler": "elastic"})
 	spec := application.Spec.Elastic
+	if spec == nil {
+		return nil
+	}
+
 	serviceName := spec.Instance
 
 	logger = logger.WithFields(log.Fields{
 		"project": h.projectName,
 		"service": serviceName,
 	})
-
-	// Check if application has elastic enabled
-	if (aiven_nais_io_v1.ElasticSpec{}) == spec {
-		return nil
-	}
 
 	addresses, err := h.service.GetServiceAddresses(h.projectName, serviceName)
 	if err != nil {
@@ -80,6 +79,10 @@ func (h ElasticHandler) Apply(application *aiven_nais_io_v1.AivenApplication, se
 		ElasticURI:      addresses.ServiceURI,
 	})
 
+	return nil
+}
+
+func (h ElasticHandler) Cleanup(_ *v1.Secret, _ *log.Entry) error {
 	return nil
 }
 

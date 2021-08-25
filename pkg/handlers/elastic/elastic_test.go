@@ -91,11 +91,12 @@ func (suite *ElasticHandlerTestSuite) TestNoElastic() {
 	suite.NoError(err)
 	suite.Equal(&v1.Secret{}, secret)
 }
+
 func (suite *ElasticHandlerTestSuite) TestElasticOk() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServiceUsersGet))
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Elastic: aiven_nais_io_v1.ElasticSpec{
+			Elastic: &aiven_nais_io_v1.ElasticSpec{
 				Instance: instance,
 				Access:   access,
 			},
@@ -125,7 +126,7 @@ func (suite *ElasticHandlerTestSuite) TestElasticOk() {
 func (suite *ElasticHandlerTestSuite) TestServiceGetFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Elastic: aiven_nais_io_v1.ElasticSpec{
+			Elastic: &aiven_nais_io_v1.ElasticSpec{
 				Instance: instance,
 				Access:   access,
 			},
@@ -149,7 +150,7 @@ func (suite *ElasticHandlerTestSuite) TestServiceGetFailed() {
 func (suite *ElasticHandlerTestSuite) TestServiceUsersGetFailed() {
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Elastic: aiven_nais_io_v1.ElasticSpec{
+			Elastic: &aiven_nais_io_v1.ElasticSpec{
 				Instance: instance,
 				Access:   access,
 			},
@@ -203,7 +204,7 @@ func (suite *ElasticHandlerTestSuite) TestCorrectServiceUserSelected() {
 				}, nil).Once()
 			application := suite.applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					Elastic: aiven_nais_io_v1.ElasticSpec{
+					Elastic: &aiven_nais_io_v1.ElasticSpec{
 						Instance: instance,
 						Access:   t.access,
 					},
