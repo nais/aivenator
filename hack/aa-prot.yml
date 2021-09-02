@@ -1,0 +1,10 @@
+apiVersion: aiven.nais.io/v1
+kind: AivenApplication
+metadata:
+  name: aa-prot
+  namespace: default
+spec:
+  secretName: my-protected-secret
+  protected: true
+  kafka:
+    pool: nav-dev

@@ -2,7 +2,16 @@ package kafka
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/aiven/aiven-go-client"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	"github.com/nais/liberator/pkg/namegen"
+	"github.com/nais/liberator/pkg/strings"
+	log "github.com/sirupsen/logrus"
+	"k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
 	"github.com/nais/aivenator/constants"
 	aivenator_aiven "github.com/nais/aivenator/pkg/aiven"
 	"github.com/nais/aivenator/pkg/aiven/project"
@@ -10,13 +19,6 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/utils"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
-	"github.com/nais/liberator/pkg/namegen"
-	"github.com/nais/liberator/pkg/strings"
-	log "github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"time"
 )
 
 // Keys in secret
@@ -60,6 +62,10 @@ type KafkaHandler struct {
 
 func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {
 	logger = logger.WithFields(log.Fields{"handler": "kafka"})
+	if application.Spec.Kafka == nil {
+		return nil
+	}
+
 	projectName := application.Spec.Kafka.Pool
 	if projectName == "" {
 		logger.Debugf("No Kafka pool specified; noop")
@@ -73,7 +79,7 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 	})
 
 	if !strings.ContainsString(h.projects, projectName) {
-		err := fmt.Errorf("pool %s is not allowed in this cluster", projectName)
+		err := fmt.Errorf("pool %s is not allowed in this cluster: %w", projectName, utils.UnrecoverableError)
 		utils.LocalFail("ValidatePool", application, err, logger)
 		return err
 	}
@@ -109,7 +115,7 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		KafkaCertificate:       aivenUser.AccessCert,
 		KafkaPrivateKey:        aivenUser.AccessKey,
-		KafkaBrokers:           addresses.KafkaBroker,
+		KafkaBrokers:           addresses.ServiceURI,
 		KafkaSchemaRegistry:    addresses.SchemaRegistry,
 		KafkaSchemaUser:        aivenUser.Username,
 		KafkaSchemaPassword:    aivenUser.Password,
