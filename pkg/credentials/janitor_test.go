@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/controllers/mocks"
+	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
@@ -16,11 +17,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"strconv"
 	"testing"
+	"time"
 )
 
 const (
 	MyAppName    = "app1"
 	NotMyAppName = "app2"
+	MyUser       = "user"
 
 	Secret1Name = "secret1"
 	Secret2Name = "secret2"
@@ -29,6 +32,8 @@ const (
 	Secret5Name = "secret5"
 	Secret6Name = "secret6"
 	Secret7Name = "secret7"
+	Secret8Name = "secret8"
+	Secret9Name = "secret9"
 
 	MyNamespace    = "namespace"
 	NotMyNamespace = "not-my-namespace"
@@ -107,6 +112,63 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 		}).
 		Build()
 	errs := janitor.CleanUnusedSecrets(suite.ctx, application)
+
+	suite.Empty(errs)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
+func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndTimeLimit() {
+	secrets := []secretSetup{
+		{Secret8Name, MyNamespace, constants.AivenatorSecretType, MyUser, []MakeSecretOption{SecretIsProtected, SecretIsTimeLimited}, true, "Protected and time limited secret should be kept if timeToLive is valid"},
+		{Secret9Name, MyNamespace, constants.AivenatorSecretType, MyUser, []MakeSecretOption{SecretIsProtected, SecretIsTimeLimited}, false, "Protected and time limited secret should be deleted if timeToLive is out"},
+	}
+	for _, s := range secrets {
+		secret := makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...)
+		if s.name == Secret8Name {
+			expiryDate := metav1.Time{
+				Time: time.Now(),
+			}
+			secret.SetCreationTimestamp(expiryDate)
+			suite.clientBuilder.WithRuntimeObjects(secret)
+		} else {
+			expiryDate := metav1.Time{
+				Time: time.Now().AddDate(0, 0, -3),
+			}
+			secret.SetCreationTimestamp(expiryDate)
+			suite.clientBuilder.WithRuntimeObjects(secret)
+		}
+	}
+
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	application9 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			SecretName: Secret9Name,
+			UserSpec: &aiven_nais_io_v1.UserSpec{
+				TimeToLive: 1,
+			},
+		}).
+		Build()
+	application8 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			SecretName: Secret8Name,
+			UserSpec: &aiven_nais_io_v1.UserSpec{
+				TimeToLive: 1,
+			},
+		}).
+		Build()
+
+	errs := janitor.CleanUnusedSecrets(suite.ctx, application8)
+	errs = janitor.CleanUnusedSecrets(suite.ctx, application9)
 
 	suite.Empty(errs)
 
@@ -301,6 +363,7 @@ func makePodForSecret(secretName string) *corev1.Pod {
 type makeSecretOpts struct {
 	protected        bool
 	hasNoAnnotations bool
+	timeLimit        bool
 }
 
 type MakeSecretOption func(opts *makeSecretOpts)
@@ -311,6 +374,10 @@ func SecretHasNoAnnotations(opts *makeSecretOpts) {
 
 func SecretIsProtected(opts *makeSecretOpts) {
 	opts.protected = true
+}
+
+func SecretIsTimeLimited(opts *makeSecretOpts) {
+	opts.timeLimit = true
 }
 
 func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSecretOption) *corev1.Secret {
@@ -333,6 +400,13 @@ func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSec
 		s.SetAnnotations(map[string]string{
 			constants.AivenatorProtectedAnnotation: strconv.FormatBool(opts.protected),
 		})
+	}
+
+	if opts.timeLimit {
+		annotations := s.GetAnnotations()
+		s.SetAnnotations(utils.MergeStringMap(annotations, map[string]string{
+			constants.AivenatorProtectedTimeToLiveAnnotation: strconv.FormatBool(opts.timeLimit),
+		}))
 	}
 	return s
 }

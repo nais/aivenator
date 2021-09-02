@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"time"
 )
 
 type Janitor struct {
@@ -49,6 +50,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 	}{
 		InUse: len(secretLists.Used.Items),
 	}
+
 	if found := len(secretLists.Unused.Items); found > 0 {
 		j.Logger.Debugf("Found %d unused secrets managed by Aivenator", found)
 
@@ -57,24 +59,23 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 				"secret_name": oldSecret.GetName(),
 				"namespace":   oldSecret.GetNamespace(),
 			})
-
 			if oldSecret.GetName() == application.Spec.SecretName {
+
+				if isProtected(oldSecret) && isTimeLimited(oldSecret) {
+					if hasTimeToLive(oldSecret, application.Spec.UserSpec.TimeToLive) {
+						logger.Debugf("Secret is protected and still have time to live, leaving alone")
+					} else {
+						j.deleteSecret(ctx, oldSecret, &errs)
+					}
+				}
+
 				logger.Debugf("Will not delete currently requested secret")
 				counters.InUse += 1
 				continue
 			}
 
 			if protected, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedAnnotation]; !ok || protected != "true" {
-				logger.Debugf("Deleting secret")
-				if err := j.Delete(ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
-					err = fmt.Errorf("failed to delete secret %s in namespace %s: %s", oldSecret.GetName(), oldSecret.GetNamespace(), err)
-					errs = append(errs, err)
-				} else {
-					metrics.KubernetesResourcesDeleted.With(prometheus.Labels{
-						metrics.LabelResourceType: "Secret",
-						metrics.LabelNamespace:    oldSecret.GetNamespace(),
-					}).Inc()
-				}
+				j.deleteSecret(ctx, oldSecret, &errs)
 			} else {
 				counters.Protected += 1
 				logger.Debugf("Secret is protected, leaving alone")
@@ -92,4 +93,35 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 	}).Set(float64(counters.InUse))
 
 	return errs
+}
+
+func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, errs *[]error) {
+	j.Logger.Debugf("Deleting secret")
+	if err := j.Delete(ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
+		err = fmt.Errorf("failed to delete secret %s in namespace %s: %s", oldSecret.GetName(), oldSecret.GetNamespace(), err)
+		*errs = append(*errs, err)
+	} else {
+		metrics.KubernetesResourcesDeleted.With(prometheus.Labels{
+			metrics.LabelResourceType: "Secret",
+			metrics.LabelNamespace:    oldSecret.GetNamespace(),
+		}).Inc()
+	}
+}
+
+func isProtected(oldSecret corev1.Secret) bool {
+	if protected, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedAnnotation]; ok && protected == "true" {
+		return true
+	}
+	return false
+}
+
+func isTimeLimited(oldSecret corev1.Secret) bool {
+	if timeLimited, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedTimeToLiveAnnotation]; ok && timeLimited == "true" {
+		return true
+	}
+	return false
+}
+
+func hasTimeToLive(oldSecret corev1.Secret, timeToLive int) bool {
+	return oldSecret.GetObjectMeta().GetCreationTimestamp().AddDate(0, 0, timeToLive).After(time.Now())
 }

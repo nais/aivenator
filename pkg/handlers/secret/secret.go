@@ -28,10 +28,7 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *c
 			constants.TeamLabel:       application.GetNamespace(),
 			constants.SecretTypeLabel: constants.AivenatorSecretType,
 		},
-		Annotations: map[string]string{
-			nais_io_v1.DeploymentCorrelationIDAnnotation: application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation],
-			constants.AivenatorProtectedAnnotation:       strconv.FormatBool(application.Spec.Protected),
-		},
+		Annotations: setAnnotations(application),
 	}
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
@@ -40,6 +37,20 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *c
 	secret.SetOwnerReferences([]metav1.OwnerReference{application.GetOwnerReference()})
 
 	return nil
+}
+
+func setAnnotations(application *aiven_nais_io_v1.AivenApplication) map[string]string {
+	annotations := map[string]string{
+		nais_io_v1.DeploymentCorrelationIDAnnotation: application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation],
+		constants.AivenatorProtectedAnnotation:       strconv.FormatBool(application.Spec.Protected),
+	}
+
+	if application.Spec.Protected && application.Spec.UserSpec != nil {
+		utils.MergeStringMap(annotations, map[string]string{
+			constants.AivenatorProtectedTimeToLiveAnnotation: time.Now().String(),
+		})
+	}
+	return annotations
 }
 
 func (s Handler) Cleanup(_ *corev1.Secret, _ *log.Entry) error {
