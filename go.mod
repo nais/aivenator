@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/aiven/aiven-go-client v1.5.13
-	github.com/nais/liberator v0.0.0-20210610081134-a44c6949e3c0
+	github.com/nais/liberator v0.0.0-20210902110414-612a22b452f2
 	github.com/prometheus/client_golang v1.7.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/pflag v1.0.5
@@ -15,5 +15,3 @@ require (
 	k8s.io/client-go v0.20.2
 	sigs.k8s.io/controller-runtime v0.8.3
 )
-
-replace github.com/nais/liberator => ../liberator
