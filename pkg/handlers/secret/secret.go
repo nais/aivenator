@@ -60,7 +60,7 @@ func setAnnotations(application *aiven_nais_io_v1.AivenApplication) map[string]s
 
 	if application.Spec.Protected && application.Spec.UserSpec != nil {
 		utils.MergeStringMap(annotations, map[string]string{
-			constants.AivenatorProtectedTimeToLiveAnnotation: time.Now().String(),
+			constants.AivenatorProtectedTimeToLiveAnnotation: strconv.FormatBool(true),
 		})
 	}
 	return annotations
