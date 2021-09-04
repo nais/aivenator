@@ -66,19 +66,19 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 				continue
 			}
 
-			if !Protected(oldSecret) {
-				j.deleteSecret(ctx, oldSecret, &errs)
-			} else {
-				counters.Protected += 1
-				logger.Debugf("Secret is protected, leaving alone")
-			}
-
-			if Protected(oldSecret) && timeLimited(oldSecret) {
+			if protected(oldSecret) && timeLimited(oldSecret) {
 				if !timeToLive(oldSecret, application.Spec.UserSpec.TimeToLive) {
 					j.deleteSecret(ctx, oldSecret, &errs)
 				} else {
 					logger.Debugf("Secret is protected and still have time to live, leaving alone")
 				}
+			}
+
+			if !protected(oldSecret) {
+				j.deleteSecret(ctx, oldSecret, &errs)
+			} else {
+				counters.Protected += 1
+				logger.Debugf("Secret is protected, leaving alone")
 			}
 		}
 	}
@@ -108,7 +108,7 @@ func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, err
 	}
 }
 
-func Protected(oldSecret corev1.Secret) bool {
+func protected(oldSecret corev1.Secret) bool {
 	if protected, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedAnnotation]; ok && protected == "true" {
 		return true
 	}
