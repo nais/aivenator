@@ -59,26 +59,26 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 				"secret_name": oldSecret.GetName(),
 				"namespace":   oldSecret.GetNamespace(),
 			})
+
 			if oldSecret.GetName() == application.Spec.SecretName {
-
-				if isProtected(oldSecret) && isTimeLimited(oldSecret) {
-					if hasTimeToLive(oldSecret, application.Spec.UserSpec.TimeToLive) {
-						logger.Debugf("Secret is protected and still have time to live, leaving alone")
-					} else {
-						j.deleteSecret(ctx, oldSecret, &errs)
-					}
-				}
-
 				logger.Debugf("Will not delete currently requested secret")
 				counters.InUse += 1
 				continue
 			}
 
-			if protected, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedAnnotation]; !ok || protected != "true" {
+			if !Protected(oldSecret) {
 				j.deleteSecret(ctx, oldSecret, &errs)
 			} else {
 				counters.Protected += 1
 				logger.Debugf("Secret is protected, leaving alone")
+			}
+
+			if Protected(oldSecret) && timeLimited(oldSecret) {
+				if !timeToLive(oldSecret, application.Spec.UserSpec.TimeToLive) {
+					j.deleteSecret(ctx, oldSecret, &errs)
+				} else {
+					logger.Debugf("Secret is protected and still have time to live, leaving alone")
+				}
 			}
 		}
 	}
@@ -108,20 +108,20 @@ func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, err
 	}
 }
 
-func isProtected(oldSecret corev1.Secret) bool {
+func Protected(oldSecret corev1.Secret) bool {
 	if protected, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedAnnotation]; ok && protected == "true" {
 		return true
 	}
 	return false
 }
 
-func isTimeLimited(oldSecret corev1.Secret) bool {
+func timeLimited(oldSecret corev1.Secret) bool {
 	if timeLimited, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedTimeToLiveAnnotation]; ok && timeLimited == "true" {
 		return true
 	}
 	return false
 }
 
-func hasTimeToLive(oldSecret corev1.Secret, timeToLive int) bool {
+func timeToLive(oldSecret corev1.Secret, timeToLive int) bool {
 	return oldSecret.GetObjectMeta().GetCreationTimestamp().AddDate(0, 0, timeToLive).After(time.Now())
 }
