@@ -110,14 +110,14 @@ func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, err
 
 func protected(oldSecret corev1.Secret) bool {
 	if protected, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedAnnotation]; ok && protected == "true" {
-		return true
+		return ok
 	}
 	return false
 }
 
 func timeLimited(oldSecret corev1.Secret) bool {
 	if timeLimited, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedTimeToLiveAnnotation]; ok && timeLimited == "true" {
-		return true
+		return ok
 	}
 	return false
 }
