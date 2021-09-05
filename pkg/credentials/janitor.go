@@ -46,6 +46,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 	secretLists := kubernetes.ListUsedAndUnusedSecretsForPods(secrets, podList)
 	counters := struct {
 		Protected int
+		ProtectedWithTimeLimit int
 		InUse     int
 	}{
 		InUse: len(secretLists.Used.Items),
@@ -70,6 +71,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 				if !timeToLive(oldSecret, application.Spec.UserSpec.TimeToLive) {
 					j.deleteSecret(ctx, oldSecret, &errs)
 				} else {
+					counters.ProtectedWithTimeLimit += 1
 					logger.Debugf("Secret is protected and still have time to live, leaving alone")
 				}
 			}
@@ -87,6 +89,10 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 		metrics.LabelNamespace:   application.GetNamespace(),
 		metrics.LabelSecretState: "protected",
 	}).Set(float64(counters.Protected))
+	metrics.SecretsManaged.With(prometheus.Labels{
+		metrics.LabelNamespace:   application.GetNamespace(),
+		metrics.LabelSecretState: "protected-with-time-limit",
+	}).Set(float64(counters.ProtectedWithTimeLimit))
 	metrics.SecretsManaged.With(prometheus.Labels{
 		metrics.LabelNamespace:   application.GetNamespace(),
 		metrics.LabelSecretState: "in_use",
