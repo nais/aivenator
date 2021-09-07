@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/nais/aivenator/pkg/annotations"
 	"time"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -114,10 +113,16 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return fail(err)
 	}
 
-	if ok := annotations.HasDelete(application.GetAnnotations()); ok {
-		err = r.handleDeleteAnnotation(ctx, application, logger, ok)
+	if application.Spec.ExpiresAt != "" {
+		parsedTimeStamp, err := utils.Parse(application.Spec.ExpiresAt)
 		if err != nil {
-			utils.LocalFail("handleDeleteAnnotation", &application, err, logger)
+			utils.LocalFail("parsedTimeStamp", &application, err, logger)
+			return fail(err)
+		}
+
+		err = r.HandleDeletion(ctx, application, logger, parsedTimeStamp)
+		if err != nil {
+			utils.LocalFail("handleDeletion", &application, err, logger)
 			return fail(err)
 		} else {
 			return ctrl.Result{}, nil
@@ -172,9 +177,9 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	return ctrl.Result{}, nil
 }
 
-func (r *AivenApplicationReconciler) handleDeleteAnnotation(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry, shouldDelete bool) error {
-	if shouldDelete {
-		log.Infof("Application with delete annotation")
+func (r *AivenApplicationReconciler) HandleDeletion(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry, timestamp time.Time) error {
+	if utils.Expired(timestamp) {
+		log.Infof("Application timelimit exceded: %s", timestamp.Format(time.RFC3339))
 		err := r.DeleteApplication(ctx, application, logger)
 		if err != nil {
 			return err

@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"testing"
+	"time"
 )
 
 func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
@@ -104,7 +105,7 @@ func TestAivenApplicationReconciler_HasDeleteAnnotation(t *testing.T) {
 		name        string
 		application aiven_nais_io_v1.AivenApplication
 		hasSecret   bool
-		annotated   bool
+		expireAt    time.Time
 		wantErr     bool
 	}{
 		{
@@ -115,16 +116,7 @@ func TestAivenApplicationReconciler_HasDeleteAnnotation(t *testing.T) {
 				WithAnnotation(kafka.DeleteExpiredAnnotation, "true").
 				Build(),
 			hasSecret: false,
-			annotated: true,
-		},
-		{
-			name: "ApplicationWhereSecretIsDeletedButNoAnnotation",
-			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app2", "ns2").
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
-				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
-				Build(),
-			hasSecret: false,
-			annotated: false,
+			expireAt:  time.Now().AddDate(0, 0, -1),
 		},
 	}
 
@@ -148,7 +140,7 @@ func TestAivenApplicationReconciler_HasDeleteAnnotation(t *testing.T) {
 				Manager: credentials.Manager{},
 			}
 
-			err := r.handleDeleteAnnotation(ctx, tt.application, r.Logger, tt.annotated)
+			err := r.HandleDeletion(ctx, tt.application, r.Logger, tt.expireAt)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("DeleteApplication() error = %v, wantErr %v", err, tt.wantErr)
 				return

@@ -6,6 +6,7 @@ import (
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/annotations"
 	"github.com/nais/aivenator/pkg/metrics"
+	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/nais/liberator/pkg/kubernetes"
 	"github.com/prometheus/client_golang/prometheus"
@@ -13,7 +14,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
 )
 
 type Janitor struct {
@@ -71,8 +71,8 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 			oldSecretAnnotations := oldSecret.GetAnnotations()
 			if annotations.HasProtected(oldSecretAnnotations) {
 				if annotations.HasTimeLimited(oldSecretAnnotations) {
-					parsedTimeStamp := parse(application.Spec.ExpiresAt, &errs)
-					if expired(parsedTimeStamp) {
+					parsedTimeStamp := utils.ParseTimestamp(application.Spec.ExpiresAt, &errs)
+					if utils.Expired(parsedTimeStamp) {
 						j.deleteSecret(ctx, oldSecret, &errs)
 						annotations.SetDelete(application)
 					} else {
@@ -116,16 +116,4 @@ func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, err
 			metrics.LabelNamespace:    oldSecret.GetNamespace(),
 		}).Inc()
 	}
-}
-
-func expired(expiredAt time.Time) bool {
-	return time.Now().After(expiredAt)
-}
-
-func parse(expiresAt string, errs *[]error) time.Time {
-	expired, err := time.Parse(time.RFC3339, expiresAt)
-	if err != nil {
-		*errs = append(*errs, err)
-	}
-	return expired
 }
