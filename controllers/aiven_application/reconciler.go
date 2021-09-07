@@ -184,10 +184,6 @@ func (r *AivenApplicationReconciler) handleDeleteAnnotation(ctx context.Context,
 }
 
 func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) error {
-	logger = logger.WithFields(log.Fields{
-		"application": application.GetName(),
-		"namespace":   application.GetNamespace(),
-	})
 	err := r.Delete(ctx, &application)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
