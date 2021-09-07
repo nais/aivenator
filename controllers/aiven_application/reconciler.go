@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/nais/aivenator/pkg/annotations"
 	"time"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -113,6 +114,15 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return fail(err)
 	}
 
+	if ok := annotations.HasDelete(application.GetAnnotations()); ok {
+		err = r.handleDeleteAnnotation(ctx, application, logger, ok)
+		if err != nil {
+			return fail(err)
+		} else {
+			return ctrl.Result{}, nil
+		}
+	}
+
 	needsSync, err := r.NeedsSynchronization(ctx, application, hash, logger)
 	if err != nil {
 		utils.LocalFail("NeedsSynchronization", &application, err, logger)
@@ -159,6 +169,35 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *AivenApplicationReconciler) handleDeleteAnnotation(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry, shouldDelete bool) error {
+	if shouldDelete {
+		log.Infof("Application with delete annotation")
+		err := r.DeleteApplication(ctx, application, logger)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) error {
+	logger = logger.WithFields(log.Fields{
+		"application": application.GetName(),
+		"namespace":   application.GetNamespace(),
+	})
+	err := r.Delete(ctx, &application)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			logger.Warningf("application do not exist in cluster: %s", err)
+		} else {
+			return fmt.Errorf("unable to delete application from cluster: %s", err)
+		}
+	} else {
+		logger.Infof("Application deleted from cluster")
+	}
+	return nil
 }
 
 func success(application *aiven_nais_io_v1.AivenApplication, hash string) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/nais/aivenator/constants"
+	"github.com/nais/aivenator/pkg/annotations"
 	"github.com/nais/aivenator/pkg/metrics"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/nais/liberator/pkg/kubernetes"
@@ -45,9 +46,9 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 	errs := make([]error, 0)
 	secretLists := kubernetes.ListUsedAndUnusedSecretsForPods(secrets, podList)
 	counters := struct {
-		Protected int
+		Protected              int
 		ProtectedWithTimeLimit int
-		InUse     int
+		InUse                  int
 	}{
 		InUse: len(secretLists.Used.Items),
 	}
@@ -67,20 +68,23 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 				continue
 			}
 
-			if protected(oldSecret) && timeLimited(oldSecret) {
-				if !timeToLive(oldSecret, application.Spec.UserSpec.TimeToLive) {
-					j.deleteSecret(ctx, oldSecret, &errs)
+			oldSecretAnnotations := oldSecret.GetAnnotations()
+			if annotations.HasProtected(oldSecretAnnotations) {
+				if annotations.HasTimeLimited(oldSecretAnnotations) {
+					parsedTimeStamp := parse(application.Spec.ExpiresAt, &errs)
+					if expired(parsedTimeStamp) {
+						j.deleteSecret(ctx, oldSecret, &errs)
+						annotations.SetDelete(application)
+					} else {
+						counters.ProtectedWithTimeLimit += 1
+						logger.Debugf("Secret is protected and not expired, leaving alone")
+					}
 				} else {
-					counters.ProtectedWithTimeLimit += 1
-					logger.Debugf("Secret is protected and still have time to live, leaving alone")
+					counters.Protected += 1
+					logger.Debugf("Secret is protected, leaving alone")
 				}
-			}
-
-			if !protected(oldSecret) {
-				j.deleteSecret(ctx, oldSecret, &errs)
 			} else {
-				counters.Protected += 1
-				logger.Debugf("Secret is protected, leaving alone")
+				j.deleteSecret(ctx, oldSecret, &errs)
 			}
 		}
 	}
@@ -114,20 +118,14 @@ func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, err
 	}
 }
 
-func protected(oldSecret corev1.Secret) bool {
-	if protected, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedAnnotation]; ok && protected == "true" {
-		return ok
-	}
-	return false
+func expired(expiredAt time.Time) bool {
+	return time.Now().After(expiredAt)
 }
 
-func timeLimited(oldSecret corev1.Secret) bool {
-	if timeLimited, ok := oldSecret.GetAnnotations()[constants.AivenatorProtectedTimeToLiveAnnotation]; ok && timeLimited == "true" {
-		return ok
+func parse(expiresAt string, errs *[]error) time.Time {
+	expired, err := time.Parse(time.RFC3339, expiresAt)
+	if err != nil {
+		*errs = append(*errs, err)
 	}
-	return false
-}
-
-func timeToLive(oldSecret corev1.Secret, timeToLive int) bool {
-	return oldSecret.GetObjectMeta().GetCreationTimestamp().AddDate(0, 0, timeToLive).After(time.Now())
+	return expired
 }

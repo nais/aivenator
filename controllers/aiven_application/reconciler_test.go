@@ -3,10 +3,12 @@ package aiven_application
 import (
 	"context"
 	"github.com/nais/aivenator/pkg/credentials"
+	"github.com/nais/aivenator/pkg/handlers/kafka"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"testing"
 )
@@ -85,6 +87,71 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("NeedsSynchronization() got = %v, want %v; actual hash: %v", got, tt.want, hash)
+			}
+		})
+	}
+}
+
+func TestAivenApplicationReconciler_HasDeleteAnnotation(t *testing.T) {
+	var scheme = runtime.NewScheme()
+
+	err := aiven_nais_io_v1.AddToScheme(scheme)
+	if err != nil {
+		panic(err)
+	}
+
+	tests := []struct {
+		name        string
+		application aiven_nais_io_v1.AivenApplication
+		hasSecret   bool
+		annotated   bool
+		wantErr     bool
+	}{
+		{
+			name: "ApplicationWithDeleteAnnotationWhereSecretIsDeleted",
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
+				WithAnnotation(kafka.DeleteExpiredAnnotation, "true").
+				Build(),
+			hasSecret: false,
+			annotated: true,
+		},
+		{
+			name: "ApplicationWhereSecretIsDeletedButNoAnnotation",
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app2", "ns2").
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
+				Build(),
+			hasSecret: false,
+			annotated: false,
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientBuilder := fake.NewClientBuilder().WithScheme(scheme)
+			clientBuilder.WithRuntimeObjects(&tt.application)
+			if tt.hasSecret {
+				clientBuilder.WithRuntimeObjects(&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-secret-name",
+						Namespace: "ns",
+					},
+				})
+			}
+			r := AivenApplicationReconciler{
+				Client:  clientBuilder.Build(),
+				Logger:  log.NewEntry(log.New()),
+				Manager: credentials.Manager{},
+			}
+
+			err := r.handleDeleteAnnotation(ctx, tt.application, r.Logger, tt.annotated)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DeleteApplication() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
 		})
 	}

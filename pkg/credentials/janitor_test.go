@@ -127,49 +127,56 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 	}
 }
 
-func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndTimeLimit() {
+func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndNotExpired() {
 	secrets := []secretSetup{
-		{Secret8Name, MyNamespace, constants.AivenatorSecretType, MyUser, []MakeSecretOption{SecretIsProtected, SecretIsTimeLimited}, true, "Protected and time limited secret should be kept if timeToLive is valid"},
-		{Secret9Name, MyNamespace, constants.AivenatorSecretType, MyUser, []MakeSecretOption{SecretIsProtected, SecretIsTimeLimited}, false, "Protected and time limited secret should be deleted if timeToLive is out"},
+		{Secret8Name, MyNamespace, constants.AivenatorSecretType, MyUser, []MakeSecretOption{SecretIsProtected, SecretIsExpired}, true, "Protected and time limited secret should be kept if not expired"},
 	}
 	for _, s := range secrets {
-		secret := makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...)
-		if s.name == Secret8Name {
-			expiryDate := metav1.Time{
-				Time: time.Now(),
-			}
-			secret.SetCreationTimestamp(expiryDate)
-			suite.clientBuilder.WithRuntimeObjects(secret)
-		} else {
-			expiryDate := metav1.Time{
-				Time: time.Now().AddDate(0, 0, -3),
-			}
-			secret.SetCreationTimestamp(expiryDate)
-			suite.clientBuilder.WithRuntimeObjects(secret)
-		}
+		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
 	}
 
 	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	application9 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			SecretName: Secret9Name,
-			UserSpec: &aiven_nais_io_v1.UserSpec{
-				TimeToLive: 1,
-			},
-		}).
-		Build()
 	application8 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			SecretName: Secret8Name,
-			UserSpec: &aiven_nais_io_v1.UserSpec{
-				TimeToLive: 1,
-			},
+			SecretName: "some-other-secret-8",
+			ExpiresAt:  time.Now().AddDate(0, 0, 2).Format(time.RFC3339),
+		}).
+		Build()
+	errs := janitor.CleanUnusedSecrets(suite.ctx, application8)
+
+	suite.Empty(errs)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
+func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndExpired() {
+	secrets := []secretSetup{
+		{Secret9Name, MyNamespace, constants.AivenatorSecretType, MyUser, []MakeSecretOption{SecretIsProtected, SecretIsExpired}, false, "Protected and time limited secret should be deleted if expired"},
+	}
+	for _, s := range secrets {
+		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
+	}
+
+	hasExpired := time.Now().AddDate(0, 0, -2).Format(time.RFC3339)
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+
+	application9 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			SecretName: "some-other-secret-9",
+			ExpiresAt:  hasExpired,
 		}).
 		Build()
 
-	errs := janitor.CleanUnusedSecrets(suite.ctx, application8)
-	errs = janitor.CleanUnusedSecrets(suite.ctx, application9)
-
+	errs := janitor.CleanUnusedSecrets(suite.ctx, application9)
 	suite.Empty(errs)
 
 	for _, tt := range secrets {
@@ -363,7 +370,7 @@ func makePodForSecret(secretName string) *corev1.Pod {
 type makeSecretOpts struct {
 	protected        bool
 	hasNoAnnotations bool
-	timeLimit        bool
+	expiredAt        bool
 }
 
 type MakeSecretOption func(opts *makeSecretOpts)
@@ -376,8 +383,8 @@ func SecretIsProtected(opts *makeSecretOpts) {
 	opts.protected = true
 }
 
-func SecretIsTimeLimited(opts *makeSecretOpts) {
-	opts.timeLimit = true
+func SecretIsExpired(opts *makeSecretOpts) {
+	opts.expiredAt = true
 }
 
 func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSecretOption) *corev1.Secret {
@@ -402,10 +409,10 @@ func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSec
 		})
 	}
 
-	if opts.timeLimit {
+	if opts.expiredAt {
 		annotations := s.GetAnnotations()
 		s.SetAnnotations(utils.MergeStringMap(annotations, map[string]string{
-			constants.AivenatorProtectedTimeToLiveAnnotation: strconv.FormatBool(opts.timeLimit),
+			constants.AivenatorProtectedExpireAtAnnotation: strconv.FormatBool(opts.expiredAt),
 		}))
 	}
 	return s
