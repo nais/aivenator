@@ -179,7 +179,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 func (r *AivenApplicationReconciler) HandleDeletion(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry, timestamp time.Time) error {
 	if utils.Expired(timestamp) {
-		log.Infof("Application timelimit exceded: %s", timestamp.Format(time.RFC3339))
+		log.Infof("Application timelimit exceded: %s", timestamp.String())
 		err := r.DeleteApplication(ctx, application, logger)
 		if err != nil {
 			return err

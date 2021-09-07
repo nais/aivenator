@@ -38,8 +38,8 @@ const (
 
 // Annotations
 const (
-	ServiceUserAnnotation   = "kafka.aiven.nais.io/serviceUser"
-	PoolAnnotation          = "kafka.aiven.nais.io/pool"
+	ServiceUserAnnotation = "kafka.aiven.nais.io/serviceUser"
+	PoolAnnotation        = "kafka.aiven.nais.io/pool"
 )
 
 func NewKafkaHandler(aiven *aiven.Client, projects []string) KafkaHandler {
