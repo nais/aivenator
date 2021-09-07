@@ -187,7 +187,7 @@ func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, appl
 	err := r.Delete(ctx, &application)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			logger.Warningf("application do not exist in cluster: %s", err)
+			logger.Debugf("application do not exist in cluster: %s", err)
 		} else {
 			return fmt.Errorf("unable to delete application from cluster: %s", err)
 		}
