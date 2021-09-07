@@ -117,6 +117,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if ok := annotations.HasDelete(application.GetAnnotations()); ok {
 		err = r.handleDeleteAnnotation(ctx, application, logger, ok)
 		if err != nil {
+			utils.LocalFail("handleDeleteAnnotation", &application, err, logger)
 			return fail(err)
 		} else {
 			return ctrl.Result{}, nil
