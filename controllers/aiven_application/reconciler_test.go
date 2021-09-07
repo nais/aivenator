@@ -3,7 +3,6 @@ package aiven_application
 import (
 	"context"
 	"github.com/nais/aivenator/pkg/credentials"
-	"github.com/nais/aivenator/pkg/handlers/kafka"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -113,7 +112,6 @@ func TestAivenApplicationReconciler_HasDeleteAnnotation(t *testing.T) {
 			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
 				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
-				WithAnnotation(kafka.DeleteExpiredAnnotation, "true").
 				Build(),
 			hasSecret: false,
 			expireAt:  time.Now().AddDate(0, 0, -1),
