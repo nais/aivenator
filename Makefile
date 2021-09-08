@@ -2,7 +2,7 @@ aivenator:
 	go build -o bin/aivenator cmd/aivenator/*.go
 
 test:
-	go test ./... -count=1
+	go test ./... -count=1 -coverprofile cover.out -short
 
 mocks:
 	cd pkg && mockery --all --case snake
