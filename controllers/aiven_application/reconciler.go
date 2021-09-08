@@ -113,20 +113,14 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return fail(err)
 	}
 
-	if application.Spec.ExpiresAt != "" {
-		parsedTimeStamp, err := utils.Parse(application.Spec.ExpiresAt)
-		if err != nil {
-			utils.LocalFail("parsedTimeStamp", &application, err, logger)
-			return fail(err)
-		}
+	applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, application, logger)
+	if err != nil {
+		utils.LocalFail("HandleProtectedAndTimeLimited", &application, err, logger)
+		return fail(err)
+	}
 
-		err = r.HandleDeletion(ctx, application, logger, parsedTimeStamp)
-		if err != nil {
-			utils.LocalFail("handleDeletion", &application, err, logger)
-			return fail(err)
-		} else {
-			return ctrl.Result{}, nil
-		}
+	if applicationDeleted {
+		return ctrl.Result{}, nil
 	}
 
 	needsSync, err := r.NeedsSynchronization(ctx, application, hash, logger)
@@ -177,15 +171,26 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	return ctrl.Result{}, nil
 }
 
-func (r *AivenApplicationReconciler) HandleDeletion(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry, timestamp time.Time) error {
-	if utils.Expired(timestamp) {
-		log.Infof("Application timelimit exceded: %s", timestamp.String())
+func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) (bool, error) {
+	if application.Spec.ExpiresAt == "" {
+		return false, nil
+	}
+
+	parsedTimeStamp, err := utils.Parse(application.Spec.ExpiresAt)
+	if err != nil {
+		return false, fmt.Errorf("could not parse timestamp: %s", parsedTimeStamp.String())
+	}
+
+	if utils.Expired(parsedTimeStamp) {
+		log.Infof("Application timelimit exceded: %s", parsedTimeStamp.String())
 		err := r.DeleteApplication(ctx, application, logger)
 		if err != nil {
-			return err
+			return false, err
 		}
+	} else {
+		return false, nil
 	}
-	return nil
+	return true, nil
 }
 
 func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) error {

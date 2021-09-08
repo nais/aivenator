@@ -104,17 +104,26 @@ func TestAivenApplicationReconciler_HasDeleteAnnotation(t *testing.T) {
 		name        string
 		application aiven_nais_io_v1.AivenApplication
 		hasSecret   bool
-		expireAt    time.Time
 		wantErr     bool
+		deleted     bool
 	}{
 		{
-			name: "ApplicationWithDeleteAnnotationWhereSecretIsDeleted",
+			name: "ApplicationWhereTimeLimitIsExceededAndWhereSecretIsDeleted",
 			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name", ExpiresAt: time.Now().AddDate(0, 0, -1).Format(time.RFC3339)}).
 				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
 				Build(),
 			hasSecret: false,
-			expireAt:  time.Now().AddDate(0, 0, -1),
+			deleted:   true,
+		},
+		{
+			name: "ApplicationWhereTimeLimitIsStillValidAndWhereSecretIsDeleted",
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name", ExpiresAt: time.Now().AddDate(0, 0, 1).Format(time.RFC3339)}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
+				Build(),
+			hasSecret: false,
+			deleted:   false,
 		},
 	}
 
@@ -138,10 +147,14 @@ func TestAivenApplicationReconciler_HasDeleteAnnotation(t *testing.T) {
 				Manager: credentials.Manager{},
 			}
 
-			err := r.HandleDeletion(ctx, tt.application, r.Logger, tt.expireAt)
+			applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, tt.application, r.Logger)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("DeleteApplication() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("HandleProtectedAndTimeLimited() error = %v, wantErr %v", err, tt.wantErr)
 				return
+			}
+
+			if applicationDeleted != tt.deleted {
+				t.Errorf("HandleProtectedAndTimeLimited()  actual result; applicationDeleted = %v, deleted %v", applicationDeleted, tt.deleted)
 			}
 		})
 	}
