@@ -178,18 +178,19 @@ func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.C
 
 	parsedTimeStamp, err := utils.Parse(application.Spec.ExpiresAt)
 	if err != nil {
-		return false, fmt.Errorf("could not parse timestamp: %s", parsedTimeStamp.String())
+		return false, fmt.Errorf("could not parse timestamp: %s", err)
 	}
 
-	if utils.Expired(parsedTimeStamp) {
-		log.Infof("Application timelimit exceded: %s", parsedTimeStamp.String())
-		err := r.DeleteApplication(ctx, application, logger)
-		if err != nil {
-			return false, err
-		}
-	} else {
+	if !utils.Expired(parsedTimeStamp) {
 		return false, nil
 	}
+
+	log.Infof("Application timelimit exceded: %s", parsedTimeStamp.String())
+	err = r.DeleteApplication(ctx, application, logger)
+	if err != nil {
+		return false, err
+	}
+
 	return true, nil
 }
 
