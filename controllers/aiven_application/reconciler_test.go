@@ -92,7 +92,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 	}
 }
 
-func TestAivenApplicationReconciler_HasDeleteAnnotation(t *testing.T) {
+func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) {
 	var scheme = runtime.NewScheme()
 
 	err := aiven_nais_io_v1.AddToScheme(scheme)
