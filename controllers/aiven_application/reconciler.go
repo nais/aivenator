@@ -172,11 +172,11 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 }
 
 func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) (bool, error) {
-	if application.Spec.ExpiresAt == "" {
+	if application.Spec.ExpiresAt == nil {
 		return false, nil
 	}
 
-	parsedTimeStamp, err := utils.Parse(application.Spec.ExpiresAt)
+	parsedTimeStamp, err := utils.Parse(application.FormatExpiresAt())
 	if err != nil {
 		return false, fmt.Errorf("could not parse timestamp: %s", err)
 	}

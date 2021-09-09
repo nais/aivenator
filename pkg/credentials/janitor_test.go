@@ -139,7 +139,7 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndNotExpired
 	application8 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			SecretName: "some-other-secret-8",
-			ExpiresAt:  time.Now().AddDate(0, 0, 2).Format(time.RFC3339),
+			ExpiresAt:  &metav1.Time{Time: time.Now().AddDate(0,0, 2)},
 		}).
 		Build()
 	errs := janitor.CleanUnusedSecrets(suite.ctx, application8)
@@ -166,13 +166,12 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndExpired() 
 		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
 	}
 
-	hasExpired := time.Now().AddDate(0, 0, -2).Format(time.RFC3339)
 	janitor := suite.buildJanitor(suite.clientBuilder.Build())
 
 	application9 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			SecretName: "some-other-secret-9",
-			ExpiresAt:  hasExpired,
+			ExpiresAt:  &metav1.Time{Time: time.Now().AddDate(0,0, -2)},
 		}).
 		Build()
 

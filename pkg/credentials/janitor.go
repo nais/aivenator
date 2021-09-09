@@ -71,7 +71,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 			oldSecretAnnotations := oldSecret.GetAnnotations()
 			if annotations.HasProtected(oldSecretAnnotations) {
 				if annotations.HasTimeLimited(oldSecretAnnotations) {
-					parsedTimeStamp := utils.ParseTimestamp(application.Spec.ExpiresAt, &errs)
+					parsedTimeStamp := utils.ParseTimestamp(application.FormatExpiresAt(), &errs)
 					if utils.Expired(parsedTimeStamp) {
 						j.deleteSecret(ctx, oldSecret, &errs)
 					} else {

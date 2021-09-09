@@ -110,7 +110,7 @@ func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) 
 		{
 			name: "ApplicationWhereTimeLimitIsExceededAndWhereSecretIsDeleted",
 			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name", ExpiresAt: time.Now().AddDate(0, 0, -1).Format(time.RFC3339)}).
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name", ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, -2)}}).
 				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
 				Build(),
 			hasSecret: false,
@@ -119,7 +119,7 @@ func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) 
 		{
 			name: "ApplicationWhereTimeLimitIsStillValidAndWhereSecretIsDeleted",
 			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name", ExpiresAt: time.Now().AddDate(0, 0, 1).Format(time.RFC3339)}).
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name", ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, 2)}}).
 				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
 				Build(),
 			hasSecret: false,
