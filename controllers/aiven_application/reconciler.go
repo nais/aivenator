@@ -113,6 +113,16 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return fail(err)
 	}
 
+	applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, application, logger)
+	if err != nil {
+		utils.LocalFail("HandleProtectedAndTimeLimited", &application, err, logger)
+		return fail(err)
+	}
+
+	if applicationDeleted {
+		return ctrl.Result{}, nil
+	}
+
 	needsSync, err := r.NeedsSynchronization(ctx, application, hash, logger)
 	if err != nil {
 		utils.LocalFail("NeedsSynchronization", &application, err, logger)
@@ -159,6 +169,43 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) (bool, error) {
+	if application.Spec.ExpiresAt == nil {
+		return false, nil
+	}
+
+	parsedTimeStamp, err := utils.Parse(application.FormatExpiresAt())
+	if err != nil {
+		return false, fmt.Errorf("could not parse timestamp: %s", err)
+	}
+
+	if !utils.Expired(parsedTimeStamp) {
+		return false, nil
+	}
+
+	log.Infof("Application timelimit exceded: %s", parsedTimeStamp.String())
+	err = r.DeleteApplication(ctx, application, logger)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) error {
+	err := r.Delete(ctx, &application)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			logger.Debugf("application do not exist in cluster: %s", err)
+		} else {
+			return fmt.Errorf("unable to delete application from cluster: %s", err)
+		}
+	} else {
+		logger.Infof("Application deleted from cluster")
+	}
+	return nil
 }
 
 func success(application *aiven_nais_io_v1.AivenApplication, hash string) {

@@ -7,8 +7,10 @@ import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"testing"
+	"time"
 )
 
 func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
@@ -85,6 +87,74 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("NeedsSynchronization() got = %v, want %v; actual hash: %v", got, tt.want, hash)
+			}
+		})
+	}
+}
+
+func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) {
+	var scheme = runtime.NewScheme()
+
+	err := aiven_nais_io_v1.AddToScheme(scheme)
+	if err != nil {
+		panic(err)
+	}
+
+	tests := []struct {
+		name        string
+		application aiven_nais_io_v1.AivenApplication
+		hasSecret   bool
+		wantErr     bool
+		deleted     bool
+	}{
+		{
+			name: "ApplicationWhereTimeLimitIsExceededAndWhereSecretIsDeleted",
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name", ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, -2)}}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
+				Build(),
+			hasSecret: false,
+			deleted:   true,
+		},
+		{
+			name: "ApplicationWhereTimeLimitIsStillValidAndWhereSecretIsDeleted",
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name", ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, 2)}}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
+				Build(),
+			hasSecret: false,
+			deleted:   false,
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientBuilder := fake.NewClientBuilder().WithScheme(scheme)
+			clientBuilder.WithRuntimeObjects(&tt.application)
+			if tt.hasSecret {
+				clientBuilder.WithRuntimeObjects(&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-secret-name",
+						Namespace: "ns",
+					},
+				})
+			}
+			r := AivenApplicationReconciler{
+				Client:  clientBuilder.Build(),
+				Logger:  log.NewEntry(log.New()),
+				Manager: credentials.Manager{},
+			}
+
+			applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, tt.application, r.Logger)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HandleProtectedAndTimeLimited() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if applicationDeleted != tt.deleted {
+				t.Errorf("HandleProtectedAndTimeLimited()  actual result; applicationDeleted = %v, deleted %v", applicationDeleted, tt.deleted)
 			}
 		})
 	}
