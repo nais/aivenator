@@ -59,9 +59,7 @@ func setAnnotations(application *aiven_nais_io_v1.AivenApplication) map[string]s
 	}
 
 	if application.Spec.Protected && application.Spec.ExpiresAt != nil {
-		utils.MergeStringMap(annotations, map[string]string{
-			constants.AivenatorProtectedExpireAtAnnotation: strconv.FormatBool(true),
-		})
+		annotations[constants.AivenatorProtectedExpireAtAnnotation] = strconv.FormatBool(true)
 	}
 	return annotations
 }
