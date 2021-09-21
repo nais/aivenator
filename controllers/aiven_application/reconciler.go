@@ -92,6 +92,16 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		"secret_name": application.Spec.SecretName,
 	})
 
+	applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, application, logger)
+	if err != nil {
+		utils.LocalFail("HandleProtectedAndTimeLimited", &application, err, logger)
+		return fail(err)
+	}
+
+	if applicationDeleted {
+		return ctrl.Result{}, nil
+	}
+
 	logger.Infof("Application exists; processing")
 	defer func() {
 		application.Status.SynchronizationTime = &v1.Time{time.Now()}
@@ -111,16 +121,6 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if err != nil {
 		utils.LocalFail("Hash", &application, err, logger)
 		return fail(err)
-	}
-
-	applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, application, logger)
-	if err != nil {
-		utils.LocalFail("HandleProtectedAndTimeLimited", &application, err, logger)
-		return fail(err)
-	}
-
-	if applicationDeleted {
-		return ctrl.Result{}, nil
 	}
 
 	needsSync, err := r.NeedsSynchronization(ctx, application, hash, logger)
@@ -185,7 +185,7 @@ func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.C
 		return false, nil
 	}
 
-	log.Infof("Application timelimit exceded: %s", parsedTimeStamp.String())
+	logger.Infof("Application timelimit exceded: %s", parsedTimeStamp.String())
 	err = r.DeleteApplication(ctx, application, logger)
 	if err != nil {
 		return false, err
