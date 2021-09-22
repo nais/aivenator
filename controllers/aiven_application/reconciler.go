@@ -96,9 +96,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if err != nil {
 		utils.LocalFail("HandleProtectedAndTimeLimited", &application, err, logger)
 		return fail(err)
-	}
-
-	if applicationDeleted {
+	} else if applicationDeleted {
 		return ctrl.Result{}, nil
 	}
 
