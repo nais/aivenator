@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/nais/aivenator/constants"
+	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	"time"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -144,7 +147,8 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}()
 
 	logger.Infof("Creating secret")
-	secret, err := r.Manager.CreateSecret(&application, logger)
+	rs := r.findReplicaSet(ctx, application, logger)
+	secret, err := r.Manager.CreateSecret(&application, rs, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
 		return fail(err)
@@ -167,6 +171,33 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *AivenApplicationReconciler) findReplicaSet(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) *appsv1.ReplicaSet {
+	var correlationId string
+	var ok bool
+	if correlationId, ok = app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
+		log.Infof("AivenApplication %v missing DeploymentCorrelationID, unable to find owning ReplicaSet", app)
+		return nil
+	}
+	var replicaSets appsv1.ReplicaSetList
+	var mLabels = client.MatchingLabels{
+		constants.AppLabel: app.GetName(),
+	}
+
+	if err := r.List(ctx, &replicaSets, mLabels, client.InNamespace(app.GetNamespace())); err != nil {
+		log.Warnf("failed to list replicasets: %v", err)
+		return nil
+	}
+
+	for _, rs := range replicaSets.Items {
+		if rsCorrId, ok := rs.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; ok && rsCorrId == correlationId {
+			return &rs
+		}
+	}
+
+	log.Infof("No ReplicaSet found for correlation ID %s", correlationId)
+	return nil
 }
 
 func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) (bool, error) {

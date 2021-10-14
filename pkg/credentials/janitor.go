@@ -68,6 +68,13 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 				continue
 			}
 
+			for _, ownerRef := range oldSecret.GetOwnerReferences() {
+				if ownerRef.Kind == "ReplicaSet" {
+					logger.Debugf("Secret owned by ReplicaSet, leaving alone")
+					continue
+				}
+			}
+
 			oldSecretAnnotations := oldSecret.GetAnnotations()
 			if annotations.HasProtected(oldSecretAnnotations) {
 				if annotations.HasTimeLimited(oldSecretAnnotations) {

@@ -7,11 +7,12 @@ import (
 	"github.com/nais/aivenator/pkg/handlers/secret"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 )
 
 type Handler interface {
-	Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error
+	Apply(application *aiven_nais_io_v1.AivenApplication, rs *appsv1.ReplicaSet, secret *v1.Secret, logger *log.Entry) error
 	Cleanup(secret *v1.Secret, logger *log.Entry) error
 }
 
@@ -29,10 +30,10 @@ func NewManager(aiven *aiven.Client, projects []string, projectName string) Mana
 	}
 }
 
-func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, logger *log.Entry) (*v1.Secret, error) {
+func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, rs *appsv1.ReplicaSet, logger *log.Entry) (*v1.Secret, error) {
 	s := &v1.Secret{}
 	for _, handler := range c.handlers {
-		err := handler.Apply(application, s, logger)
+		err := handler.Apply(application, rs, s, logger)
 		if err != nil {
 			return nil, err
 		}

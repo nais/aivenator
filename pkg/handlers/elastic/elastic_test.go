@@ -86,7 +86,7 @@ func (suite *ElasticHandlerTestSuite) TestNoElastic() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	application := suite.applicationBuilder.Build()
 	secret := &v1.Secret{}
-	err := suite.elasticHandler.Apply(&application, secret, suite.logger)
+	err := suite.elasticHandler.Apply(&application, nil, secret, suite.logger)
 
 	suite.NoError(err)
 	suite.Equal(&v1.Secret{}, secret)
@@ -103,7 +103,7 @@ func (suite *ElasticHandlerTestSuite) TestElasticOk() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	err := suite.elasticHandler.Apply(&application, secret, suite.logger)
+	err := suite.elasticHandler.Apply(&application, nil, secret, suite.logger)
 
 	suite.NoError(err)
 	expected := &v1.Secret{
@@ -141,7 +141,7 @@ func (suite *ElasticHandlerTestSuite) TestServiceGetFailed() {
 			Status:   500,
 		})
 
-	err := suite.elasticHandler.Apply(&application, secret, suite.logger)
+	err := suite.elasticHandler.Apply(&application, nil, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
@@ -165,7 +165,7 @@ func (suite *ElasticHandlerTestSuite) TestServiceUsersGetFailed() {
 			Status:   500,
 		})
 
-	err := suite.elasticHandler.Apply(&application, secret, suite.logger)
+	err := suite.elasticHandler.Apply(&application, nil, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
@@ -211,7 +211,7 @@ func (suite *ElasticHandlerTestSuite) TestCorrectServiceUserSelected() {
 				}).
 				Build()
 			secret := &v1.Secret{}
-			err := suite.elasticHandler.Apply(&application, secret, suite.logger)
+			err := suite.elasticHandler.Apply(&application, nil, secret, suite.logger)
 
 			suite.NoError(err)
 			suite.Equal(t.username, secret.StringData[ElasticUser])

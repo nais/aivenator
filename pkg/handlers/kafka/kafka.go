@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"fmt"
+	appsv1 "k8s.io/api/apps/v1"
 	"time"
 
 	"github.com/aiven/aiven-go-client"
@@ -60,7 +61,7 @@ type KafkaHandler struct {
 	projects    []string
 }
 
-func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {
+func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *appsv1.ReplicaSet, secret *v1.Secret, logger *log.Entry) error {
 	logger = logger.WithFields(log.Fields{"handler": "kafka"})
 	if application.Spec.Kafka == nil {
 		return nil

@@ -15,10 +15,14 @@ func TestManager_Apply(t *testing.T) {
 	expectedAnnotations := make(map[string]string)
 	expectedAnnotations["one"] = "1"
 	mockHandler.
-		On("Apply", mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"), mock.AnythingOfType("*v1.Secret"), mock.Anything).
+		On("Apply",
+			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
+			mock.AnythingOfType("*v1.ReplicaSet"),
+			mock.AnythingOfType("*v1.Secret"),
+			mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
-			secret := args.Get(1).(*corev1.Secret)
+			secret := args.Get(2).(*corev1.Secret)
 			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
 			for key, value := range expectedAnnotations {
 				secret.ObjectMeta.Annotations[key] = value
@@ -28,7 +32,7 @@ func TestManager_Apply(t *testing.T) {
 	manager := Manager{handlers: []Handler{&mockHandler}}
 
 	// when
-	secret, err := manager.CreateSecret(&application, nil)
+	secret, err := manager.CreateSecret(&application, nil, nil)
 
 	// then
 	assert.NoError(t, err)
