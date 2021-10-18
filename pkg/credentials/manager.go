@@ -20,12 +20,12 @@ type Manager struct {
 	handlers []Handler
 }
 
-func NewManager(aiven *aiven.Client, projects []string, projectName string) Manager {
+func NewManager(aiven *aiven.Client, kafkaProjects []string, elasticProject string) Manager {
 	return Manager{
 		handlers: []Handler{
 			secret.Handler{},
-			kafka.NewKafkaHandler(aiven, projects),
-			elastic.NewElasticHandler(aiven, projectName),
+			kafka.NewKafkaHandler(aiven, kafkaProjects),
+			elastic.NewElasticHandler(aiven, elasticProject),
 		},
 	}
 }
