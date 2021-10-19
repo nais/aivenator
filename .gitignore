@@ -22,7 +22,6 @@ fabric.properties
 .fseventsd
 .fuse_hidden*
 gen
-go.sum
 Icon
 .idea
 .idea_modules/
