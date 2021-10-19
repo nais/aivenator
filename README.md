@@ -70,3 +70,7 @@ The CRDs used by Aivenator are defined in [liberator](https://github.com/nais/li
 Assuming liberator is checked out in a sibling directory to aivenator, you can use this command to install the AivenApplication CRD in your test cluster:
 
     kubectl apply -f ../liberator/config/crd/bases/aiven.nais.io_aivenapplications.yaml
+
+In order to run the integration tests, you need to set the `AIVEN_TOKEN` environment variable with a valid Aiven API token.
+Some of the integration tests also need the kubebuilder tools.
+These will be installed in `./.testbin/` by `make kubebuilder`.
