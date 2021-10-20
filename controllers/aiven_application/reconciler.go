@@ -31,6 +31,8 @@ const (
 
 	rolloutComplete = "RolloutComplete"
 	rolloutFailed   = "RolloutFailed"
+
+	AivenVolumeName = "aiven-credentials"
 )
 
 func NewReconciler(mgr manager.Manager, logger *log.Logger, credentialsManager credentials.Manager, credentialsJanitor credentials.Janitor) AivenApplicationReconciler {
@@ -177,7 +179,7 @@ func (r *AivenApplicationReconciler) findReplicaSet(ctx context.Context, app aiv
 	var correlationId string
 	var ok bool
 	if correlationId, ok = app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
-		log.Infof("AivenApplication %v missing DeploymentCorrelationID, unable to find owning ReplicaSet", app)
+		logger.Infof("AivenApplication %v missing DeploymentCorrelationID, unable to find owning ReplicaSet", app)
 		return nil
 	}
 	var replicaSets appsv1.ReplicaSetList
@@ -186,17 +188,21 @@ func (r *AivenApplicationReconciler) findReplicaSet(ctx context.Context, app aiv
 	}
 
 	if err := r.List(ctx, &replicaSets, mLabels, client.InNamespace(app.GetNamespace())); err != nil {
-		log.Warnf("failed to list replicasets: %v", err)
+		logger.Warnf("failed to list replicasets: %v", err)
 		return nil
 	}
 
 	for _, rs := range replicaSets.Items {
 		if rsCorrId, ok := rs.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; ok && rsCorrId == correlationId {
-			return &rs
+			for _, volume := range rs.Spec.Template.Spec.Volumes {
+				if volume.Name == AivenVolumeName && volume.Secret.SecretName == app.Spec.SecretName {
+					return &rs
+				}
+			}
 		}
 	}
 
-	log.Infof("No ReplicaSet found for correlation ID %s", correlationId)
+	logger.Infof("No ReplicaSet found for correlation ID %s and secret %s", correlationId, app.Spec.SecretName)
 	return nil
 }
 

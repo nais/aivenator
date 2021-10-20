@@ -37,7 +37,7 @@ import (
 const (
 	testProject          = "nav-integration-test"
 	aivenApplicationName = "integration-test"
-	secretName           = "aiven-integration-test-secret"
+	baseSecretName       = "aiven-integration-test-secret"
 	namespace            = "test-namespace"
 	correlationId        = "correlation-id"
 )
@@ -194,10 +194,12 @@ func TestControllers(t *testing.T) {
 		},
 	})
 
+	wantedSecretName := fmt.Sprintf("%s-one", baseSecretName)
+
 	app := aiven_nais_io_v1.NewAivenApplicationBuilder(aivenApplicationName, namespace).
 		WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			SecretName: secretName,
+			SecretName: wantedSecretName,
 			Kafka:      &aiven_nais_io_v1.KafkaSpec{Pool: testProject},
 		}).
 		Build()
@@ -206,15 +208,17 @@ func TestControllers(t *testing.T) {
 		Namespace: app.Namespace,
 		Name:      app.Name,
 	}
-	secretKey := types.NamespacedName{Name: secretName, Namespace: namespace}
+	secretKey := types.NamespacedName{Name: wantedSecretName, Namespace: namespace}
 
 	rig.assertNotExists(ctx, &aiven_nais_io_v1.AivenApplication{}, appKey)
 	rig.assertNotExists(ctx, &v1.Secret{}, secretKey)
 
 	rig.createForTest(ctx, &app)
 
-	replicaSet := minimalReplicaSet()
+	replicaSet := minimalReplicaSet("one", wantedSecretName)
 	rig.createForTest(ctx, replicaSet)
+	herringReplicaSet := minimalReplicaSet("two", fmt.Sprintf("%s-herring", baseSecretName))
+	rig.createForTest(ctx, herringReplicaSet)
 
 	rig.assertExists(ctx, &aiven_nais_io_v1.AivenApplication{}, appKey)
 
@@ -246,14 +250,14 @@ func TestControllers(t *testing.T) {
 	assert.Equal(t, ctrl.Result{}, result)
 }
 
-func minimalReplicaSet() *appsv1.ReplicaSet {
+func minimalReplicaSet(suffix, secretName string) *appsv1.ReplicaSet {
 	replicaSet := &appsv1.ReplicaSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ReplicaSet",
 			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-suffix", aivenApplicationName),
+			Name:      fmt.Sprintf("%s-%s", aivenApplicationName, suffix),
 			Namespace: namespace,
 			Labels:    map[string]string{"app": aivenApplicationName},
 			Annotations: map[string]string{
@@ -274,8 +278,18 @@ func minimalReplicaSet() *appsv1.ReplicaSet {
 				Spec: v1.PodSpec{
 					Containers: []v1.Container{
 						{
-							Name:  "main",
+							Name:  aivenApplicationName,
 							Image: "nginx:latest",
+						},
+					},
+					Volumes: []v1.Volume{
+						{
+							Name: aiven_application.AivenVolumeName,
+							VolumeSource: v1.VolumeSource{
+								Secret: &v1.SecretVolumeSource{
+									SecretName: secretName,
+								},
+							},
 						},
 					},
 				},
