@@ -7,6 +7,7 @@ import (
 	"github.com/nais/aivenator/controllers/aiven_application"
 	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/credentials"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -116,6 +117,10 @@ func main() {
 		logger.Error(err)
 		os.Exit(ExitConfig)
 	}
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	logger.SetFormatter(logfmt)
 	level, err := log.ParseLevel(viper.GetString(LogLevel))
