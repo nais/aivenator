@@ -119,7 +119,9 @@ func main() {
 	}
 
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
+		// Serve profiling data on 6060
+		err := http.ListenAndServe("localhost:6060", nil)
+		logger.Errorf("Failed to serve profiling: %v", err)
 	}()
 
 	logger.SetFormatter(logfmt)

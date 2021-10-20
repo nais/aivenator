@@ -21,7 +21,7 @@ func TestCredStoreGenerator(t *testing.T) {
 	client, err := aiven.NewTokenClient(os.Getenv("AIVEN_TOKEN"), "")
 	if err != nil {
 		log.Errorf("failed to create client: %v", err)
-		panic(err)
+		t.Fatal(err)
 	}
 
 	test_user, err := client.ServiceUsers.Get(project, service, username)
@@ -31,14 +31,14 @@ func TestCredStoreGenerator(t *testing.T) {
 		test_user, err = client.ServiceUsers.Create(project, service, req)
 		if err != nil {
 			log.Errorf("failed to create service user: %v", err)
-			panic(err)
+			t.Fatal(err)
 		}
 	}
 
 	caCert, err := client.CA.Get(project)
 	if err != nil {
 		log.Errorf("failed to get CA cert: %v", err)
-		panic(err)
+		t.Fatal(err)
 	}
 
 	generator := NewExecGenerator()
@@ -46,7 +46,7 @@ func TestCredStoreGenerator(t *testing.T) {
 	stores, err := generator.MakeCredStores(test_user.AccessKey, test_user.AccessCert, caCert)
 	if err != nil {
 		log.Errorf("failed to create cred stores: %v", err)
-		panic(err)
+		t.Fatal(err)
 	}
 
 	log.Infof("Generated CredStores:")

@@ -185,8 +185,9 @@ func TestControllers(t *testing.T) {
 		t.FailNow()
 	}
 
-	// TODO: Allow no more than 15 seconds for these tests to run
-	ctx := context.Background()
+	// Allow 15 seconds for test to complete
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	t.Cleanup(cancel)
 
 	rig.createForTest(ctx, &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
