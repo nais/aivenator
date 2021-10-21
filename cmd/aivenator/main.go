@@ -7,12 +7,9 @@ import (
 	"github.com/nais/aivenator/controllers/aiven_application"
 	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/credentials"
-	"k8s.io/client-go/rest"
 	"net/http"
 	"os"
 	"os/signal"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 	"syscall"
 	"time"
@@ -145,12 +142,9 @@ func main() {
 
 	syncPeriod := viper.GetDuration(SyncPeriod)
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
 		SyncPeriod:         &syncPeriod,
+		Scheme:             scheme,
 		MetricsBindAddress: viper.GetString(MetricsAddress),
-		NewClient: func(_ cache.Cache, config *rest.Config, options client.Options, _ ...client.Object) (client.Client, error) {
-			return client.New(config, options)
-		},
 	})
 
 	if err != nil {
