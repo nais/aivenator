@@ -120,6 +120,13 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}()
 
+	errs := r.Janitor.CleanUnusedSecrets(ctx, application)
+	if len(errs) > 0 {
+		for _, err := range errs {
+			logger.Error(err)
+		}
+	}
+
 	hash, err := application.Hash()
 	if err != nil {
 		utils.LocalFail("Hash", &application, err, logger)
@@ -164,13 +171,6 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	success(&application, hash)
-
-	errs := r.Janitor.CleanUnusedSecrets(ctx, application)
-	if len(errs) > 0 {
-		for _, err := range errs {
-			logger.Error(err)
-		}
-	}
 
 	return ctrl.Result{}, nil
 }
