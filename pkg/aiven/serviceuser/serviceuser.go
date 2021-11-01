@@ -16,10 +16,20 @@ type ServiceUserManager interface {
 	Create(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error)
 	Get(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error)
 	Delete(serviceUserName, projectName, serviceName string) error
+	Count(projectName, serviceName string) (int, error)
 }
 
 type Manager struct {
 	serviceUsers *aiven.ServiceUsersHandler
+}
+
+func (m *Manager) Count(projectName, serviceName string) (int, error) {
+	list, err := m.serviceUsers.List(projectName, serviceName)
+	if err != nil {
+		return 0, err
+	}
+	metrics.ServiceUsersCount.WithLabelValues(projectName).Set(float64(len(list)))
+	return len(list), nil
 }
 
 func (m *Manager) Get(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error) {
