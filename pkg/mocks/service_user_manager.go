@@ -4,6 +4,8 @@ package mocks
 
 import (
 	aiven "github.com/aiven/aiven-go-client"
+	logrus "github.com/sirupsen/logrus"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -12,13 +14,13 @@ type ServiceUserManager struct {
 	mock.Mock
 }
 
-// Create provides a mock function with given fields: serviceUserName, projectName, serviceName
-func (_m *ServiceUserManager) Create(serviceUserName string, projectName string, serviceName string) (*aiven.ServiceUser, error) {
-	ret := _m.Called(serviceUserName, projectName, serviceName)
+// Create provides a mock function with given fields: serviceUserName, projectName, serviceName, logger
+func (_m *ServiceUserManager) Create(serviceUserName string, projectName string, serviceName string, logger *logrus.Entry) (*aiven.ServiceUser, error) {
+	ret := _m.Called(serviceUserName, projectName, serviceName, logger)
 
 	var r0 *aiven.ServiceUser
-	if rf, ok := ret.Get(0).(func(string, string, string) *aiven.ServiceUser); ok {
-		r0 = rf(serviceUserName, projectName, serviceName)
+	if rf, ok := ret.Get(0).(func(string, string, string, *logrus.Entry) *aiven.ServiceUser); ok {
+		r0 = rf(serviceUserName, projectName, serviceName, logger)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*aiven.ServiceUser)
@@ -26,8 +28,8 @@ func (_m *ServiceUserManager) Create(serviceUserName string, projectName string,
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(string, string, string) error); ok {
-		r1 = rf(serviceUserName, projectName, serviceName)
+	if rf, ok := ret.Get(1).(func(string, string, string, *logrus.Entry) error); ok {
+		r1 = rf(serviceUserName, projectName, serviceName, logger)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -35,13 +37,13 @@ func (_m *ServiceUserManager) Create(serviceUserName string, projectName string,
 	return r0, r1
 }
 
-// Delete provides a mock function with given fields: serviceUserName, projectName, serviceName
-func (_m *ServiceUserManager) Delete(serviceUserName string, projectName string, serviceName string) error {
-	ret := _m.Called(serviceUserName, projectName, serviceName)
+// Delete provides a mock function with given fields: serviceUserName, projectName, serviceName, logger
+func (_m *ServiceUserManager) Delete(serviceUserName string, projectName string, serviceName string, logger *logrus.Entry) error {
+	ret := _m.Called(serviceUserName, projectName, serviceName, logger)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = rf(serviceUserName, projectName, serviceName)
+	if rf, ok := ret.Get(0).(func(string, string, string, *logrus.Entry) error); ok {
+		r0 = rf(serviceUserName, projectName, serviceName, logger)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -49,13 +51,13 @@ func (_m *ServiceUserManager) Delete(serviceUserName string, projectName string,
 	return r0
 }
 
-// Get provides a mock function with given fields: serviceUserName, projectName, serviceName
-func (_m *ServiceUserManager) Get(serviceUserName string, projectName string, serviceName string) (*aiven.ServiceUser, error) {
-	ret := _m.Called(serviceUserName, projectName, serviceName)
+// Get provides a mock function with given fields: serviceUserName, projectName, serviceName, logger
+func (_m *ServiceUserManager) Get(serviceUserName string, projectName string, serviceName string, logger *logrus.Entry) (*aiven.ServiceUser, error) {
+	ret := _m.Called(serviceUserName, projectName, serviceName, logger)
 
 	var r0 *aiven.ServiceUser
-	if rf, ok := ret.Get(0).(func(string, string, string) *aiven.ServiceUser); ok {
-		r0 = rf(serviceUserName, projectName, serviceName)
+	if rf, ok := ret.Get(0).(func(string, string, string, *logrus.Entry) *aiven.ServiceUser); ok {
+		r0 = rf(serviceUserName, projectName, serviceName, logger)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*aiven.ServiceUser)
@@ -63,8 +65,8 @@ func (_m *ServiceUserManager) Get(serviceUserName string, projectName string, se
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(string, string, string) error); ok {
-		r1 = rf(serviceUserName, projectName, serviceName)
+	if rf, ok := ret.Get(1).(func(string, string, string, *logrus.Entry) error); ok {
+		r1 = rf(serviceUserName, projectName, serviceName, logger)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -72,16 +74,7 @@ func (_m *ServiceUserManager) Get(serviceUserName string, projectName string, se
 	return r0, r1
 }
 
-// ObserveServiceUsersCount provides a mock function with given fields: projectName, serviceName
-func (_m *ServiceUserManager) ObserveServiceUsersCount(projectName string, serviceName string) error {
-	ret := _m.Called(projectName, serviceName)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string) error); ok {
-		r0 = rf(projectName, serviceName)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
+// ObserveServiceUsersCount provides a mock function with given fields: projectName, serviceName, logger
+func (_m *ServiceUserManager) ObserveServiceUsersCount(projectName string, serviceName string, logger *logrus.Entry) {
+	_m.Called(projectName, serviceName, logger)
 }
