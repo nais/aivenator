@@ -16,20 +16,21 @@ type ServiceUserManager interface {
 	Create(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error)
 	Get(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error)
 	Delete(serviceUserName, projectName, serviceName string) error
-	Count(projectName, serviceName string) (int, error)
+	ObserveServiceUsersCount(projectName, serviceName string) error
 }
 
 type Manager struct {
 	serviceUsers *aiven.ServiceUsersHandler
 }
 
-func (m *Manager) Count(projectName, serviceName string) (int, error) {
+func (m *Manager) ObserveServiceUsersCount(projectName, serviceName string) error {
 	list, err := m.serviceUsers.List(projectName, serviceName)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	metrics.ServiceUsersCount.WithLabelValues(projectName).Set(float64(len(list)))
-	return len(list), nil
+	count := len(list)
+	metrics.ServiceUsersCount.WithLabelValues(projectName).Set(float64(count))
+	return nil
 }
 
 func (m *Manager) Get(serviceUserName, projectName, serviceName string) (*aiven.ServiceUser, error) {
@@ -39,6 +40,10 @@ func (m *Manager) Get(serviceUserName, projectName, serviceName string) (*aiven.
 		aivenUser, err = m.serviceUsers.Get(projectName, serviceName, serviceUserName)
 		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+	err = m.ObserveServiceUsersCount(projectName, serviceName);
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +60,10 @@ func (m *Manager) Delete(serviceUserName, projectName, serviceName string) error
 		return err
 	}
 	metrics.ServiceUsersDeleted.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
+	err = m.ObserveServiceUsersCount(projectName, serviceName);
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -72,7 +81,10 @@ func (m *Manager) Create(serviceUserName, projectName, serviceName string) (*aiv
 	if err != nil {
 		return nil, err
 	}
-
 	metrics.ServiceUsersCreated.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
+	err = m.ObserveServiceUsersCount(projectName, serviceName);
+	if err != nil {
+		return nil, err
+	}
 	return aivenUser, nil
 }
