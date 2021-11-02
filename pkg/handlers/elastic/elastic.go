@@ -2,6 +2,7 @@ package elastic
 
 import (
 	"fmt"
+
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -63,7 +64,7 @@ func (h ElasticHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ 
 
 	serviceUserName := fmt.Sprintf("%s%s", application.GetNamespace(), selectSuffix(spec.Access))
 
-	aivenUser, err := h.serviceuser.Get(serviceUserName, h.projectName, serviceName)
+	aivenUser, err := h.serviceuser.Get(serviceUserName, h.projectName, serviceName, logger)
 	if err != nil {
 		return utils.AivenFail("GetServiceUser", application, err, logger)
 	}

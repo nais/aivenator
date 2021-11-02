@@ -2,8 +2,9 @@ package kafka
 
 import (
 	"fmt"
-	appsv1 "k8s.io/api/apps/v1"
 	"time"
+
+	appsv1 "k8s.io/api/apps/v1"
 
 	"github.com/aiven/aiven-go-client"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -96,7 +97,7 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *a
 	}
 
 	serviceUserName := namegen.RandShortName(application.ServiceUserPrefix(), aivenator_aiven.MaxServiceUserNameLength)
-	aivenUser, err := h.serviceuser.Create(serviceUserName, projectName, serviceName)
+	aivenUser, err := h.serviceuser.Create(serviceUserName, projectName, serviceName, logger)
 	if err != nil {
 		return utils.AivenFail("CreateServiceUser", application, err, logger)
 	}
@@ -144,7 +145,7 @@ func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
 				"pool":    projectName,
 				"service": serviceName,
 			})
-			err := h.serviceuser.Delete(serviceUserName, projectName, serviceName)
+			err := h.serviceuser.Delete(serviceUserName, projectName, serviceName, logger)
 			if err != nil {
 				if aiven.IsNotFound(err) {
 					logger.Infof("Service user %s does not exist", serviceUserName)

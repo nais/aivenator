@@ -1,10 +1,11 @@
 package elastic
 
 import (
+	"testing"
+
 	"github.com/nais/aivenator/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -62,7 +63,7 @@ func (suite *ElasticHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) 
 			}, nil)
 	}
 	if _, ok := enabled[ServiceUsersGet]; ok {
-		suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything).
+		suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			Return(&aiven.ServiceUser{
 				Username: serviceUserName,
 				Password: servicePassword,
@@ -158,7 +159,7 @@ func (suite *ElasticHandlerTestSuite) TestServiceUsersGetFailed() {
 		Build()
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
-	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything).
+	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, &aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
@@ -197,7 +198,7 @@ func (suite *ElasticHandlerTestSuite) TestCorrectServiceUserSelected() {
 	for _, t := range testData {
 		suite.Run(t.access, func() {
 			suite.addDefaultMocks(enabled(ServicesGetAddresses))
-			suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything).
+			suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(&aiven.ServiceUser{
 					Username: t.username,
 					Password: servicePassword,

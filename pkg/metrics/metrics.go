@@ -46,6 +46,12 @@ var (
 		Help:      "number of service users deleted",
 	}, []string{LabelPool})
 
+	ServiceUsersCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "service_users_count",
+		Namespace: Namespace,
+		Help: "total count of service users",
+	}, []string{LabelPool})
+
 	AivenLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:      "aiven_latency",
 		Namespace: Namespace,
@@ -103,5 +109,6 @@ func Register(registry prometheus.Registerer) {
 		ApplicationsProcessed,
 		ApplicationProcessingTime,
 		SecretsManaged,
+		ServiceUsersCount,
 	)
 }

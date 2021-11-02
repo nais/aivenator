@@ -73,7 +73,7 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 			Return(ca, nil)
 	}
 	if _, ok := enabled[ServiceUsersCreate]; ok {
-		suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything).
+		suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			Return(&aiven.ServiceUser{
 				Username: serviceUserName,
 			}, nil)
@@ -116,13 +116,13 @@ func (suite *KafkaHandlerTestSuite) TestCleanupServiceUser() {
 		ServiceUserAnnotation: serviceUserName,
 		PoolAnnotation:        pool,
 	})
-	suite.mockServiceUsers.On("Delete", serviceUserName, pool, mock.Anything).
+	suite.mockServiceUsers.On("Delete", serviceUserName, pool, mock.Anything, mock.Anything).
 		Return(nil)
 
 	err := suite.kafkaHandler.Cleanup(secret, suite.logger)
 
 	suite.NoError(err)
-	suite.mockServiceUsers.AssertCalled(suite.T(), "Delete", serviceUserName, pool, mock.Anything)
+	suite.mockServiceUsers.AssertCalled(suite.T(), "Delete", serviceUserName, pool, mock.Anything, mock.Anything)
 }
 
 func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
@@ -131,7 +131,7 @@ func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
 		ServiceUserAnnotation: serviceUserName,
 		PoolAnnotation:        pool,
 	})
-	suite.mockServiceUsers.On("Delete", serviceUserName, pool, mock.Anything).
+	suite.mockServiceUsers.On("Delete", serviceUserName, pool, mock.Anything, mock.Anything).
 		Return(aiven.Error{
 			Message: "Not Found",
 			Status:  404,
@@ -140,7 +140,7 @@ func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
 	err := suite.kafkaHandler.Cleanup(secret, suite.logger)
 
 	suite.NoError(err)
-	suite.mockServiceUsers.AssertCalled(suite.T(), "Delete", serviceUserName, pool, mock.Anything)
+	suite.mockServiceUsers.AssertCalled(suite.T(), "Delete", serviceUserName, pool, mock.Anything, mock.Anything)
 }
 
 func (suite *KafkaHandlerTestSuite) TestNoKafka() {
@@ -242,7 +242,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 		Build()
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores))
-	suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything).
+	suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, &aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
