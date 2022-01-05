@@ -25,6 +25,7 @@ type ServiceAddresses struct {
 	ServiceURI     string
 	SchemaRegistry string
 	ElasticSearch  string
+	OpenSearch     string
 }
 
 func NewManager(service *aiven.ServicesHandler) ServiceManager {
@@ -49,6 +50,7 @@ func (r *Manager) GetServiceAddresses(projectName, serviceName string) (*Service
 		addresses = &ServiceAddresses{
 			ServiceURI:     GetServiceURI(aivenService),
 			ElasticSearch:  GetElasticSearchAddress(aivenService),
+			OpenSearch:     GetOpenSearchAddress(aivenService),
 			SchemaRegistry: GetSchemaRegistryAddress(aivenService),
 		}
 		r.addressCache[key] = addresses
@@ -82,6 +84,14 @@ func GetElasticSearchAddress(service *aiven.Service) string {
 	elasticComponent := findComponent("elasticsearch", service.Components)
 	if elasticComponent != nil {
 		return fmt.Sprintf("https://%s:%d", elasticComponent.Host, elasticComponent.Port)
+	}
+	return ""
+}
+
+func GetOpenSearchAddress(service *aiven.Service) string {
+	openSearchComponent := findComponent("opensearch", service.Components)
+	if openSearchComponent != nil {
+		return fmt.Sprintf("https://%s:%d", openSearchComponent.Host, openSearchComponent.Port)
 	}
 	return ""
 }

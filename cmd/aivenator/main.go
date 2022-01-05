@@ -181,8 +181,8 @@ func main() {
 	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
-func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, projectName string) error {
-	credentialsManager := credentials.NewManager(aiven, projects, projectName)
+func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string) error {
+	credentialsManager := credentials.NewManager(aiven, projects, mainProjectName)
 	credentialsJanitor := credentials.Janitor{
 		Client: mgr.GetClient(),
 		Logger: logger.WithFields(log.Fields{
