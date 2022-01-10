@@ -96,7 +96,11 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *a
 		return utils.AivenFail("GetCA", application, err, logger)
 	}
 
-	serviceUserName := namegen.RandShortName(application.ServiceUserPrefix(), aivenator_aiven.MaxServiceUserNameLength)
+	serviceUserName, err := makeServiceUserName(application)
+	if err != nil {
+		utils.LocalFail("MakeServiceUserName", application, err, logger)
+		return err
+	}
 	aivenUser, err := h.serviceuser.Create(serviceUserName, projectName, serviceName, logger)
 	if err != nil {
 		return utils.AivenFail("CreateServiceUser", application, err, logger)
@@ -134,6 +138,15 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *a
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
 	return nil
+}
+
+func makeServiceUserName(application *aiven_nais_io_v1.AivenApplication) (string, error) {
+	generation := application.ObjectMeta.Generation % 10
+	hashedName, err := namegen.ShortName(application.ServiceUserPrefix(), aivenator_aiven.MaxServiceUserNameLength)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%v%v", hashedName[:len(hashedName)-1], generation), nil
 }
 
 func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
