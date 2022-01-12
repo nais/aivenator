@@ -1,6 +1,7 @@
 package credentials
 
 import (
+	"fmt"
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/handlers/elastic"
 	"github.com/nais/aivenator/pkg/handlers/kafka"
@@ -37,6 +38,10 @@ func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, rs
 	for _, handler := range c.handlers {
 		err := handler.Apply(application, rs, s, logger)
 		if err != nil {
+			cleanupError := c.Cleanup(s, logger)
+			if cleanupError != nil {
+				return nil, fmt.Errorf("error during apply: %w, additionally, an error occured during cleanup: %v", err, cleanupError)
+			}
 			return nil, err
 		}
 	}
