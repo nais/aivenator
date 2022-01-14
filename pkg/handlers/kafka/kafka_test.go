@@ -21,8 +21,6 @@ import (
 )
 
 const (
-	appName         = "test-app"
-	namespace       = "test-ns"
 	serviceUserName = "service-user-name"
 	credStoreSecret = "my-secret"
 	serviceURI      = "http://example.com"
@@ -102,7 +100,7 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 		generator:   suite.mockGenerator,
 		projects:    []string{"nav-integration-test", "my-testing-pool"},
 	}
-	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
+	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
 }
 
 func (suite *KafkaHandlerTestSuite) TestCleanupNoKafka() {
@@ -291,19 +289,6 @@ func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationLocalFailure))
-}
-
-func (suite *KafkaHandlerTestSuite) TestServiceUserNames() {
-	application := suite.applicationBuilder.
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Kafka: &aiven_nais_io_v1.KafkaSpec{Pool: pool},
-		}).
-		Build()
-	application.Generation = 42
-
-	actual, err := makeServiceUserName(&application)
-	suite.NoError(err)
-	suite.Equal("test-ns.test-app-bd60d4d2", actual, "made an invalid serviceusername")
 }
 
 func TestKafkaHandler(t *testing.T) {
