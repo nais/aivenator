@@ -8,14 +8,13 @@ import (
 
 	"github.com/aiven/aiven-go-client"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
-	"github.com/nais/liberator/pkg/namegen"
+	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
 	"github.com/nais/liberator/pkg/strings"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/nais/aivenator/constants"
-	aivenator_aiven "github.com/nais/aivenator/pkg/aiven"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -96,7 +95,13 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *a
 		return utils.AivenFail("GetCA", application, err, logger)
 	}
 
-	serviceUserName := namegen.RandShortName(application.ServiceUserPrefix(), aivenator_aiven.MaxServiceUserNameLength)
+	genMod := application.Generation % 100
+	serviceUserName, err := kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, fmt.Sprint(genMod))
+	if err != nil {
+		err = fmt.Errorf("unable to create service user name: %s %w", err, utils.UnrecoverableError)
+		utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
+		return err
+	}
 	aivenUser, err := h.serviceuser.Create(serviceUserName, projectName, serviceName, logger)
 	if err != nil {
 		return utils.AivenFail("CreateServiceUser", application, err, logger)
