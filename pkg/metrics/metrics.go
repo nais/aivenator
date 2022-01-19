@@ -11,13 +11,14 @@ import (
 const (
 	Namespace = "aivenator"
 
-	LabelAivenOperation = "operation"
-	LabelNamespace      = "namespace"
-	LabelPool           = "pool"
-	LabelResourceType   = "resource_type"
-	LabelStatus         = "status"
-	LabelSyncState      = "synchronization_state"
-	LabelSecretState    = "state"
+	LabelAivenOperation     = "operation"
+	LabelNamespace          = "namespace"
+	LabelPool               = "pool"
+	LabelResourceType       = "resource_type"
+	LabelStatus             = "status"
+	LabelSyncState          = "synchronization_state"
+	LabelSecretState        = "state"
+	LabelUserNameConvention = "username_convention"
 )
 
 var (
@@ -47,10 +48,10 @@ var (
 	}, []string{LabelPool})
 
 	ServiceUsersCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "service_users_count",
+		Name:      "service_users_count",
 		Namespace: Namespace,
-		Help: "total count of service users",
-	}, []string{LabelPool})
+		Help:      "total count of service users",
+	}, []string{LabelPool, LabelUserNameConvention})
 
 	AivenLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:      "aiven_latency",

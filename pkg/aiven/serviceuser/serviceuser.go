@@ -5,6 +5,12 @@ import (
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"strings"
+)
+
+const (
+	dotSeparator        = "dot"
+	underscoreSeparator = "underscore"
 )
 
 func NewManager(serviceUsers *aiven.ServiceUsersHandler) ServiceUserManager {
@@ -26,14 +32,26 @@ type Manager struct {
 
 func (m *Manager) ObserveServiceUsersCount(projectName, serviceName string, logger *log.Entry) {
 	list, err := m.serviceUsers.List(projectName, serviceName)
-	var count int
 	if err != nil {
 		logger.Errorf("not able to fetch service users list: %s", err)
-		count = -1
 	} else {
-		count = len(list)
+		dotSeparatorCount, underscoreSeparatorCound := countUsers(list)
+		metrics.ServiceUsersCount.WithLabelValues(projectName, dotSeparator).Set(float64(dotSeparatorCount))
+		metrics.ServiceUsersCount.WithLabelValues(projectName, underscoreSeparator).Set(float64(underscoreSeparatorCound))
 	}
-	metrics.ServiceUsersCount.WithLabelValues(projectName).Set(float64(count))
+}
+
+func countUsers(list []*aiven.ServiceUser) (int, int) {
+	dotCount := 0
+	underscoreCount := 0
+	for _, user := range list {
+		if strings.Count(user.Username, "_") == 3 {
+			underscoreCount++
+		} else if strings.Count(user.Username, ".") >= 1 {
+			dotCount++
+		}
+	}
+	return dotCount, underscoreCount
 }
 
 func (m *Manager) Get(serviceUserName, projectName, serviceName string, logger *log.Entry) (*aiven.ServiceUser, error) {
@@ -46,7 +64,7 @@ func (m *Manager) Get(serviceUserName, projectName, serviceName string, logger *
 	if err != nil {
 		return nil, err
 	}
-	m.ObserveServiceUsersCount(projectName, serviceName, logger);
+	m.ObserveServiceUsersCount(projectName, serviceName, logger)
 	return aivenUser, nil
 }
 
@@ -60,7 +78,7 @@ func (m *Manager) Delete(serviceUserName, projectName, serviceName string, logge
 		return err
 	}
 	metrics.ServiceUsersDeleted.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
-	m.ObserveServiceUsersCount(projectName, serviceName, logger);
+	m.ObserveServiceUsersCount(projectName, serviceName, logger)
 	return nil
 }
 
@@ -79,6 +97,6 @@ func (m *Manager) Create(serviceUserName, projectName, serviceName string, logge
 		return nil, err
 	}
 	metrics.ServiceUsersCreated.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
-	m.ObserveServiceUsersCount(projectName, serviceName, logger);
+	m.ObserveServiceUsersCount(projectName, serviceName, logger)
 	return aivenUser, nil
 }
