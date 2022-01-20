@@ -11,6 +11,7 @@ import (
 const (
 	dotSeparator        = "dot"
 	underscoreSeparator = "underscore"
+	other               = "other"
 )
 
 func NewManager(serviceUsers *aiven.ServiceUsersHandler) ServiceUserManager {
@@ -30,28 +31,36 @@ type Manager struct {
 	serviceUsers *aiven.ServiceUsersHandler
 }
 
+type userCount struct {
+	dot        int
+	underscore int
+	other      int
+}
+
 func (m *Manager) ObserveServiceUsersCount(projectName, serviceName string, logger *log.Entry) {
 	list, err := m.serviceUsers.List(projectName, serviceName)
 	if err != nil {
 		logger.Errorf("not able to fetch service users list: %s", err)
 	} else {
-		dotSeparatorCount, underscoreSeparatorCound := countUsers(list)
-		metrics.ServiceUsersCount.WithLabelValues(projectName, dotSeparator).Set(float64(dotSeparatorCount))
-		metrics.ServiceUsersCount.WithLabelValues(projectName, underscoreSeparator).Set(float64(underscoreSeparatorCound))
+		counts := countUsers(list)
+		metrics.ServiceUsersCount.WithLabelValues(projectName, dotSeparator).Set(float64(counts.dot))
+		metrics.ServiceUsersCount.WithLabelValues(projectName, underscoreSeparator).Set(float64(counts.underscore))
+		metrics.ServiceUsersCount.WithLabelValues(projectName, other).Set(float64(counts.other))
 	}
 }
 
-func countUsers(list []*aiven.ServiceUser) (int, int) {
-	dotCount := 0
-	underscoreCount := 0
+func countUsers(list []*aiven.ServiceUser) userCount {
+	counts := userCount{}
 	for _, user := range list {
 		if strings.Count(user.Username, "_") == 3 {
-			underscoreCount++
+			counts.underscore++
 		} else if strings.Count(user.Username, ".") >= 1 {
-			dotCount++
+			counts.dot++
+		} else {
+			counts.other++
 		}
 	}
-	return dotCount, underscoreCount
+	return counts
 }
 
 func (m *Manager) Get(serviceUserName, projectName, serviceName string, logger *log.Entry) (*aiven.ServiceUser, error) {
