@@ -1,7 +1,10 @@
 package kafka
 
 import (
+	"encoding/base64"
 	"fmt"
+	"hash/crc32"
+	"os"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -42,6 +45,8 @@ const (
 	ServiceUserAnnotation = "kafka.aiven.nais.io/serviceUser"
 	PoolAnnotation        = "kafka.aiven.nais.io/pool"
 )
+
+var clusterName = ""
 
 func NewKafkaHandler(aiven *aiven.Client, projects []string) KafkaHandler {
 	return KafkaHandler{
@@ -95,8 +100,14 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *a
 		return utils.AivenFail("GetCA", application, err, logger)
 	}
 
-	genMod := application.Generation % 100
-	serviceUserName, err := kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, fmt.Sprint(genMod))
+	suffix, err := createSuffix(application)
+	if err != nil {
+		err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.UnrecoverableError)
+		utils.LocalFail("CreateSuffix", application, err, logger)
+		return err
+	}
+
+	serviceUserName, err := kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, suffix)
 	if err != nil {
 		err = fmt.Errorf("unable to create service user name: %s %w", err, utils.UnrecoverableError)
 		utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
@@ -141,6 +152,18 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *a
 	return nil
 }
 
+func createSuffix(application *aiven_nais_io_v1.AivenApplication) (string, error) {
+	hasher := crc32.NewIEEE()
+	basename := fmt.Sprintf("%d%s", application.Generation, clusterName)
+	_, err := hasher.Write([]byte(basename))
+	if err != nil {
+		return "", err
+	}
+	bytes := make([]byte, 0, 4)
+	suffix := base64.RawURLEncoding.EncodeToString(hasher.Sum(bytes))
+	return suffix[:3], nil
+}
+
 func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
 	annotations := secret.GetAnnotations()
 	if serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]; okServiceUser {
@@ -169,4 +192,8 @@ func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
 
 func DefaultKafkaService(project string) string {
 	return project + "-kafka"
+}
+
+func init() {
+	clusterName = os.Getenv("NAIS_CLUSTER_NAME")
 }
