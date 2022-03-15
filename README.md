@@ -47,7 +47,6 @@ Currently supported Aiven services
 ----------------------------------
 
 - Kafka
-- Elastic
 - OpenSearch
 
 Protected Applications
