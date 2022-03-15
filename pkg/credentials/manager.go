@@ -2,15 +2,15 @@ package credentials
 
 import (
 	"fmt"
+
 	"github.com/aiven/aiven-go-client"
-	"github.com/nais/aivenator/pkg/handlers/elastic"
 	"github.com/nais/aivenator/pkg/handlers/kafka"
 	"github.com/nais/aivenator/pkg/handlers/opensearch"
 	"github.com/nais/aivenator/pkg/handlers/secret"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 type Handler interface {
@@ -27,7 +27,6 @@ func NewManager(aiven *aiven.Client, kafkaProjects []string, mainProjectName str
 		handlers: []Handler{
 			secret.Handler{},
 			kafka.NewKafkaHandler(aiven, kafkaProjects),
-			elastic.NewElasticHandler(aiven, mainProjectName),
 			opensearch.NewOpenSearchHandler(aiven, mainProjectName),
 		},
 	}

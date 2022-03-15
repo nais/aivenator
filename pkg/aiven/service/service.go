@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/metrics"
 )
@@ -24,7 +25,6 @@ type cacheKey struct {
 type ServiceAddresses struct {
 	ServiceURI     string
 	SchemaRegistry string
-	ElasticSearch  string
 	OpenSearch     string
 }
 
@@ -49,7 +49,6 @@ func (r *Manager) GetServiceAddresses(projectName, serviceName string) (*Service
 		}
 		addresses = &ServiceAddresses{
 			ServiceURI:     GetServiceURI(aivenService),
-			ElasticSearch:  GetElasticSearchAddress(aivenService),
 			OpenSearch:     GetOpenSearchAddress(aivenService),
 			SchemaRegistry: GetSchemaRegistryAddress(aivenService),
 		}
@@ -76,14 +75,6 @@ func GetSchemaRegistryAddress(service *aiven.Service) string {
 	schemaRegistryComponent := findComponent("schema_registry", service.Components)
 	if schemaRegistryComponent != nil {
 		return fmt.Sprintf("https://%s:%d", schemaRegistryComponent.Host, schemaRegistryComponent.Port)
-	}
-	return ""
-}
-
-func GetElasticSearchAddress(service *aiven.Service) string {
-	elasticComponent := findComponent("elasticsearch", service.Components)
-	if elasticComponent != nil {
-		return fmt.Sprintf("https://%s:%d", elasticComponent.Host, elasticComponent.Port)
 	}
 	return ""
 }
