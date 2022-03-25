@@ -20,6 +20,8 @@ import re
 import subprocess
 from pprint import pformat
 
+AIVENATOR_FINALIZER = "aivenator.aiven.nais.io/finalizer"
+
 SERVICE_USER_DATA_KEY = "KAFKA_SCHEMA_REGISTRY_USER"
 SERVICE_USER_ANNOTATION = "kafka.aiven.nais.io/serviceUser"
 POOL_ANNOTATION = "kafka.aiven.nais.io/pool"
@@ -99,6 +101,9 @@ def update_secret(context, secret, app, pool, service_user):
     name = metadata["name"]
     namespace = metadata["namespace"]
 
+    finalizers = metadata.setdefault("finalizers", [])
+    if AIVENATOR_FINALIZER not in finalizers:
+        finalizers.append(AIVENATOR_FINALIZER)
     annotations = metadata["annotations"]
     annotations[SERVICE_USER_ANNOTATION] = service_user
     annotations[POOL_ANNOTATION] = pool
@@ -124,8 +129,10 @@ def update_secret(context, secret, app, pool, service_user):
 
 
 def process(secrets, context):
-    count = 0
+    updated_count = 0
+    total_count = 0
     for secret in secrets:
+        total_count += 1
         metadata = secret["metadata"]
         secret_name = metadata["name"]
         namespace = metadata["namespace"]
@@ -137,14 +144,14 @@ def process(secrets, context):
             app = get_app_name(metadata, m.group("app"))
             pool = get_pool(metadata, m.group("pool"))
             service_user = get_service_user(secret)
-            count += update_secret(context, secret, app, pool, service_user)
+            updated_count += update_secret(context, secret, app, pool, service_user)
         except MissingMetadata as e:
             LOG.warning("Secret %s/%s was missing metadata: %s", secret_name, namespace, e)
             yield secret
         except subprocess.CalledProcessError as e:
             LOG.error("Secret %s/%s could not be updated: %s", secret_name, namespace, e.output)
             yield secret
-    LOG.info("Modified %d secrets in %s", count, context)
+    LOG.info("Modified %d of %d secrets in %s", updated_count, total_count, context)
 
 
 def report_failed(all_failed):
