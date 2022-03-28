@@ -1,6 +1,9 @@
 name: Build and deploy Aivenator
 
-on: [push]
+on:
+  push:
+    paths-ignore:
+      - 'hack/**'
 
 env:
   image_base: ghcr.io/${{ github.repository }}/aivenator
