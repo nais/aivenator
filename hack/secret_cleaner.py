@@ -20,13 +20,18 @@ KAFKARATOR_NAME_PATTERN = re.compile(r"kafka-(?P<app>.*)-(?P<pool>nav-.*)-[0-9a-
 
 
 @dataclass
-class SecretID:
+class ResourceID:
     name: str
     namespace: str
     context: str
 
     def __str__(self):
         return f"{self.name}/{self.namespace} in {self.context}"
+
+    @classmethod
+    def from_object(cls, obj, context):
+        metadata = obj["metadata"]
+        return cls(metadata["name"], metadata["namespace"], context)
 
 
 def list_pods(contexts):
@@ -43,7 +48,7 @@ def list_pods(contexts):
         output = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, encoding="utf-8").stdout
         result = json.loads(output)
         LOG.info(f"Found {len(result['items'])} Pods")
-        yield from result["items"]
+        yield from ((context, pod) for pod in result["items"])
 
 
 def list_secrets(contexts):
@@ -68,7 +73,7 @@ def list_secrets(contexts):
             metadata.setdefault("labels", {})
             metadata.setdefault("annotations", {})
             if KAFKARATOR_NAME_PATTERN.match(secret_name):
-                yield secret, SecretID(secret_name, namespace, context)
+                yield secret, ResourceID(secret_name, namespace, context)
 
 
 def delete(secret_id):
@@ -101,7 +106,6 @@ def used_by_env_from(secret_id, container):
         secret_env_source = env_from_source.get("secretRef")
         if secret_env_source:
             if secret_env_source["name"] == secret_id.name:
-                LOG.info("Secret %s is in use by envFrom", secret_id)
                 return True
     return False
 
@@ -113,7 +117,6 @@ def used_by_env(secret_id, container):
             secret_key_selector = env_var_source.get("secretKeyRef")
             if secret_key_selector:
                 if secret_key_selector["name"] == secret_id.name:
-                    LOG.info("Secret %s is in use by env", secret_id)
                     return True
     return False
 
@@ -122,7 +125,6 @@ def used_by_volume(secret_id, volume):
     secret_volume_source = volume.get("secret")
     if secret_volume_source:
         if secret_volume_source["secretName"] == secret_id.name:
-            LOG.info("Secret %s is in use by volume", secret_id)
             return True
     return False
 
@@ -139,15 +141,19 @@ def in_use(secret_id, pods):
     - .spec.initContainers[*].envFrom[*].secretRef.name
     - .spec.volumes[*].secret.secretName
     """
-    for pod in pods:
+    for context, pod in pods:
+        pod_id = ResourceID.from_object(pod, context)
         pod_spec = pod["spec"]
         for container in get_all_containers(pod_spec):
             if used_by_env_from(secret_id, container):
+                LOG.debug("%s is in use by envFrom in pod %s", secret_id, pod_id)
                 return True
             if used_by_env(secret_id, container):
+                LOG.debug("%s is in use by env in pod %s", secret_id, pod_id)
                 return True
         for volume in get_volumes(pod_spec):
             if used_by_volume(secret_id, volume):
+                LOG.debug("%s is in use by volume in pod %s", secret_id, pod_id)
                 return True
     return False
 
@@ -159,8 +165,8 @@ def main(options):
     deleted_count = 0
     pods = list_pods(k8s_contexts)
     pods_by_namespace = defaultdict(list)
-    for pod in pods:
-        pods_by_namespace[pod["metadata"]["namespace"]].append(pod)
+    for context, pod in pods:
+        pods_by_namespace[pod["metadata"]["namespace"]].append((context, pod))
     for secret, secret_id in list_secrets(k8s_contexts):
         total_count += 1
         metadata = secret["metadata"]
