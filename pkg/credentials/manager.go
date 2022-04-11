@@ -1,6 +1,7 @@
 package credentials
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aiven/aiven-go-client"
@@ -22,11 +23,11 @@ type Manager struct {
 	handlers []Handler
 }
 
-func NewManager(aiven *aiven.Client, kafkaProjects []string, mainProjectName string) Manager {
+func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger *log.Entry) Manager {
 	return Manager{
 		handlers: []Handler{
 			secret.Handler{},
-			kafka.NewKafkaHandler(aiven, kafkaProjects),
+			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
 			opensearch.NewOpenSearchHandler(aiven, mainProjectName),
 		},
 	}

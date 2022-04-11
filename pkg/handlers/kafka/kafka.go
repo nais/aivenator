@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"hash/crc32"
@@ -48,14 +49,16 @@ const (
 
 var clusterName = ""
 
-func NewKafkaHandler(aiven *aiven.Client, projects []string) KafkaHandler {
-	return KafkaHandler{
+func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry) KafkaHandler {
+	handler := KafkaHandler{
 		project:     project.NewManager(aiven.CA),
 		serviceuser: serviceuser.NewManager(aiven.ServiceUsers),
 		service:     service.NewManager(aiven.Services),
 		generator:   certificate.NewExecGenerator(),
 		projects:    projects,
 	}
+	handler.StartUserCounter(ctx, logger)
+	return handler
 }
 
 type KafkaHandler struct {
@@ -188,6 +191,26 @@ func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
 		}
 	}
 	return nil
+}
+
+func (h *KafkaHandler) StartUserCounter(ctx context.Context, logger *log.Entry) {
+	go h.countUsers(ctx, logger)
+}
+
+func (h *KafkaHandler) countUsers(ctx context.Context, logger *log.Entry) {
+	ticker := time.NewTicker(time.Minute * 5)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			for _, prj := range h.projects {
+				h.serviceuser.ObserveServiceUsersCount(prj, DefaultKafkaService(prj), logger)
+			}
+		}
+	}
 }
 
 func DefaultKafkaService(project string) string {

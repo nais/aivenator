@@ -155,7 +155,7 @@ func main() {
 	logger.Info("Aivenator running")
 	terminator := context.Background()
 
-	if err := manageCredentials(aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject)); err != nil {
+	if err := manageCredentials(terminator, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject)); err != nil {
 		logger.Errorln(err)
 		os.Exit(ExitCredentialsManager)
 	}
@@ -181,8 +181,8 @@ func main() {
 	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
-func manageCredentials(aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string) error {
-	credentialsManager := credentials.NewManager(aiven, projects, mainProjectName)
+func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string) error {
+	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}))
 	credentialsJanitor := credentials.Janitor{
 		Client: mgr.GetClient(),
 		Logger: logger.WithFields(log.Fields{

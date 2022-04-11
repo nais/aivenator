@@ -57,7 +57,7 @@ func testBinDirectory() string {
 	return filepath.Clean(filepath.Join(filepath.Dir(filename), "../.testbin/"))
 }
 
-func newTestRig(t *testing.T, logger *log.Logger) (*testRig, error) {
+func newTestRig(ctx context.Context, t *testing.T, logger *log.Logger) (*testRig, error) {
 	err := os.Setenv("KUBEBUILDER_ASSETS", testBinDirectory())
 	if err != nil {
 		return nil, fmt.Errorf("failed to set environment variable: %w", err)
@@ -99,7 +99,7 @@ func newTestRig(t *testing.T, logger *log.Logger) (*testRig, error) {
 
 	go func() {
 		cache := rig.manager.GetCache()
-		err := cache.Start(context.Background())
+		err := cache.Start(ctx)
 		if err != nil {
 			t.Errorf("unable to start informer cache: %v", err)
 		}
@@ -116,7 +116,7 @@ func newTestRig(t *testing.T, logger *log.Logger) (*testRig, error) {
 		return nil, fmt.Errorf("unable to set up aiven client: %s", err)
 	}
 
-	credentialsManager := credentials.NewManager(aivenClient, []string{testProject}, testProject)
+	credentialsManager := credentials.NewManager(ctx, aivenClient, []string{testProject}, testProject, logger.WithField("component", "CredentialsManager"))
 	credentialsJanitor := credentials.Janitor{
 		Client: rig.manager.GetClient(),
 		Logger: logger.WithFields(log.Fields{
@@ -178,16 +178,16 @@ func (r testRig) createForTest(ctx context.Context, obj client.Object) {
 }
 
 func TestControllers(t *testing.T) {
+	// Allow 15 seconds for test to complete
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	t.Cleanup(cancel)
+
 	logger := log.New()
-	rig, err := newTestRig(t, logger)
+	rig, err := newTestRig(ctx, t, logger)
 	if err != nil {
 		t.Errorf("unable to run controller integration tests: %s", err)
 		t.FailNow()
 	}
-
-	// Allow 15 seconds for test to complete
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	t.Cleanup(cancel)
 
 	rig.createForTest(ctx, &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
