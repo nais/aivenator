@@ -156,8 +156,9 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}()
 
 	logger.Infof("Creating secret")
+	secret := r.initSecret(ctx, application, logger)
 	rs := r.findReplicaSet(ctx, application, logger)
-	secret, err := r.Manager.CreateSecret(&application, rs, logger)
+	secret, err = r.Manager.CreateSecret(&application, rs, secret, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
 		return fail(err)
@@ -172,7 +173,23 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	success(&application, hash)
 
+	if missingReplicaSetOwnerReference(*secret) {
+		return ctrl.Result{RequeueAfter: requeueInterval}, nil
+	}
+
 	return ctrl.Result{}, nil
+}
+
+func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *corev1.Secret {
+	secret := corev1.Secret{}
+	err := r.Get(ctx, application.SecretKey(), &secret)
+	switch {
+	case k8serrors.IsNotFound(err):
+		return &secret
+	case err != nil:
+		logger.Warnf("error retrieving existing secret from cluster: %w", err)
+	}
+	return &secret
 }
 
 func (r *AivenApplicationReconciler) findReplicaSet(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) *appsv1.ReplicaSet {
@@ -312,12 +329,8 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 		return true, nil
 	}
 
-	key := client.ObjectKey{
-		Namespace: application.GetNamespace(),
-		Name:      application.Spec.SecretName,
-	}
 	old := corev1.Secret{}
-	err := r.Get(ctx, key, &old)
+	err := r.Get(ctx, application.SecretKey(), &old)
 	switch {
 	case k8serrors.IsNotFound(err):
 		logger.Infof("Secret not found; needs synchronization")
@@ -326,6 +339,30 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 		return false, fmt.Errorf("unable to retrieve secret from cluster: %s", err)
 	}
 
+	if isProtected(old) {
+		logger.Infof("Protected and already synchronized")
+		return false, nil
+	}
+
+	if missingReplicaSetOwnerReference(old) {
+		logger.Infof("Missing ReplicaSet ownerReference; needs synchronization")
+		return true, nil
+	}
+
 	logger.Infof("Already synchronized")
 	return false, nil
+}
+
+func missingReplicaSetOwnerReference(secret corev1.Secret) bool {
+	for _, ownerReference := range secret.GetOwnerReferences() {
+		if ownerReference.Kind == "ReplicaSet" {
+			return false
+		}
+	}
+	return true
+}
+
+func isProtected(secret corev1.Secret) bool {
+	protected, ok := secret.GetAnnotations()[constants.AivenatorProtectedAnnotation]
+	return ok && protected == "true"
 }

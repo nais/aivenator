@@ -33,7 +33,8 @@ func TestManager_Apply(t *testing.T) {
 	manager := Manager{handlers: []Handler{&mockHandler}}
 
 	// when
-	secret, err := manager.CreateSecret(&application, nil, nil)
+	secret := &corev1.Secret{}
+	secret, err := manager.CreateSecret(&application, nil, secret, nil)
 
 	// then
 	assert.NoError(t, err)
@@ -78,7 +79,8 @@ func TestManager_ApplyFailed(t *testing.T) {
 	manager := Manager{handlers: []Handler{&mockHandler, &failingHandler}}
 
 	// when
-	_, err := manager.CreateSecret(&application, nil, nil)
+	secret := &corev1.Secret{}
+	_, err := manager.CreateSecret(&application, nil, secret, nil)
 
 	// then
 	assert.Error(t, err)
