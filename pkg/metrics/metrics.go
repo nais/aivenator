@@ -28,6 +28,12 @@ var (
 		Help:      "number of applications synchronized with aiven",
 	}, []string{LabelSyncState})
 
+	ApplicationsRequeued = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      "aiven_applications_requeued",
+		Namespace: Namespace,
+		Help:      "number of applications requeued for synchronization",
+	}, []string{LabelSyncState})
+
 	ApplicationProcessingTime = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:      "aiven_application_processing_time_seconds",
 		Namespace: Namespace,
@@ -108,6 +114,7 @@ func Register(registry prometheus.Registerer) {
 		ServiceUsersCreated,
 		ServiceUsersDeleted,
 		ApplicationsProcessed,
+		ApplicationsRequeued,
 		ApplicationProcessingTime,
 		SecretsManaged,
 		ServiceUsersCount,

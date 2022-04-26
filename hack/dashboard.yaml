@@ -126,6 +126,16 @@ rows:
             - prometheus:
                 query: sum(aivenator_aiven_applications_processed) by (synchronization_state)
                 legend: "{{ synchronization_state }}"
+      - graph:
+          title: AivenApplications requeued - $ds
+          datasource: $ds
+          repeat: ds
+          transparent: true
+          span: 4
+          targets:
+            - prometheus:
+                query: sum(aivenator_aiven_applications_requeued) by (synchronization_state)
+                legend: "{{ synchronization_state }}"
       - heatmap:
           # Must be done manually in Grafana after import: Set max datapoints to 25
           title: Processing time - $ds
