@@ -33,7 +33,7 @@ func UnwrapAivenError(errorMessage error) error {
 		}{}
 		err := json.Unmarshal([]byte(aivenErr.Message), &apiMessage)
 		if err != nil {
-			return fmt.Errorf("got aiven error %s, but failed to decompose as JSON: %s", aivenErr, err)
+			return fmt.Errorf("got aiven error %s, but failed to decompose '%s' as JSON: %s", aivenErr, aivenErr.Message, err)
 		} else {
 			if 400 <= aivenErr.Status && aivenErr.Status < 500 {
 				return fmt.Errorf("%s: %w", apiMessage.Message, UnrecoverableError)
