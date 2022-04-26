@@ -32,6 +32,7 @@ const (
 const (
 	ServicesGetAddresses = iota
 	ServiceUsersCreate
+	ServiceUsersGet
 	ProjectGetCA
 	GeneratorMakeCredStores
 )
@@ -74,6 +75,12 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 	}
 	if _, ok := enabled[ServiceUsersCreate]; ok {
 		suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&aiven.ServiceUser{
+				Username: serviceUserName,
+			}, nil)
+	}
+	if _, ok := enabled[ServiceUsersGet]; ok {
+		suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			Return(&aiven.ServiceUser{
 				Username: serviceUserName,
 			}, nil)
@@ -184,6 +191,29 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 		KafkaBrokers, KafkaSecretUpdated, KafkaCertificate,
 	})
 	suite.ElementsMatch(utils.KeysFromByteMap(secret.Data), []string{KafkaKeystore, KafkaTruststore})
+}
+
+func (suite *KafkaHandlerTestSuite) TestSecretExists() {
+	application := suite.applicationBuilder.
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
+				Pool: pool,
+			},
+		}).
+		Build()
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				ServiceUserAnnotation: serviceUserName,
+			},
+		},
+	}
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores, ServiceUsersGet))
+
+	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+
+	suite.NoError(err)
+	suite.Equal(secret.GetAnnotations()[ServiceUserAnnotation], serviceUserName)
 }
 
 func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {

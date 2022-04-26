@@ -7,6 +7,7 @@ import (
 	"github.com/nais/aivenator/controllers/aiven_application"
 	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/credentials"
+	"github.com/nais/aivenator/pkg/utils"
 	"net/http"
 	"os"
 	"os/signal"
@@ -132,7 +133,7 @@ func main() {
 	}
 	logger.SetLevel(level)
 
-	aivenClient, err := aiven.NewTokenClient(viper.GetString(AivenToken), "")
+	aivenClient, err := newAivenClient()
 	if err != nil {
 		logger.Errorf("unable to set up aiven client: %s", err)
 		os.Exit(ExitConfig)
@@ -179,6 +180,19 @@ func main() {
 	}
 
 	logger.Errorln(fmt.Errorf("manager has stopped"))
+}
+
+func newAivenClient() (*aiven.Client, error) {
+	aivenClient, err := aiven.NewTokenClient(viper.GetString(AivenToken), "")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = aivenClient.Projects.List()
+	if err != nil {
+		return nil, fmt.Errorf("error verifying Aiven connection: %w", utils.UnwrapAivenError(err))
+	}
+	return aivenClient, err
 }
 
 func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string) error {

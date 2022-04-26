@@ -14,22 +14,7 @@ import (
 var UnrecoverableError = errors.New("UnrecoverableError")
 
 func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, logger *logrus.Entry) error {
-	errorMessage := err
-	if aivenErr, ok := err.(aiven.Error); ok {
-		apiMessage := struct {
-			Message string `json:"message"`
-		}{}
-		err := json.Unmarshal([]byte(aivenErr.Message), &apiMessage)
-		if err != nil {
-			errorMessage = fmt.Errorf("got aiven error %s, but failed to decompose as JSON: %s", aivenErr, err)
-		} else {
-			if 400 <= aivenErr.Status && aivenErr.Status < 500 {
-				errorMessage = fmt.Errorf("%s: %w", apiMessage.Message, UnrecoverableError)
-			} else {
-				errorMessage = fmt.Errorf("%s", apiMessage.Message)
-			}
-		}
-	}
+	errorMessage := UnwrapAivenError(err)
 	message := fmt.Errorf("operation %s failed in Aiven: %w", operation, errorMessage)
 	logger.Error(message)
 	application.Status.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
@@ -39,6 +24,25 @@ func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication,
 		Message: message.Error(),
 	}, aiven_nais_io_v1.AivenApplicationSucceeded)
 	return message
+}
+
+func UnwrapAivenError(errorMessage error) error {
+	if aivenErr, ok := errorMessage.(aiven.Error); ok {
+		apiMessage := struct {
+			Message string `json:"message"`
+		}{}
+		err := json.Unmarshal([]byte(aivenErr.Message), &apiMessage)
+		if err != nil {
+			return fmt.Errorf("got aiven error %s, but failed to decompose as JSON: %s", aivenErr, err)
+		} else {
+			if 400 <= aivenErr.Status && aivenErr.Status < 500 {
+				return fmt.Errorf("%s: %w", apiMessage.Message, UnrecoverableError)
+			} else {
+				return fmt.Errorf("%s", apiMessage.Message)
+			}
+		}
+	}
+	return errorMessage
 }
 
 func LocalFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, logger *logrus.Entry) {

@@ -19,12 +19,13 @@ spec:
     cpuThresholdPercentage: 50
   prometheus:
     enabled: false
-  limits:
-    cpu: "200m"
-    memory: "256Mi"
-  requests:
-    cpu: "200m"
-    memory: "256Mi"
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
   kafka:
     pool: nav-integration-test
   skipCaBundle: true

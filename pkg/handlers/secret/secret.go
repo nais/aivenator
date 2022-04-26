@@ -34,16 +34,8 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, rs *appsv
 		return fmt.Errorf("invalid secret name '%s': %w", secretName, utils.UnrecoverableError)
 	}
 
-	secret.ObjectMeta = metav1.ObjectMeta{
-		Name:      secretName,
-		Namespace: application.GetNamespace(),
-		Labels: map[string]string{
-			constants.AppLabel:        application.GetName(),
-			constants.TeamLabel:       application.GetNamespace(),
-			constants.SecretTypeLabel: constants.AivenatorSecretType,
-		},
-		Annotations: setAnnotations(application),
-	}
+	updateObjectMeta(application, &secret.ObjectMeta)
+
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
 	})
@@ -62,7 +54,18 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, rs *appsv
 	return nil
 }
 
-func setAnnotations(application *aiven_nais_io_v1.AivenApplication) map[string]string {
+func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *metav1.ObjectMeta) {
+	objMeta.Name = application.Spec.SecretName
+	objMeta.Namespace = application.GetNamespace()
+	objMeta.Labels = utils.MergeStringMap(objMeta.Labels, map[string]string{
+		constants.AppLabel:        application.GetName(),
+		constants.TeamLabel:       application.GetNamespace(),
+		constants.SecretTypeLabel: constants.AivenatorSecretType,
+	})
+	objMeta.Annotations = utils.MergeStringMap(objMeta.Annotations, createAnnotations(application))
+}
+
+func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[string]string {
 	annotations := map[string]string{
 		nais_io_v1.DeploymentCorrelationIDAnnotation: application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation],
 		constants.AivenatorProtectedAnnotation:       strconv.FormatBool(application.Spec.Protected),

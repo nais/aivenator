@@ -33,19 +33,18 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 	}
 }
 
-func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, rs *appsv1.ReplicaSet, logger *log.Entry) (*v1.Secret, error) {
-	s := &v1.Secret{}
+func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, rs *appsv1.ReplicaSet, secret *v1.Secret, logger *log.Entry) (*v1.Secret, error) {
 	for _, handler := range c.handlers {
-		err := handler.Apply(application, rs, s, logger)
+		err := handler.Apply(application, rs, secret, logger)
 		if err != nil {
-			cleanupError := c.Cleanup(s, logger)
+			cleanupError := c.Cleanup(secret, logger)
 			if cleanupError != nil {
 				return nil, fmt.Errorf("error during apply: %w, additionally, an error occured during cleanup: %v", err, cleanupError)
 			}
 			return nil, err
 		}
 	}
-	return s, nil
+	return secret, nil
 }
 
 func (c Manager) Cleanup(s *v1.Secret, logger *log.Entry) error {

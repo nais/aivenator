@@ -103,22 +103,9 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *a
 		return utils.AivenFail("GetCA", application, err, logger)
 	}
 
-	suffix, err := createSuffix(application)
+	aivenUser, err := h.provideServiceUser(application, projectName, serviceName, secret, logger)
 	if err != nil {
-		err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.UnrecoverableError)
-		utils.LocalFail("CreateSuffix", application, err, logger)
 		return err
-	}
-
-	serviceUserName, err := kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, suffix)
-	if err != nil {
-		err = fmt.Errorf("unable to create service user name: %s %w", err, utils.UnrecoverableError)
-		utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
-		return err
-	}
-	aivenUser, err := h.serviceuser.Create(serviceUserName, projectName, serviceName, logger)
-	if err != nil {
-		return utils.AivenFail("CreateServiceUser", application, err, logger)
 	}
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
@@ -153,6 +140,36 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *a
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
 	return nil
+}
+
+func (h KafkaHandler) provideServiceUser(application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *v1.Secret, logger *log.Entry) (*aiven.ServiceUser, error) {
+	var aivenUser *aiven.ServiceUser
+	var err error
+	if serviceUserName, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
+		aivenUser, err = h.serviceuser.Get(serviceUserName, projectName, serviceName, logger)
+		if err != nil {
+			return nil, utils.AivenFail("GetServiceUser", application, err, logger)
+		}
+	} else {
+		suffix, err := createSuffix(application)
+		if err != nil {
+			err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.UnrecoverableError)
+			utils.LocalFail("CreateSuffix", application, err, logger)
+			return nil, err
+		}
+
+		serviceUserName, err := kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, suffix)
+		if err != nil {
+			err = fmt.Errorf("unable to create service user name: %s %w", err, utils.UnrecoverableError)
+			utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
+			return nil, err
+		}
+		aivenUser, err = h.serviceuser.Create(serviceUserName, projectName, serviceName, logger)
+		if err != nil {
+			return nil, utils.AivenFail("CreateServiceUser", application, err, logger)
+		}
+	}
+	return aivenUser, nil
 }
 
 func createSuffix(application *aiven_nais_io_v1.AivenApplication) (string, error) {
