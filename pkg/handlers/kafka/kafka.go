@@ -147,27 +147,29 @@ func (h KafkaHandler) provideServiceUser(application *aiven_nais_io_v1.AivenAppl
 	var err error
 	if serviceUserName, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
 		aivenUser, err = h.serviceuser.Get(serviceUserName, projectName, serviceName, logger)
-		if err != nil {
+		if err == nil {
+			return aivenUser, nil
+		}
+		if !aiven.IsNotFound(err) {
 			return nil, utils.AivenFail("GetServiceUser", application, err, logger)
 		}
-	} else {
-		suffix, err := createSuffix(application)
-		if err != nil {
-			err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.UnrecoverableError)
-			utils.LocalFail("CreateSuffix", application, err, logger)
-			return nil, err
-		}
+	}
+	suffix, err := createSuffix(application)
+	if err != nil {
+		err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.UnrecoverableError)
+		utils.LocalFail("CreateSuffix", application, err, logger)
+		return nil, err
+	}
 
-		serviceUserName, err := kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, suffix)
-		if err != nil {
-			err = fmt.Errorf("unable to create service user name: %s %w", err, utils.UnrecoverableError)
-			utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
-			return nil, err
-		}
-		aivenUser, err = h.serviceuser.Create(serviceUserName, projectName, serviceName, logger)
-		if err != nil {
-			return nil, utils.AivenFail("CreateServiceUser", application, err, logger)
-		}
+	serviceUserName, err := kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, suffix)
+	if err != nil {
+		err = fmt.Errorf("unable to create service user name: %s %w", err, utils.UnrecoverableError)
+		utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
+		return nil, err
+	}
+	aivenUser, err = h.serviceuser.Create(serviceUserName, projectName, serviceName, logger)
+	if err != nil {
+		return nil, utils.AivenFail("CreateServiceUser", application, err, logger)
 	}
 	return aivenUser, nil
 }

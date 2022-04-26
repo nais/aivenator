@@ -227,7 +227,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything).
-		Return(nil, &aiven.Error{
+		Return(nil, aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
 			Status:   500,
@@ -250,7 +250,7 @@ func (suite *KafkaHandlerTestSuite) TestProjectGetCAFailed() {
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServiceUsersCreate, GeneratorMakeCredStores))
 	suite.mockProjects.On("GetCA", mock.Anything).
-		Return("", &aiven.Error{
+		Return("", aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
 			Status:   500,
@@ -273,7 +273,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores))
 	suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, &aiven.Error{
+		Return(nil, aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
 			Status:   500,
@@ -283,6 +283,46 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
+}
+
+func (suite *KafkaHandlerTestSuite) TestServiceUserNotFound() {
+	application := suite.applicationBuilder.
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
+				Pool: pool,
+			},
+		}).
+		Build()
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				ServiceUserAnnotation: serviceUserName,
+			},
+		},
+	}
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
+	suite.mockServiceUsers.On("Get", serviceUserName, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, aiven.Error{
+			Message:  "aiven-error",
+			MoreInfo: "aiven-more-info",
+			Status:   404,
+		})
+
+	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+
+	suite.NoError(err)
+	expected := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				ServiceUserAnnotation: serviceUserName,
+				PoolAnnotation:        pool,
+			},
+			Finalizers: []string{constants.AivenatorFinalizer},
+		},
+		Data:       secret.Data,
+		StringData: secret.StringData,
+	}
+	suite.Equal(expected, secret)
 }
 
 func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
