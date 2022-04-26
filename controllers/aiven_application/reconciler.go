@@ -173,7 +173,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	success(&application, hash)
 
-	if missingReplicaSetOwnerReference(*secret) {
+	if r.missingReplicaSetOwnerReference(*secret) {
 		interval := utils.NextRequeueInterval(secret, requeueInterval)
 		logger.Infof("Missing replicaset owner reference; requeueing in %d seconds", int(interval.Seconds()))
 		metrics.ApplicationsRequeued.With(prometheus.Labels{
@@ -351,7 +351,7 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 		return false, nil
 	}
 
-	if missingReplicaSetOwnerReference(old) {
+	if r.missingReplicaSetOwnerReference(old) {
 		logger.Infof("Missing ReplicaSet ownerReference; needs synchronization")
 		metrics.ProcessingReason.WithLabelValues(metrics.MissingOwnerReference.String()).Inc()
 		return true, nil
@@ -361,12 +361,27 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 	return false, nil
 }
 
-func missingReplicaSetOwnerReference(secret corev1.Secret) bool {
+func (r *AivenApplicationReconciler) missingReplicaSetOwnerReference(secret corev1.Secret) bool {
 	if _, ok := secret.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
 		return false
 	}
+
+	rsKind, err := utils.GetGVK(r.Scheme(), &appsv1.ReplicaSet{})
+	if err != nil {
+		r.Logger.Error(err)
+		return false
+	}
+	jobKind, err := utils.GetGVK(r.Scheme(), &nais_io_v1.Naisjob{})
+	if err != nil {
+		r.Logger.Error(err)
+		return false
+	}
+
 	for _, ownerReference := range secret.GetOwnerReferences() {
-		if ownerReference.Kind == "ReplicaSet" {
+		if ownerReference.Kind == rsKind.Kind {
+			return false
+		}
+		if ownerReference.Kind == jobKind.Kind {
 			return false
 		}
 	}

@@ -4,9 +4,12 @@ import (
 	"context"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/credentials"
+	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
+	nais_io_v1alpha1 "github.com/nais/liberator/pkg/apis/nais.io/v1alpha1"
 	log "github.com/sirupsen/logrus"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,119 +18,216 @@ import (
 	"time"
 )
 
+type schemeAdders func(s *runtime.Scheme) error
+
+func setupScheme() *runtime.Scheme {
+	var scheme = runtime.NewScheme()
+
+	adders := []schemeAdders{
+		metav1.AddMetaToScheme,
+		corev1.AddToScheme,
+		appsv1.AddToScheme,
+		aiven_nais_io_v1.AddToScheme,
+		nais_io_v1.AddToScheme,
+		nais_io_v1alpha1.AddToScheme,
+	}
+
+	for _, f := range adders {
+		err := f(scheme)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return scheme
+}
+
 func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
+	scheme := setupScheme()
+
+	type args struct {
+		application aiven_nais_io_v1.AivenApplication
+		hasSecret   bool
+		hasRSOwner  bool
+		hasAppOwner bool
+		hasJobOwner bool
+		isProtected bool
+	}
 	tests := []struct {
-		name              string
-		application       aiven_nais_io_v1.AivenApplication
-		hasSecret         bool
-		hasOwnerReference bool
-		isProtected       bool
-		want              bool
-		wantErr           bool
+		name    string
+		args    args
+		want    bool
+		wantErr bool
 	}{
 		{
-			name:              "EmptyApplication",
-			application:       aiven_nais_io_v1.AivenApplication{},
-			hasSecret:         false,
-			hasOwnerReference: false,
-			isProtected:       false,
-			want:              true,
-			wantErr:           false,
+			name: "EmptyApplication",
+			args: args{
+				application: aiven_nais_io_v1.AivenApplication{},
+				hasSecret:   false,
+				hasRSOwner:  false,
+				hasAppOwner: false,
+				hasJobOwner: false,
+				isProtected: false,
+			},
+			want:    true,
+			wantErr: false,
 		},
 		{
-			name:              "BaseApplication",
-			application:       aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build(),
-			hasSecret:         false,
-			hasOwnerReference: false,
-			isProtected:       false,
-			want:              true,
-			wantErr:           false,
+			name: "BaseApplication",
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build(),
+				hasSecret:   false,
+				hasRSOwner:  false,
+				hasAppOwner: false,
+				hasJobOwner: false,
+				isProtected: false,
+			},
+			want:    true,
+			wantErr: false,
 		},
 		{
 			name: "ChangedApplication",
-			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "123"}).
-				Build(),
-			hasSecret:         false,
-			hasOwnerReference: false,
-			isProtected:       false,
-			want:              true,
-			wantErr:           false,
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "123"}).
+					Build(),
+				hasSecret:   false,
+				hasRSOwner:  true,
+				hasAppOwner: false,
+				hasJobOwner: false,
+				isProtected: false,
+			},
+			want:    true,
+			wantErr: false,
 		},
 		{
 			name: "UnchangedApplication",
-			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
-				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
-				Build(),
-			hasSecret:         true,
-			hasOwnerReference: true,
-			isProtected:       false,
-			want:              false,
-			wantErr:           false,
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
+					Build(),
+				hasSecret:   true,
+				hasRSOwner:  true,
+				hasAppOwner: false,
+				hasJobOwner: false,
+				isProtected: false,
+			},
+			want:    false,
+			wantErr: false,
 		},
 		{
 			name: "UnchangedApplicationButSecretMissing",
-			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
-				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
-				Build(),
-			hasSecret:         false,
-			hasOwnerReference: false,
-			isProtected:       false,
-			want:              true,
-			wantErr:           false,
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
+					Build(),
+				hasSecret:   false,
+				hasRSOwner:  false,
+				hasAppOwner: true,
+				hasJobOwner: false,
+				isProtected: false,
+			},
+			want:    true,
+			wantErr: false,
 		},
 		{
 			name: "UnchangedApplicationMissingReplicaSetOwnerReference",
-			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
-				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
-				Build(),
-			hasSecret:         true,
-			hasOwnerReference: false,
-			isProtected:       false,
-			want:              true,
-			wantErr:           false,
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
+					Build(),
+				hasSecret:   true,
+				hasRSOwner:  false,
+				hasAppOwner: true,
+				hasJobOwner: false,
+				isProtected: false,
+			},
+			want:    true,
+			wantErr: false,
+		},
+		{
+			name: "UnchangedNaisJobMissingReplicaSetOwnerReference",
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
+					Build(),
+				hasSecret:   true,
+				hasRSOwner:  false,
+				hasAppOwner: false,
+				hasJobOwner: true,
+				isProtected: false,
+			},
+			want:    false,
+			wantErr: false,
 		},
 		{
 			name: "ProtectedApplicationMissingReplicaSetOwnerReference",
-			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
-				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
-				Build(),
-			hasSecret:         true,
-			hasOwnerReference: false,
-			isProtected:       true,
-			want:              false,
-			wantErr:           false,
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "4264acf8ec09e93"}).
+					Build(),
+				hasSecret:   true,
+				hasRSOwner:  false,
+				hasAppOwner: false,
+				hasJobOwner: false,
+				isProtected: true,
+			},
+			want:    false,
+			wantErr: false,
 		},
 		{
 			name: "ProtectedApplication",
-			application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
-				Build(),
-			hasSecret:         false,
-			hasOwnerReference: false,
-			isProtected:       true,
-			want:              true,
-			wantErr:           false,
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my-secret-name"}).
+					Build(),
+				hasSecret:   false,
+				hasRSOwner:  false,
+				hasAppOwner: false,
+				hasJobOwner: false,
+				isProtected: true,
+			},
+			want:    true,
+			wantErr: false,
 		},
 	}
 
 	ctx := context.Background()
 
+	rsKind, err := utils.GetGVK(scheme, &appsv1.ReplicaSet{})
+	if err != nil {
+		panic(err)
+	}
+	appKind, err := utils.GetGVK(scheme, &nais_io_v1alpha1.Application{})
+	if err != nil {
+		panic(err)
+	}
+	jobKind, err := utils.GetGVK(scheme, &nais_io_v1.Naisjob{})
+	if err != nil {
+		panic(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clientBuilder := fake.NewClientBuilder()
-			if tt.hasSecret {
+			clientBuilder := fake.NewClientBuilder().WithScheme(scheme)
+			if tt.args.hasSecret {
 				ownerReferences := make([]metav1.OwnerReference, 0)
-				if tt.hasOwnerReference {
-					ownerReferences = append(ownerReferences, metav1.OwnerReference{Kind: "ReplicaSet"})
+				if tt.args.hasRSOwner {
+					ownerReferences = append(ownerReferences, metav1.OwnerReference{Kind: rsKind.Kind})
+				}
+				if tt.args.hasAppOwner {
+					ownerReferences = append(ownerReferences, metav1.OwnerReference{Kind: appKind.Kind})
+				}
+				if tt.args.hasJobOwner {
+					ownerReferences = append(ownerReferences, metav1.OwnerReference{Kind: jobKind.Kind})
 				}
 				annotations := make(map[string]string)
 				annotations[nais_io_v1.DeploymentCorrelationIDAnnotation] = "a-correlation-id"
-				if tt.isProtected {
+				if tt.args.isProtected {
 					annotations[constants.AivenatorProtectedAnnotation] = "true"
 				}
 				clientBuilder.WithRuntimeObjects(&corev1.Secret{
@@ -145,12 +245,12 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 				Manager: credentials.Manager{},
 			}
 
-			hash, err := tt.application.Hash()
+			hash, err := tt.args.application.Hash()
 			if err != nil {
 				t.Errorf("Failed to generate hash: %s", err)
 				return
 			}
-			got, err := r.NeedsSynchronization(ctx, tt.application, hash, r.Logger)
+			got, err := r.NeedsSynchronization(ctx, tt.args.application, hash, r.Logger)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NeedsSynchronization() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -163,12 +263,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 }
 
 func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) {
-	var scheme = runtime.NewScheme()
-
-	err := aiven_nais_io_v1.AddToScheme(scheme)
-	if err != nil {
-		panic(err)
-	}
+	scheme := setupScheme()
 
 	tests := []struct {
 		name        string
