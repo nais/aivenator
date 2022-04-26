@@ -8,6 +8,7 @@ import (
 	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/credentials"
 	"github.com/nais/aivenator/pkg/utils"
+	liberator_scheme "github.com/nais/liberator/pkg/scheme"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,20 +17,15 @@ import (
 	"time"
 
 	aivenatormetrics "github.com/nais/aivenator/pkg/metrics"
-	"github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	_ "net/http/pprof" // Enable http profiling
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
-
-var scheme = runtime.NewScheme()
 
 const (
 	ExitOK = iota
@@ -139,6 +135,12 @@ func main() {
 		os.Exit(ExitConfig)
 	}
 
+	scheme, err := liberator_scheme.All()
+	if err != nil {
+		logger.Errorf("unable to load schemes: %s", err)
+		os.Exit(ExitRuntime)
+	}
+
 	allowedProjects := viper.GetStringSlice(Projects)
 
 	syncPeriod := viper.GetDuration(SyncPeriod)
@@ -225,16 +227,5 @@ func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Log
 }
 
 func init() {
-	err := clientgoscheme.AddToScheme(scheme)
-	if err != nil {
-		panic(err)
-	}
-
-	err = aiven_nais_io_v1.AddToScheme(scheme)
-	if err != nil {
-		panic(err)
-	}
-
 	aivenatormetrics.Register(metrics.Registry)
-	// +kubebuilder:scaffold:scheme
 }
