@@ -17,9 +17,22 @@ const (
 	LabelResourceType       = "resource_type"
 	LabelStatus             = "status"
 	LabelSyncState          = "synchronization_state"
+	LabelProcessingReason   = "processing_reason"
 	LabelSecretState        = "state"
 	LabelUserNameConvention = "username_convention"
 )
+
+type Reason string
+
+const (
+	HashChanged           Reason = "HashChanged"
+	MissingSecret         Reason = "MissingSecret"
+	MissingOwnerReference Reason = "MissingOwnerReference"
+)
+
+func (r Reason) String() string {
+	return string(r)
+}
 
 var (
 	ApplicationsProcessed = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -40,6 +53,12 @@ var (
 		Help:      "seconds from observed to synchronised successfully",
 		Buckets:   prometheus.LinearBuckets(1.0, 1.0, 20),
 	}, []string{LabelSyncState})
+
+	ProcessingReason = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      "processing_reason",
+		Namespace: Namespace,
+		Help:      "reason for why this processing needs to happen",
+	}, []string{LabelProcessingReason})
 
 	ServiceUsersCreated = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:      "service_users_created",
@@ -118,5 +137,6 @@ func Register(registry prometheus.Registerer) {
 		ApplicationProcessingTime,
 		SecretsManaged,
 		ServiceUsersCount,
+		ProcessingReason,
 	)
 }

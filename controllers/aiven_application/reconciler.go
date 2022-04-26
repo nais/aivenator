@@ -330,6 +330,7 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, application aiven_nais_io_v1.AivenApplication, hash string, logger *log.Entry) (bool, error) {
 	if application.Status.SynchronizationHash != hash {
 		logger.Infof("Hash changed; needs synchronization")
+		metrics.ProcessingReason.WithLabelValues(metrics.HashChanged.String()).Inc()
 		return true, nil
 	}
 
@@ -338,6 +339,7 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 	switch {
 	case k8serrors.IsNotFound(err):
 		logger.Infof("Secret not found; needs synchronization")
+		metrics.ProcessingReason.WithLabelValues(metrics.MissingSecret.String()).Inc()
 		return true, nil
 	case err != nil:
 		return false, fmt.Errorf("unable to retrieve secret from cluster: %s", err)
@@ -350,6 +352,7 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 
 	if missingReplicaSetOwnerReference(old) {
 		logger.Infof("Missing ReplicaSet ownerReference; needs synchronization")
+		metrics.ProcessingReason.WithLabelValues(metrics.MissingOwnerReference.String()).Inc()
 		return true, nil
 	}
 
