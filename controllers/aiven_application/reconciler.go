@@ -200,7 +200,7 @@ func (r *AivenApplicationReconciler) findReplicaSet(ctx context.Context, app aiv
 	var correlationId string
 	var ok bool
 	if correlationId, ok = app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
-		logger.Infof("AivenApplication %v missing DeploymentCorrelationID, unable to find owning ReplicaSet", app)
+		logger.Infof("AivenApplication %s missing DeploymentCorrelationID, unable to find owning ReplicaSet", app.GetName())
 		return nil
 	}
 	var replicaSets appsv1.ReplicaSetList
