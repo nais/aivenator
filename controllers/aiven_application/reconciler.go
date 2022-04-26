@@ -358,6 +358,9 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 }
 
 func missingReplicaSetOwnerReference(secret corev1.Secret) bool {
+	if _, ok := secret.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
+		return false
+	}
 	for _, ownerReference := range secret.GetOwnerReferences() {
 		if ownerReference.Kind == "ReplicaSet" {
 			return false
