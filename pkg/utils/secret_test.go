@@ -71,6 +71,24 @@ func TestNextRequeueInterval(t *testing.T) {
 			},
 			320 * time.Second,
 		},
+		{
+			"9 retries",
+			&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{constants.AivenatorRetryCounterAnnotation: "9"},
+				},
+			},
+			5120 * time.Second,
+		},
+		{
+			"10 retries, give up",
+			&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{constants.AivenatorRetryCounterAnnotation: "10"},
+				},
+			},
+			0,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

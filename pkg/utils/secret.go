@@ -10,6 +10,9 @@ import (
 
 func NextRequeueInterval(secret *v1.Secret, requeueInterval time.Duration) time.Duration {
 	retries := GetSecretRetries(secret)
+	if retries >= 10 {
+		return 0
+	}
 	factor := math.Pow(2, float64(retries))
 	return time.Duration(factor) * requeueInterval
 }
