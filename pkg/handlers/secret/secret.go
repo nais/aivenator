@@ -35,6 +35,8 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, rs *appsv
 	}
 
 	updateObjectMeta(application, &secret.ObjectMeta)
+	retries := utils.GetSecretRetries(secret)
+	utils.SetSecretRetries(secret, retries+1)
 
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),

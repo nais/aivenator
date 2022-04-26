@@ -174,11 +174,12 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	success(&application, hash)
 
 	if missingReplicaSetOwnerReference(*secret) {
-		logger.Infof("Missing replicaset owner reference; requeueing after %d seconds", int(requeueInterval.Seconds()))
+		interval := utils.NextRequeueInterval(secret, requeueInterval)
+		logger.Infof("Missing replicaset owner reference; requeueing in %d seconds", int(interval.Seconds()))
 		metrics.ApplicationsRequeued.With(prometheus.Labels{
 			metrics.LabelSyncState: application.Status.SynchronizationState,
 		}).Inc()
-		return ctrl.Result{RequeueAfter: requeueInterval}, nil
+		return ctrl.Result{RequeueAfter: interval}, nil
 	}
 
 	return ctrl.Result{}, nil
