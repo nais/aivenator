@@ -4,6 +4,7 @@ import (
 	"github.com/nais/aivenator/constants"
 	"k8s.io/api/core/v1"
 	"math"
+	"math/rand"
 	"strconv"
 	"time"
 )
@@ -14,7 +15,8 @@ func NextRequeueInterval(secret *v1.Secret, requeueInterval time.Duration) time.
 		return 0
 	}
 	factor := math.Pow(2, float64(retries))
-	return time.Duration(factor) * requeueInterval
+	skew := rand.Float64() * (factor / 10)
+	return time.Duration((factor + skew) * float64(requeueInterval))
 }
 
 func GetSecretRetries(secret *v1.Secret) int64 {

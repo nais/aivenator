@@ -2,6 +2,7 @@ package utils
 
 import (
 	"github.com/nais/aivenator/constants"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
@@ -92,9 +93,8 @@ func TestNextRequeueInterval(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NextRequeueInterval(tt.secret, requeueInterval); got != tt.want {
-				t.Errorf("NextRequeueInterval() = %v, want %v", got, tt.want)
-			}
+			actual := NextRequeueInterval(tt.secret, requeueInterval)
+			assert.InDelta(t, tt.want, actual, float64(tt.want)*0.1, "NextRequeueInterval() = %v, want %v", actual, tt.want)
 		})
 	}
 }
