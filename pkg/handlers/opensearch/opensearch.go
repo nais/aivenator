@@ -73,7 +73,7 @@ func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication,
 		ServiceUserAnnotation: aivenUser.Username,
 		ProjectAnnotation:     h.projectName,
 	}))
-	logger.Infof("Fetched serviceuser %s", aivenUser.Username)
+	logger.Infof("Fetched service user %s", aivenUser.Username)
 
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		OpenSearchUser:     aivenUser.Username,

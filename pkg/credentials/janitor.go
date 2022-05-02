@@ -54,7 +54,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 	}
 
 	if found := len(secretLists.Unused.Items); found > 0 {
-		j.Logger.Debugf("Found %d unused secrets managed by Aivenator", found)
+		j.Logger.Infof("Found %d unused secrets managed by Aivenator", found)
 
 		for _, oldSecret := range secretLists.Unused.Items {
 			logger := j.Logger.WithFields(log.Fields{
@@ -63,14 +63,14 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 			})
 
 			if oldSecret.GetName() == application.Spec.SecretName {
-				logger.Debugf("Will not delete currently requested secret")
+				logger.Infof("Will not delete currently requested secret")
 				counters.InUse += 1
 				continue
 			}
 
 			for _, ownerRef := range oldSecret.GetOwnerReferences() {
 				if ownerRef.Kind == "ReplicaSet" {
-					logger.Debugf("Secret owned by ReplicaSet, leaving alone")
+					logger.Infof("Secret owned by ReplicaSet, leaving alone")
 					continue
 				}
 			}
@@ -80,17 +80,19 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 				if annotations.HasTimeLimited(oldSecretAnnotations) {
 					parsedTimeStamp := utils.ParseTimestamp(application.FormatExpiresAt(), &errs)
 					if utils.Expired(parsedTimeStamp) {
-						j.deleteSecret(ctx, oldSecret, &errs)
+						logger.Infof("Protected, but expired secret, deleting")
+						j.deleteSecret(ctx, oldSecret, &errs, logger)
 					} else {
 						counters.ProtectedWithTimeLimit += 1
-						logger.Debugf("Secret is protected and not expired, leaving alone")
+						logger.Infof("Secret is protected and not expired, leaving alone")
 					}
 				} else {
 					counters.Protected += 1
-					logger.Debugf("Secret is protected, leaving alone")
+					logger.Infof("Secret is protected, leaving alone")
 				}
 			} else {
-				j.deleteSecret(ctx, oldSecret, &errs)
+				logger.Infof("Secret is not in use, not protected, not owned by ReplicaSet and not currently requested, deleting")
+				j.deleteSecret(ctx, oldSecret, &errs, logger)
 			}
 		}
 	}
@@ -111,8 +113,8 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 	return errs
 }
 
-func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, errs *[]error) {
-	j.Logger.Debugf("Deleting secret")
+func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, errs *[]error, logger log.FieldLogger) {
+	logger.Infof("Deleting secret")
 	if err := j.Delete(ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
 		err = fmt.Errorf("failed to delete secret %s in namespace %s: %s", oldSecret.GetName(), oldSecret.GetNamespace(), err)
 		*errs = append(*errs, err)
