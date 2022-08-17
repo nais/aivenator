@@ -3,6 +3,10 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"github.com/nais/aivenator/pkg/metrics"
+	"github.com/prometheus/client_golang/prometheus"
+	"reflect"
+	"time"
 
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/handlers/kafka"
@@ -35,6 +39,7 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 
 func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, rs *appsv1.ReplicaSet, secret *v1.Secret, logger *log.Entry) (*v1.Secret, error) {
 	for _, handler := range c.handlers {
+		processingStart := time.Now()
 		err := handler.Apply(application, rs, secret, logger)
 		if err != nil {
 			cleanupError := c.Cleanup(secret, logger)
@@ -43,6 +48,12 @@ func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, rs
 			}
 			return nil, err
 		}
+
+		used := time.Now().Sub(processingStart)
+		handlerName := reflect.TypeOf(handler).String()
+		metrics.HandlerProcessingTime.With(prometheus.Labels{
+			metrics.LabelHandler: handlerName,
+		}).Observe(used.Seconds())
 	}
 	return secret, nil
 }

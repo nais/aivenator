@@ -20,6 +20,7 @@ const (
 	LabelProcessingReason   = "processing_reason"
 	LabelSecretState        = "state"
 	LabelUserNameConvention = "username_convention"
+	LabelHandler            = "handler"
 )
 
 type Reason string
@@ -51,8 +52,15 @@ var (
 		Name:      "aiven_application_processing_time_seconds",
 		Namespace: Namespace,
 		Help:      "seconds from observed to synchronised successfully",
-		Buckets:   prometheus.LinearBuckets(1.0, 1.0, 20),
+		Buckets:   prometheus.LinearBuckets(1.0, 2.0, 20),
 	}, []string{LabelSyncState})
+
+	HandlerProcessingTime = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:      "aiven_handler_processing_time_seconds",
+		Namespace: Namespace,
+		Help:      "seconds spent processing by handler",
+		Buckets:   prometheus.LinearBuckets(1.0, 2.0, 20),
+	}, []string{LabelHandler})
 
 	ProcessingReason = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:      "processing_reason",
@@ -135,6 +143,7 @@ func Register(registry prometheus.Registerer) {
 		ApplicationsProcessed,
 		ApplicationsRequeued,
 		ApplicationProcessingTime,
+		HandlerProcessingTime,
 		SecretsManaged,
 		ServiceUsersCount,
 		ProcessingReason,
