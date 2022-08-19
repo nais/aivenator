@@ -3,7 +3,7 @@ module github.com/nais/aivenator
 go 1.17
 
 require (
-	github.com/aiven/aiven-go-client v1.6.2
+	github.com/aiven/aiven-go-client v1.7.0
 	github.com/nais/liberator v0.0.0-20220413132323-df0b346fd900
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
