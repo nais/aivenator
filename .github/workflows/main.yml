@@ -13,7 +13,7 @@ jobs:
     name: Build and push
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Generate image environment variable
         id: set-image-tag
         run: |
@@ -44,7 +44,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         path: aivenator
     - uses: navikt/github-app-token-generator@v1
@@ -53,7 +53,7 @@ jobs:
         private-key: ${{ secrets.NAIS_APP_PRIVATE_KEY }}
         app-id: ${{ secrets.NAIS_APP_ID }}
         repo: navikt/nais-yaml
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: navikt/nais-yaml
         token: ${{ steps.get-token.outputs.token }}
