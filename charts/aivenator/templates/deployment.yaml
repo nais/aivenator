@@ -37,7 +37,7 @@ spec:
           - name: AIVENATOR_PROJECTS
             value: "{{ .Values.aiven.projects }}"
           - name: AIVENATOR_MAIN_PROJECT
-            value: "{{ .aivenator.mainProject }}"
+            value: "{{ .Values.aiven.mainProject }}"
           envFrom:
             - secretRef:
                 name: {{ include "aivenator.fullname" . }}
