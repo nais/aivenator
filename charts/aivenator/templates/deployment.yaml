@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aivenator.fullname" . }}
+  labels:
+    {{- include "aivenator.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "aivenator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "aivenator.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "aivenator.serviceAccountName" . }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - all
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1069
+            runAsNonRoot: true
+            runAsUser: 1069
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+          - name: AIVENATOR_LOG_FORMAT
+            value: json
+          - name: AIVENATOR_METRICS_ADDRESS
+            value: 0.0.0.0:8080
+          - name: AIVENATOR_PROJECTS
+            value: "{{ .Values.aiven.projects }}"
+          - name: AIVENATOR_MAIN_PROJECT
+            value: "{{ .aivenator.mainProject }}"
+          envFrom:
+            - secretRef:
+                name: {{ include "aivenator.fullname" . }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

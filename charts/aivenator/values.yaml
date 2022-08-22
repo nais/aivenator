@@ -1,0 +1,21 @@
+# Default values for aivenator.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+image:
+  repository: ghcr.io/nais/aivenator/aivenator
+  pullPolicy: Always
+  tag: latest
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 512Mi
+
+aiven:
+  projects: # Space separated list of Aiven projects with Kafka clusters available for this aivenator instance
+  mainProject: # Main Aiven project for services that only support one
+  token: "" # API token for Aiven with access to above mentioned projects
