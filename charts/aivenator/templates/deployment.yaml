@@ -58,3 +58,9 @@ spec:
               port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmpdir
+      volumes:
+        - name: tmpdir
+          emptyDir: {}
