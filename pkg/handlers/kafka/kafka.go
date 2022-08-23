@@ -24,6 +24,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/utils"
+	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 )
 
 // Keys in secret
@@ -51,22 +52,24 @@ var clusterName = ""
 
 func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry) KafkaHandler {
 	handler := KafkaHandler{
-		project:     project.NewManager(aiven.CA),
-		serviceuser: serviceuser.NewManager(aiven.ServiceUsers),
-		service:     service.NewManager(aiven.Services),
-		generator:   certificate.NewExecGenerator(),
-		projects:    projects,
+		project:      project.NewManager(aiven.CA),
+		serviceuser:  serviceuser.NewManager(aiven.ServiceUsers),
+		service:      service.NewManager(aiven.Services),
+		generator:    certificate.NewExecGenerator(),
+		nameResolver: liberator_service.NewCachedNameResolver(aiven.Services),
+		projects:     projects,
 	}
 	handler.StartUserCounter(ctx, logger)
 	return handler
 }
 
 type KafkaHandler struct {
-	project     project.ProjectManager
-	serviceuser serviceuser.ServiceUserManager
-	service     service.ServiceManager
-	generator   certificate.Generator
-	projects    []string
+	project      project.ProjectManager
+	serviceuser  serviceuser.ServiceUserManager
+	service      service.ServiceManager
+	generator    certificate.Generator
+	nameResolver liberator_service.NameResolver
+	projects     []string
 }
 
 func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *appsv1.ReplicaSet, secret *v1.Secret, logger *log.Entry) error {
@@ -80,7 +83,11 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *a
 		logger.Debugf("No Kafka pool specified; noop")
 		return nil
 	}
-	serviceName := DefaultKafkaService(application.Spec.Kafka.Pool)
+
+	serviceName, err := h.nameResolver.ResolveKafkaServiceName(application.Spec.Kafka.Pool)
+	if err != nil {
+		return utils.AivenFail("ResolveServiceName", application, err, logger)
+	}
 
 	logger = logger.WithFields(log.Fields{
 		"pool":    projectName,
@@ -190,12 +197,15 @@ func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
 	annotations := secret.GetAnnotations()
 	if serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]; okServiceUser {
 		if projectName, okPool := annotations[PoolAnnotation]; okPool {
-			serviceName := DefaultKafkaService(projectName)
+			serviceName, err := h.nameResolver.ResolveKafkaServiceName(projectName)
+			if err != nil {
+				return err
+			}
 			logger = logger.WithFields(log.Fields{
 				"pool":    projectName,
 				"service": serviceName,
 			})
-			err := h.serviceuser.Delete(serviceUserName, projectName, serviceName, logger)
+			err = h.serviceuser.Delete(serviceUserName, projectName, serviceName, logger)
 			if err != nil {
 				if aiven.IsNotFound(err) {
 					logger.Infof("Service user %s does not exist", serviceUserName)
@@ -226,14 +236,15 @@ func (h *KafkaHandler) countUsers(ctx context.Context, logger *log.Entry) {
 			return
 		case <-ticker.C:
 			for _, prj := range h.projects {
-				h.serviceuser.ObserveServiceUsersCount(prj, DefaultKafkaService(prj), logger)
+				serviceName, err := h.nameResolver.ResolveKafkaServiceName(prj)
+				if err != nil {
+					logger.Warnf("unable to count service users for pool %s: %v", prj, err)
+					continue
+				}
+				h.serviceuser.ObserveServiceUsersCount(prj, serviceName, logger)
 			}
 		}
 	}
-}
-
-func DefaultKafkaService(project string) string {
-	return project + "-kafka"
 }
 
 func init() {

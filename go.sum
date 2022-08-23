@@ -443,6 +443,8 @@ github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRW
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
 github.com/nais/liberator v0.0.0-20220413132323-df0b346fd900 h1:bKOXtmreWeLCOiKSGXOrcmRdUPz3MIP7KL2S+QBNn74=
 github.com/nais/liberator v0.0.0-20220413132323-df0b346fd900/go.mod h1:AjfPx+WVWt8qKe1IFOSAAH5Im4qD5pMnxzw+SDn3rP8=
+github.com/nais/liberator v0.0.0-20220822130640-83f29d2ce7db h1:hCDfBlxeVON4OEMN0ZJrjxfjnMb1pzAM6V5OE8PINnQ=
+github.com/nais/liberator v0.0.0-20220822130640-83f29d2ce7db/go.mod h1:+Vpc7pdoL51zGVLzYP5Wm/6U+WtBR7ea1Zo5yKadAys=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=

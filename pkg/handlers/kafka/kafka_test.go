@@ -18,6 +18,7 @@ import (
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/mocks"
 	"github.com/nais/aivenator/pkg/utils"
+	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 )
 
 const (
@@ -53,6 +54,7 @@ type KafkaHandlerTestSuite struct {
 	mockServiceUsers   *mocks.ServiceUserManager
 	mockServices       *mocks.ServiceManager
 	mockGenerator      *mocks.Generator
+	mockNameResolver   *liberator_service.MockNameResolver
 	kafkaHandler       KafkaHandler
 	applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 }
@@ -100,12 +102,15 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 	suite.mockServices = &mocks.ServiceManager{}
 	suite.mockProjects = &mocks.ProjectManager{}
 	suite.mockGenerator = &mocks.Generator{}
+	suite.mockNameResolver = liberator_service.NewMockNameResolver(suite.T())
+	suite.mockNameResolver.On("ResolveKafkaServiceName", mock.Anything).Maybe().Return("kafka", nil)
 	suite.kafkaHandler = KafkaHandler{
-		project:     suite.mockProjects,
-		serviceuser: suite.mockServiceUsers,
-		service:     suite.mockServices,
-		generator:   suite.mockGenerator,
-		projects:    []string{"nav-integration-test", "my-testing-pool"},
+		project:      suite.mockProjects,
+		serviceuser:  suite.mockServiceUsers,
+		service:      suite.mockServices,
+		generator:    suite.mockGenerator,
+		nameResolver: suite.mockNameResolver,
+		projects:     []string{"nav-integration-test", "my-testing-pool"},
 	}
 	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
 }
