@@ -203,13 +203,13 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndExpiredAtN
 
 	janitor := suite.buildJanitor(suite.clientBuilder.Build())
 
-	application9 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
+	application10 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			SecretName: "some-other-secret-10",
 		}).
 		Build()
 
-	errs := janitor.CleanUnusedSecrets(suite.ctx, application9)
+	errs := janitor.CleanUnusedSecrets(suite.ctx, application10)
 	suite.Empty(errs)
 
 	for _, tt := range secrets {
