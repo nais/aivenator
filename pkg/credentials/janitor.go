@@ -3,10 +3,7 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"github.com/nais/aivenator/constants"
-	"github.com/nais/aivenator/pkg/annotations"
-	"github.com/nais/aivenator/pkg/metrics"
-	"github.com/nais/aivenator/pkg/utils"
+
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/nais/liberator/pkg/kubernetes"
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,6 +11,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/nais/aivenator/constants"
+	"github.com/nais/aivenator/pkg/annotations"
+	"github.com/nais/aivenator/pkg/metrics"
+	"github.com/nais/aivenator/pkg/utils"
 )
 
 type Janitor struct {
@@ -78,6 +80,11 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 			oldSecretAnnotations := oldSecret.GetAnnotations()
 			if annotations.HasProtected(oldSecretAnnotations) {
 				if annotations.HasTimeLimited(oldSecretAnnotations) {
+					if application.Spec.ExpiresAt == nil {
+						logger.Infof("Secret is protected, but doesn't expire; leaving alone")
+						continue
+					}
+
 					parsedTimeStamp := utils.ParseTimestamp(application.FormatExpiresAt(), &errs)
 					if utils.Expired(parsedTimeStamp) {
 						logger.Infof("Protected, but expired secret, deleting")

@@ -3,9 +3,10 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"github.com/nais/aivenator/constants"
-	"github.com/nais/aivenator/controllers/mocks"
-	"github.com/nais/aivenator/pkg/utils"
+	"strconv"
+	"testing"
+	"time"
+
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
@@ -15,9 +16,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"strconv"
-	"testing"
-	"time"
+
+	"github.com/nais/aivenator/constants"
+	"github.com/nais/aivenator/controllers/mocks"
+	"github.com/nais/aivenator/pkg/utils"
 )
 
 const (
@@ -25,15 +27,16 @@ const (
 	NotMyAppName = "app2"
 	MyUser       = "user"
 
-	Secret1Name = "secret1"
-	Secret2Name = "secret2"
-	Secret3Name = "secret3"
-	Secret4Name = "secret4"
-	Secret5Name = "secret5"
-	Secret6Name = "secret6"
-	Secret7Name = "secret7"
-	Secret8Name = "secret8"
-	Secret9Name = "secret9"
+	Secret1Name  = "secret1"
+	Secret2Name  = "secret2"
+	Secret3Name  = "secret3"
+	Secret4Name  = "secret4"
+	Secret5Name  = "secret5"
+	Secret6Name  = "secret6"
+	Secret7Name  = "secret7"
+	Secret8Name  = "secret8"
+	Secret9Name  = "secret9"
+	Secret10Name = "secret10"
 
 	MyNamespace    = "namespace"
 	NotMyNamespace = "not-my-namespace"
@@ -139,7 +142,7 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndNotExpired
 	application8 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			SecretName: "some-other-secret-8",
-			ExpiresAt:  &metav1.Time{Time: time.Now().AddDate(0,0, 2)},
+			ExpiresAt:  &metav1.Time{Time: time.Now().AddDate(0, 0, 2)},
 		}).
 		Build()
 	errs := janitor.CleanUnusedSecrets(suite.ctx, application8)
@@ -171,7 +174,38 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndExpired() 
 	application9 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			SecretName: "some-other-secret-9",
-			ExpiresAt:  &metav1.Time{Time: time.Now().AddDate(0,0, -2)},
+			ExpiresAt:  &metav1.Time{Time: time.Now().AddDate(0, 0, -2)},
+		}).
+		Build()
+
+	errs := janitor.CleanUnusedSecrets(suite.ctx, application9)
+	suite.Empty(errs)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
+func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndExpiredAtNotSet() {
+	secrets := []secretSetup{
+		{Secret10Name, MyNamespace, constants.AivenatorSecretType, MyUser, []MakeSecretOption{SecretIsProtected, SecretIsExpired}, true, "Protected and time limited secret should be left alone if Spec.ExpiresAt is not set"},
+	}
+	for _, s := range secrets {
+		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
+	}
+
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+
+	application9 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			SecretName: "some-other-secret-10",
 		}).
 		Build()
 
