@@ -152,15 +152,7 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *a
 func (h KafkaHandler) provideServiceUser(application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *v1.Secret, logger *log.Entry) (*aiven.ServiceUser, error) {
 	var aivenUser *aiven.ServiceUser
 	var err error
-	if serviceUserName, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
-		aivenUser, err = h.serviceuser.Get(serviceUserName, projectName, serviceName, logger)
-		if err == nil {
-			return aivenUser, nil
-		}
-		if !aiven.IsNotFound(err) {
-			return nil, utils.AivenFail("GetServiceUser", application, err, logger)
-		}
-	}
+
 	suffix, err := createSuffix(application)
 	if err != nil {
 		err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.UnrecoverableError)
@@ -174,6 +166,19 @@ func (h KafkaHandler) provideServiceUser(application *aiven_nais_io_v1.AivenAppl
 		utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
 		return nil, err
 	}
+
+	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
+		serviceUserName = nameFromAnnotation
+	}
+
+	aivenUser, err = h.serviceuser.Get(serviceUserName, projectName, serviceName, logger)
+	if err == nil {
+		return aivenUser, nil
+	}
+	if !aiven.IsNotFound(err) {
+		return nil, utils.AivenFail("GetServiceUser", application, err, logger)
+	}
+
 	aivenUser, err = h.serviceuser.Create(serviceUserName, projectName, serviceName, logger)
 	if err != nil {
 		return nil, utils.AivenFail("CreateServiceUser", application, err, logger)

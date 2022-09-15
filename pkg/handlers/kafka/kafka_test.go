@@ -34,6 +34,7 @@ const (
 	ServicesGetAddresses = iota
 	ServiceUsersCreate
 	ServiceUsersGet
+	ServiceUsersGetNotFound
 	ProjectGetCA
 	GeneratorMakeCredStores
 )
@@ -86,6 +87,14 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 			Return(&aiven.ServiceUser{
 				Username: serviceUserName,
 			}, nil)
+	}
+	if _, ok := enabled[ServiceUsersGetNotFound]; ok {
+		suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, aiven.Error{
+				Message:  "aiven-error",
+				MoreInfo: "aiven-more-info",
+				Status:   404,
+			})
 	}
 	if _, ok := enabled[GeneratorMakeCredStores]; ok {
 		suite.mockGenerator.Mock.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
@@ -165,7 +174,7 @@ func (suite *KafkaHandlerTestSuite) TestNoKafka() {
 }
 
 func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores, ServiceUsersGetNotFound))
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			Kafka: &aiven_nais_io_v1.KafkaSpec{
@@ -276,7 +285,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores, ServiceUsersGetNotFound))
 	suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, aiven.Error{
 			Message:  "aiven-error",
@@ -305,16 +314,47 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserNotFound() {
 			},
 		},
 	}
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
-	suite.mockServiceUsers.On("Get", serviceUserName, mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, aiven.Error{
-			Message:  "aiven-error",
-			MoreInfo: "aiven-more-info",
-			Status:   404,
-		})
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores, ServiceUsersGetNotFound))
 
 	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
 
+	suite.NoError(err)
+	expected := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				ServiceUserAnnotation: serviceUserName,
+				PoolAnnotation:        pool,
+			},
+			Finalizers: []string{constants.AivenatorFinalizer},
+		},
+		Data:       secret.Data,
+		StringData: secret.StringData,
+	}
+	suite.Equal(expected, secret)
+}
+
+func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
+	application := suite.applicationBuilder.
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
+				Pool: pool,
+			},
+		}).
+		Build()
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{},
+		},
+	}
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores))
+	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&aiven.ServiceUser{
+			Username: serviceUserName,
+		}, nil)
+
+	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+
+	suite.mockServiceUsers.AssertNotCalled(suite.T(), "Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	suite.NoError(err)
 	expected := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -356,7 +396,7 @@ func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate))
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, ServiceUsersGetNotFound))
 	suite.mockGenerator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("local-fail"))
 
