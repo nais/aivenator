@@ -1,5 +1,9 @@
 name: Build and deploy Aivenator
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     paths-ignore:
@@ -76,3 +80,17 @@ jobs:
         git --no-pager diff --cached
         git commit --no-verify -a -m "Bump Aivenator to version ${{ needs.build.outputs.version }}"
         git push
+
+  deploy-fasit:
+    name: Deploy to Fasit
+    if: github.ref == 'refs/heads/main'
+    runs-on: fasit-deploy
+    permissions:
+      id-token: write
+    needs:
+      - build
+    steps:
+      - uses: nais/fasit-deploy@main
+        with:
+          json: '{"image": {"tag": "${{ needs.setup.outputs.version }}"}}'
+          feature_name: aivenator
