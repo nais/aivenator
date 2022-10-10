@@ -92,5 +92,5 @@ jobs:
     steps:
       - uses: nais/fasit-deploy@main
         with:
-          json: '{"image": {"tag": "${{ needs.setup.outputs.version }}"}}'
+          json: '{"image": {"tag": "${{ needs.build.outputs.version }}"}}'
           feature_name: aivenator
