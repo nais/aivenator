@@ -67,6 +67,18 @@ spec:
           volumeMounts:
             - mountPath: /tmp
               name: tmpdir
+{{- if .Values.caBundle }}
+            - mountPath: /etc/ssl/certs/ca-certificates.crt
+	      name: ca-bundle-pem
+	      readOnly: true
+	      subPath: ca-bundle.pem
+{{- end}}
       volumes:
         - name: tmpdir
           emptyDir: {}
+{{- if .Values.caBundle }}
+        - configMap:
+            defaultMode: 420
+            name: ca-bundle-pem
+          name: ca-bundle-pem
+{{- end}}
