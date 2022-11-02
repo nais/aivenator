@@ -23,10 +23,8 @@ jobs:
         id: set-image-tag
         run: |
           version=$(./version.sh)
-          echo "version=${version}" >> $GITHUB_ENV
-          echo "::set-output name=version::${version}"
-          echo "AIVENATOR_IMAGE=${image_base}:${version}" >> $GITHUB_ENV
-          echo "::set-output name=image::${AIVENATOR_IMAGE}"
+          echo "version=${version}" >> $GITHUB_OUTPUT
+          echo "image=${image_base}:${version}" >> $GITHUB_OUTPUT
       - name: Login to GitHub Packages Docker Registry
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # Use commit-sha1 instead of tag for security concerns
         with:
@@ -38,7 +36,7 @@ jobs:
         with:
           context: .
           push: "${{ github.ref == 'refs/heads/main' }}"
-          tags: ${{ env.image_base }}:latest,${{ env.AIVENATOR_IMAGE }}
+          tags: ${{ env.image_base }}:latest,${{ steps.set-image-tag.outputs.image }}
     outputs:
       image: "${{ steps.set-image-tag.outputs.image }}"
       version: "${{ steps.set-image-tag.outputs.version }}"
