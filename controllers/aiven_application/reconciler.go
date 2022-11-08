@@ -109,7 +109,9 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	defer func() {
 		application.Status.SynchronizationTime = &v1.Time{time.Now()}
 		application.Status.ObservedGeneration = application.GetGeneration()
-		err := r.Status().Update(ctx, &application)
+		err := metrics.ObserveKubernetesLatency("Update", application.GetNamespace(), "AivenApplication", func() error {
+			return r.Status().Update(ctx, &application)
+		})
 		if err != nil {
 			logger.Errorf("Unable to update status of application: %s\nWanted to save status: %+v", err, application.Status)
 		} else {
@@ -187,7 +189,9 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *corev1.Secret {
 	secret := corev1.Secret{}
-	err := r.Get(ctx, application.SecretKey(), &secret)
+	err := metrics.ObserveKubernetesLatency("Get", application.GetNamespace(), "Secret", func() error {
+		return r.Get(ctx, application.SecretKey(), &secret)
+	})
 	switch {
 	case k8serrors.IsNotFound(err):
 		return &secret
@@ -209,7 +213,10 @@ func (r *AivenApplicationReconciler) findReplicaSet(ctx context.Context, app aiv
 		constants.AppLabel: app.GetName(),
 	}
 
-	if err := r.List(ctx, &replicaSets, mLabels, client.InNamespace(app.GetNamespace())); err != nil {
+	err := metrics.ObserveKubernetesLatency("List", app.GetNamespace(), "ReplicaSet", func() error {
+		return r.List(ctx, &replicaSets, mLabels, client.InNamespace(app.GetNamespace()))
+	})
+	if err != nil {
 		logger.Warnf("failed to list replicasets: %v", err)
 		return nil
 	}
@@ -305,17 +312,23 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 	defer cancel()
 
 	old := &corev1.Secret{}
-	err := r.Get(ctx, key, old)
+	err := metrics.ObserveKubernetesLatency("Get", key.Namespace, "Secret", func() error {
+		return r.Get(ctx, key, old)
+	})
 
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			logger.Infof("Saving secret")
-			err = r.Create(ctx, secret)
+			err = metrics.ObserveKubernetesLatency("Create", key.Namespace, "Secret", func() error {
+				return r.Create(ctx, secret)
+			})
 		}
 	} else {
 		logger.Infof("Updating secret")
 		secret.ResourceVersion = old.ResourceVersion
-		err = r.Update(ctx, secret)
+		err = metrics.ObserveKubernetesLatency("Update", key.Namespace, "Secret", func() error {
+			return r.Update(ctx, secret)
+		})
 	}
 
 	if err == nil {

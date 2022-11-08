@@ -36,12 +36,18 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 		constants.SecretTypeLabel: constants.AivenatorSecretType,
 	}
 
-	if err := j.List(ctx, &secrets, mLabels, client.InNamespace(application.GetNamespace())); err != nil {
+	err := metrics.ObserveKubernetesLatency("List", application.GetNamespace(), "Secret", func() error {
+		return j.List(ctx, &secrets, mLabels, client.InNamespace(application.GetNamespace()))
+	})
+	if err != nil {
 		return []error{fmt.Errorf("failed to retrieve list of secrets: %s", err)}
 	}
 
 	podList := corev1.PodList{}
-	if err := j.List(ctx, &podList); err != nil {
+	err = metrics.ObserveKubernetesLatency("List", application.GetNamespace(), "Pod", func() error {
+		return j.List(ctx, &podList)
+	})
+	if err != nil {
 		return []error{fmt.Errorf("failed to retrieve list of pods: %s", err)}
 	}
 
@@ -99,6 +105,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 				}
 			} else {
 				logger.Infof("Secret is not in use, not protected, not owned by ReplicaSet and not currently requested, deleting")
+
 				j.deleteSecret(ctx, oldSecret, &errs, logger)
 			}
 		}
@@ -122,7 +129,10 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 
 func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, errs *[]error, logger log.FieldLogger) {
 	logger.Infof("Deleting secret")
-	if err := j.Delete(ctx, &oldSecret); err != nil && !errors.IsNotFound(err) {
+	err := metrics.ObserveKubernetesLatency("Delete", oldSecret.GetNamespace(), "Secret", func() error {
+		return j.Delete(ctx, &oldSecret)
+	})
+	if err != nil && !errors.IsNotFound(err) {
 		err = fmt.Errorf("failed to delete secret %s in namespace %s: %s", oldSecret.GetName(), oldSecret.GetNamespace(), err)
 		*errs = append(*errs, err)
 	} else {

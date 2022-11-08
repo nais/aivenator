@@ -11,7 +11,7 @@ import (
 const (
 	Namespace = "aivenator"
 
-	LabelAivenOperation     = "operation"
+	LabelOperation          = "operation"
 	LabelNamespace          = "namespace"
 	LabelPool               = "pool"
 	LabelResourceType       = "resource_type"
@@ -91,7 +91,7 @@ var (
 		Namespace: Namespace,
 		Help:      "latency in aiven api operations",
 		Buckets:   prometheus.ExponentialBuckets(0.02, 2, 14),
-	}, []string{LabelAivenOperation, LabelStatus, LabelPool})
+	}, []string{LabelOperation, LabelStatus, LabelPool})
 
 	KubernetesResourcesWritten = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:      "kubernetes_resources_written",
@@ -104,6 +104,13 @@ var (
 		Namespace: Namespace,
 		Help:      "number of kubernetes resources deleted from the cluster",
 	}, []string{LabelNamespace, LabelResourceType})
+
+	KubernetesLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:      "kubernetes_latency",
+		Namespace: Namespace,
+		Help:      "latency in kubernetes api operations",
+		Buckets:   prometheus.ExponentialBuckets(0.02, 2, 14),
+	}, []string{LabelOperation, LabelNamespace, LabelResourceType})
 
 	SecretsManaged = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name:      "secrets_managed",
@@ -126,9 +133,21 @@ func ObserveAivenLatency(operation, pool string, fun func() error) error {
 		}
 	}
 	AivenLatency.With(prometheus.Labels{
-		LabelAivenOperation: operation,
-		LabelPool:           pool,
-		LabelStatus:         strconv.Itoa(status),
+		LabelOperation: operation,
+		LabelPool:      pool,
+		LabelStatus:    strconv.Itoa(status),
+	}).Observe(used.Seconds())
+	return err
+}
+
+func ObserveKubernetesLatency(operation, namespace, resourceType string, fun func() error) error {
+	timer := time.Now()
+	err := fun()
+	used := time.Now().Sub(timer)
+	KubernetesLatency.With(prometheus.Labels{
+		LabelOperation:    operation,
+		LabelNamespace:    namespace,
+		LabelResourceType: resourceType,
 	}).Observe(used.Seconds())
 	return err
 }
