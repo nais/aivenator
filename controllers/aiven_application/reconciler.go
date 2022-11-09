@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/nais/aivenator/constants"
+	"time"
+
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	"time"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+
+	"github.com/nais/aivenator/constants"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/prometheus/client_golang/prometheus"
@@ -292,8 +295,12 @@ func success(application *aiven_nais_io_v1.AivenApplication, hash string) {
 }
 
 func (r *AivenApplicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	opts := controller.Options{
+		MaxConcurrentReconciles: 50,
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&aiven_nais_io_v1.AivenApplication{}).
+		WithOptions(opts).
 		WithEventFilter(predicate.Or(
 			predicate.GenerationChangedPredicate{},
 			predicate.AnnotationChangedPredicate{},
