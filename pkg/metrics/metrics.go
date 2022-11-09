@@ -155,6 +155,7 @@ func ObserveKubernetesLatency(operation, namespace, resourceType string, fun fun
 func Register(registry prometheus.Registerer) {
 	registry.MustRegister(
 		AivenLatency,
+		KubernetesLatency,
 		KubernetesResourcesWritten,
 		KubernetesResourcesDeleted,
 		ServiceUsersCreated,
