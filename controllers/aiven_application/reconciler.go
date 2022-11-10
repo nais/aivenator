@@ -296,7 +296,7 @@ func success(application *aiven_nais_io_v1.AivenApplication, hash string) {
 
 func (r *AivenApplicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	opts := controller.Options{
-		MaxConcurrentReconciles: 25,
+		MaxConcurrentReconciles: 10,
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&aiven_nais_io_v1.AivenApplication{}).
