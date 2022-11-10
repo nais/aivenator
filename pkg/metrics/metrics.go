@@ -110,7 +110,7 @@ var (
 		Namespace: Namespace,
 		Help:      "latency in kubernetes api operations",
 		Buckets:   prometheus.ExponentialBuckets(0.02, 2, 14),
-	}, []string{LabelOperation, LabelNamespace, LabelResourceType})
+	}, []string{LabelOperation})
 
 	SecretsManaged = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name:      "secrets_managed",
@@ -140,14 +140,12 @@ func ObserveAivenLatency(operation, pool string, fun func() error) error {
 	return err
 }
 
-func ObserveKubernetesLatency(operation, namespace, resourceType string, fun func() error) error {
+func ObserveKubernetesLatency(operation string, fun func() error) error {
 	timer := time.Now()
 	err := fun()
 	used := time.Now().Sub(timer)
 	KubernetesLatency.With(prometheus.Labels{
-		LabelOperation:    operation,
-		LabelNamespace:    namespace,
-		LabelResourceType: resourceType,
+		LabelOperation: operation,
 	}).Observe(used.Seconds())
 	return err
 }

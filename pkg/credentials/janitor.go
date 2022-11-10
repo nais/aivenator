@@ -36,7 +36,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 		constants.SecretTypeLabel: constants.AivenatorSecretType,
 	}
 
-	err := metrics.ObserveKubernetesLatency("List", application.GetNamespace(), "Secret", func() error {
+	err := metrics.ObserveKubernetesLatency("Secret_List", func() error {
 		return j.List(ctx, &secrets, mLabels, client.InNamespace(application.GetNamespace()))
 	})
 	if err != nil {
@@ -44,7 +44,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 	}
 
 	podList := corev1.PodList{}
-	err = metrics.ObserveKubernetesLatency("List", application.GetNamespace(), "Pod", func() error {
+	err = metrics.ObserveKubernetesLatency("Pod_List", func() error {
 		return j.List(ctx, &podList)
 	})
 	if err != nil {
@@ -129,7 +129,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 
 func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, errs *[]error, logger log.FieldLogger) {
 	logger.Infof("Deleting secret")
-	err := metrics.ObserveKubernetesLatency("Delete", oldSecret.GetNamespace(), "Secret", func() error {
+	err := metrics.ObserveKubernetesLatency("Secret_Delete", func() error {
 		return j.Delete(ctx, &oldSecret)
 	})
 	if err != nil && !errors.IsNotFound(err) {
