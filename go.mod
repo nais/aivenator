@@ -1,6 +1,6 @@
 module github.com/nais/aivenator
 
-go 1.17
+go 1.19
 
 require (
 	github.com/aiven/aiven-go-client v1.7.0
