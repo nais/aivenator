@@ -29,6 +29,14 @@ variables:
       include_all: true
       default_all: true
       hide: variable
+  - query:
+      name: kube_op
+      label: Kubernetes Operation
+      datasource: $env-gcp
+      request: "label_values(aivenator_kubernetes_latency_bucket, operation)"
+      include_all: true
+      default_all: true
+      hide: variable
 
 rows:
   - name: Status in $ds
@@ -261,6 +269,31 @@ rows:
             - prometheus:
                 query: sum(aivenator_secrets_managed{state="in_use"}) by (namespace)
                 legend: "{{ namespace }}"
+  - name: Kubernetes Latency - $kube_op
+    repeat_for: kube_op
+    collapse: true
+    panels:
+      - heatmap:
+          # Must be done manually in Grafana after import: Set max datapoints to 25
+          title: $ds
+          datasource: $ds
+          repeat: ds
+          data_format: time_series_buckets
+          hide_zero_buckets: true
+          transparent: true
+          span: 4
+          tooltip:
+            show: true
+            showhistogram: false
+            decimals: 0
+          yaxis:
+            unit: "dtdurations"
+            decimals: 0
+          targets:
+            - prometheus:
+                query: sum(increase(aivenator_kubernetes_latency_bucket{operation="$kube_op"}[$__interval])) by (le)
+                legend: "{{ le }}"
+                format: heatmap
   - name: Aiven Latency - $aiven_op
     repeat_for: aiven_op
     collapse: true
