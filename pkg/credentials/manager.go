@@ -32,7 +32,7 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 		handlers: []Handler{
 			secret.Handler{},
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
-			opensearch.NewOpenSearchHandler(aiven, mainProjectName),
+			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
 		},
 	}
 }

@@ -53,7 +53,7 @@ var clusterName = ""
 func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry) KafkaHandler {
 	handler := KafkaHandler{
 		project:      project.NewManager(aiven.CA),
-		serviceuser:  serviceuser.NewManager(aiven.ServiceUsers),
+		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:      service.NewManager(aiven.Services),
 		generator:    certificate.NewExecGenerator(),
 		nameResolver: liberator_service.NewCachedNameResolver(aiven.Services),
@@ -232,7 +232,7 @@ func (h *KafkaHandler) StartUserCounter(ctx context.Context, logger *log.Entry) 
 }
 
 func (h *KafkaHandler) countUsers(ctx context.Context, logger *log.Entry) {
-	ticker := time.NewTicker(time.Minute * 5)
+	ticker := time.NewTicker(h.serviceuser.GetCacheExpiration())
 	defer ticker.Stop()
 
 	for {

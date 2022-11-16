@@ -1,22 +1,35 @@
 package serviceuser
 
 import (
+	"context"
+	"fmt"
+	cache "github.com/Code-Hex/go-generics-cache"
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"strings"
+	"time"
 )
 
 const (
 	dotSeparator        = "dot"
 	underscoreSeparator = "underscore"
 	other               = "other"
+
+	cacheExpiration = 5 * time.Minute
 )
 
-func NewManager(serviceUsers *aiven.ServiceUsersHandler) ServiceUserManager {
+type cacheKey struct {
+	projectName     string
+	serviceName     string
+	serviceUserName string
+}
+
+func NewManager(ctx context.Context, serviceUsers *aiven.ServiceUsersHandler) ServiceUserManager {
 	return &Manager{
-		serviceUsers: serviceUsers,
+		serviceUsers:     serviceUsers,
+		serviceUserCache: cache.NewContext[cacheKey, *aiven.ServiceUser](ctx),
 	}
 }
 
@@ -25,10 +38,12 @@ type ServiceUserManager interface {
 	Get(serviceUserName, projectName, serviceName string, logger *log.Entry) (*aiven.ServiceUser, error)
 	Delete(serviceUserName, projectName, serviceName string, logger *log.Entry) error
 	ObserveServiceUsersCount(projectName, serviceName string, logger *log.Entry)
+	GetCacheExpiration() time.Duration
 }
 
 type Manager struct {
-	serviceUsers *aiven.ServiceUsersHandler
+	serviceUsers     *aiven.ServiceUsersHandler
+	serviceUserCache *cache.Cache[cacheKey, *aiven.ServiceUser]
 }
 
 type userCount struct {
@@ -37,21 +52,30 @@ type userCount struct {
 	other      int
 }
 
+func (m *Manager) GetCacheExpiration() time.Duration {
+	return cacheExpiration
+}
+
 func (m *Manager) ObserveServiceUsersCount(projectName, serviceName string, logger *log.Entry) {
-	list, err := m.serviceUsers.List(projectName, serviceName)
+	var users []*aiven.ServiceUser
+	err := metrics.ObserveAivenLatency("ServiceUser_List", projectName, func() error {
+		var err error
+		users, err = m.serviceUsers.List(projectName, serviceName)
+		return err
+	})
 	if err != nil {
-		logger.Errorf("not able to fetch service users list: %s", err)
+		logger.Errorf("not able to fetch service users users: %s", err)
 	} else {
-		counts := countUsers(list)
+		counts := m.countUsersAndUpdateCache(projectName, serviceName, users)
 		metrics.ServiceUsersCount.WithLabelValues(projectName, dotSeparator).Set(float64(counts.dot))
 		metrics.ServiceUsersCount.WithLabelValues(projectName, underscoreSeparator).Set(float64(counts.underscore))
 		metrics.ServiceUsersCount.WithLabelValues(projectName, other).Set(float64(counts.other))
 	}
 }
 
-func countUsers(list []*aiven.ServiceUser) userCount {
+func (m *Manager) countUsersAndUpdateCache(projectName, serviceName string, users []*aiven.ServiceUser) userCount {
 	counts := userCount{}
-	for _, user := range list {
+	for _, user := range users {
 		if strings.Count(user.Username, "_") == 3 {
 			counts.underscore++
 		} else if strings.Count(user.Username, ".") >= 1 {
@@ -59,21 +83,46 @@ func countUsers(list []*aiven.ServiceUser) userCount {
 		} else {
 			counts.other++
 		}
+		m.serviceUserCache.Set(cacheKey{projectName, serviceName, user.Username}, user, cache.WithExpiration(m.GetCacheExpiration()))
 	}
 	return counts
 }
 
 func (m *Manager) Get(serviceUserName, projectName, serviceName string, logger *log.Entry) (*aiven.ServiceUser, error) {
-	var aivenUser *aiven.ServiceUser
-	err := metrics.ObserveAivenLatency("ServiceUser_Get", projectName, func() error {
+	key := cacheKey{projectName, serviceName, serviceUserName}
+	if val, found := m.serviceUserCache.Get(key); found {
+		logger.Debugf("serviceUserCache hit for %v", key)
+		return val, nil
+	}
+	logger.Debugf("serviceUserCache miss for %v", key)
+
+	// serviceUsers.Get does a List internally anyway (there is no API for getting just one), so we explicitly call List
+	// to make it clear what is going on.
+	// Since we're getting all the users, we put them in the cache for later so that we don't have to call List on every "Get".
+	var aivenUsers []*aiven.ServiceUser
+	err := metrics.ObserveAivenLatency("ServiceUser_List", projectName, func() error {
 		var err error
-		aivenUser, err = m.serviceUsers.Get(projectName, serviceName, serviceUserName)
+		aivenUsers, err = m.serviceUsers.List(projectName, serviceName)
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	m.ObserveServiceUsersCount(projectName, serviceName, logger)
+
+	var aivenUser *aiven.ServiceUser
+	for _, u := range aivenUsers {
+		m.serviceUserCache.Set(cacheKey{projectName, serviceName, u.Username}, u, cache.WithExpiration(cacheExpiration))
+		if u.Username == serviceUserName {
+			aivenUser = u
+		}
+	}
+	if aivenUser == nil {
+		return nil, aiven.Error{
+			Message: fmt.Sprintf("ServiceUser '%s' not found", serviceUserName),
+			Status:  404,
+		}
+	}
+
 	return aivenUser, nil
 }
 

@@ -1,6 +1,7 @@
 package opensearch
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aiven/aiven-go-client"
@@ -27,10 +28,10 @@ const (
 	OpenSearchURI      = "OPEN_SEARCH_URI"
 )
 
-func NewOpenSearchHandler(aiven *aiven.Client, projectName string) OpenSearchHandler {
+func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string) OpenSearchHandler {
 	return OpenSearchHandler{
 		project:     project.NewManager(aiven.CA),
-		serviceuser: serviceuser.NewManager(aiven.ServiceUsers),
+		serviceuser: serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:     service.NewManager(aiven.Services),
 		projectName: projectName,
 	}
