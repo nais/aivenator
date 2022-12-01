@@ -5,6 +5,7 @@ import (
 	"github.com/nais/aivenator/pkg/utils"
 	v1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ const (
 func TestHandler_Apply(t *testing.T) {
 	type args struct {
 		application         aiven_nais_io_v1.AivenApplication
-		rs                  *v1.ReplicaSet
+		rs                  client.Object
 		secret              corev1.Secret
 		assert              func(*testing.T, args)
 		assertUnrecoverable bool

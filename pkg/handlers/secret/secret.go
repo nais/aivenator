@@ -2,7 +2,7 @@ package secret
 
 import (
 	"fmt"
-	appsv1 "k8s.io/api/apps/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
 	"time"
 
@@ -24,7 +24,7 @@ const (
 type Handler struct {
 }
 
-func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, rs *appsv1.ReplicaSet, secret *corev1.Secret, logger *log.Entry) error {
+func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, obj client.Object, secret *corev1.Secret, logger *log.Entry) error {
 	secretName := application.Spec.SecretName
 
 	errors := validation.IsDNS1123Label(secretName)
@@ -42,12 +42,13 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, rs *appsv
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
 	})
 
-	if rs != nil {
+	if obj != nil {
+		apiVersion, kind := obj.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
 		secret.SetOwnerReferences([]metav1.OwnerReference{{
-			APIVersion: rs.APIVersion,
-			Kind:       rs.Kind,
-			Name:       rs.Name,
-			UID:        rs.UID,
+			APIVersion: apiVersion,
+			Kind:       kind,
+			Name:       obj.GetName(),
+			UID:        obj.GetUID(),
 		}})
 	} else {
 		secret.SetOwnerReferences([]metav1.OwnerReference{application.GetOwnerReference()})

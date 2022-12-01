@@ -6,6 +6,7 @@ import (
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 
 	"github.com/aiven/aiven-go-client"
@@ -14,12 +15,11 @@ import (
 	"github.com/nais/aivenator/pkg/handlers/secret"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
-	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
 type Handler interface {
-	Apply(application *aiven_nais_io_v1.AivenApplication, rs *appsv1.ReplicaSet, secret *v1.Secret, logger *log.Entry) error
+	Apply(application *aiven_nais_io_v1.AivenApplication, obj client.Object, secret *v1.Secret, logger *log.Entry) error
 	Cleanup(secret *v1.Secret, logger *log.Entry) error
 }
 
@@ -37,10 +37,10 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 	}
 }
 
-func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, rs *appsv1.ReplicaSet, secret *v1.Secret, logger *log.Entry) (*v1.Secret, error) {
+func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, obj client.Object, secret *v1.Secret, logger *log.Entry) (*v1.Secret, error) {
 	for _, handler := range c.handlers {
 		processingStart := time.Now()
-		err := handler.Apply(application, rs, secret, logger)
+		err := handler.Apply(application, obj, secret, logger)
 		if err != nil {
 			cleanupError := c.Cleanup(secret, logger)
 			if cleanupError != nil {

@@ -10,6 +10,7 @@ import (
 	nais_io_v1alpha1 "github.com/nais/liberator/pkg/apis/nais.io/v1alpha1"
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,6 +30,8 @@ const (
 	syncHash      = "4264acf8ec09e93"
 	correlationId = "a-correlation-id"
 	rsName        = "replicaset"
+	cjName        = "cronjob"
+	jName         = "job"
 )
 
 type schemeAdders func(s *runtime.Scheme) error
@@ -45,6 +48,7 @@ func setupScheme() *runtime.Scheme {
 		metav1.AddMetaToScheme,
 		corev1.AddToScheme,
 		appsv1.AddToScheme,
+		batchv1.AddToScheme,
 		aiven_nais_io_v1.AddToScheme,
 		nais_io_v1.AddToScheme,
 		nais_io_v1alpha1.AddToScheme,
@@ -343,7 +347,7 @@ func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) 
 	}
 }
 
-func TestAivenApplicationReconciler_FindReplicaSet(t *testing.T) {
+func TestAivenApplicationReconciler_FindDependentObject(t *testing.T) {
 	scheme := setupScheme()
 
 	tests := []struct {
@@ -385,6 +389,33 @@ func TestAivenApplicationReconciler_FindReplicaSet(t *testing.T) {
 			},
 			wantedObject: makeIdentifier((&appsv1.ReplicaSet{}).GroupVersionKind(), rsName),
 		},
+		{
+			name: "FoundCronJob",
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, 2)}}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
+				WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
+				Build(),
+			additionalObjects: []client.Object{
+				makeReplicaSet("other-name", "other-correlation", appName),
+				makeCronJob(cjName, correlationId, appName),
+			},
+			wantedObject: makeIdentifier((&batchv1.CronJob{}).GroupVersionKind(), cjName),
+		},
+		{
+			name: "FoundJob",
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, 2)}}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
+				WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
+				Build(),
+			additionalObjects: []client.Object{
+				makeReplicaSet("other-name", "other-correlation", appName),
+				makeCronJob("other-name", "other-correlation", appName),
+				makeJob(jName, correlationId, appName),
+			},
+			wantedObject: makeIdentifier((&batchv1.Job{}).GroupVersionKind(), jName),
+		},
 	}
 
 	ctx := context.Background()
@@ -403,21 +434,21 @@ func TestAivenApplicationReconciler_FindReplicaSet(t *testing.T) {
 				Manager: credentials.Manager{},
 			}
 
-			result := r.FindReplicaSet(ctx, tt.application, r.Logger)
+			result := r.FindDependentObject(ctx, tt.application, r.Logger)
 			if tt.wantedObject == nil {
 				if result != nil {
-					t.Errorf("FindReplicaSet found object %v where none was wanted", result)
+					t.Errorf("FindDependentObject found object %v where none was wanted", result)
 					return
 				}
 			} else {
 				if result == nil {
-					t.Errorf("FindReplicaSet found nothing, even though %v was expected", tt.wantedObject)
+					t.Errorf("FindDependentObject found nothing, even though %v was expected", tt.wantedObject)
 					return
 				}
 
-				actual := makeIdentifierFromReplicaSet(result)
+				actual := makeIdentifierFromObject(result)
 				if !reflect.DeepEqual(actual, tt.wantedObject) {
-					t.Errorf("FindReplicaSet found wrong object; actual object %v, expected object %v", actual, tt.wantedObject)
+					t.Errorf("FindDependentObject found wrong object; actual object %v, expected object %v", actual, tt.wantedObject)
 					return
 				}
 			}
@@ -425,12 +456,12 @@ func TestAivenApplicationReconciler_FindReplicaSet(t *testing.T) {
 	}
 }
 
-func makeIdentifierFromReplicaSet(rs *appsv1.ReplicaSet) *identifier {
+func makeIdentifierFromObject(obj client.Object) *identifier {
 	return &identifier{
-		GVK: rs.GetObjectKind().GroupVersionKind(),
+		GVK: obj.GetObjectKind().GroupVersionKind(),
 		NamespacedName: types.NamespacedName{
-			Namespace: rs.GetNamespace(),
-			Name:      rs.GetName(),
+			Namespace: obj.GetNamespace(),
+			Name:      obj.GetName(),
 		},
 	}
 }
@@ -445,23 +476,48 @@ func makeIdentifier(gvk schema.GroupVersionKind, name string) *identifier {
 	}
 }
 
-func makeReplicaSet(rsName string, correlationId string, appName string) *appsv1.ReplicaSet {
-	rs := &appsv1.ReplicaSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      rsName,
-			Namespace: namespace,
-			Annotations: map[string]string{
-				nais_io_v1.DeploymentCorrelationIDAnnotation: correlationId,
-			},
-			Labels: map[string]string{
-				constants.AppLabel: appName,
-			},
+func makeObjectMeta(name string, correlationId string, appName string) metav1.ObjectMeta {
+	return metav1.ObjectMeta{
+		Name:      name,
+		Namespace: namespace,
+		Annotations: map[string]string{
+			nais_io_v1.DeploymentCorrelationIDAnnotation: correlationId,
 		},
+		Labels: map[string]string{
+			constants.AppLabel: appName,
+		},
+	}
+}
+
+func makeReplicaSet(rsName string, correlationId string, appName string) *appsv1.ReplicaSet {
+	return &appsv1.ReplicaSet{
+		ObjectMeta: makeObjectMeta(rsName, correlationId, appName),
 		Spec: appsv1.ReplicaSetSpec{
 			Template: makePodTemplateSpec(),
 		},
 	}
-	return rs
+}
+
+func makeCronJob(cjName string, correlationId string, appName string) *batchv1.CronJob {
+	return &batchv1.CronJob{
+		ObjectMeta: makeObjectMeta(cjName, correlationId, appName),
+		Spec: batchv1.CronJobSpec{
+			JobTemplate: batchv1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Template: makePodTemplateSpec(),
+				},
+			},
+		},
+	}
+}
+
+func makeJob(jName string, correlationId string, appName string) *batchv1.Job {
+	return &batchv1.Job{
+		ObjectMeta: makeObjectMeta(jName, correlationId, appName),
+		Spec: batchv1.JobSpec{
+			Template: makePodTemplateSpec(),
+		},
+	}
 }
 
 func makePodTemplateSpec() corev1.PodTemplateSpec {

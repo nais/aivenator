@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	batchv1 "k8s.io/api/batch/v1"
 	"time"
 
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
@@ -162,8 +163,8 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger.Infof("Creating secret")
 	secret := r.initSecret(ctx, application, logger)
-	rs := r.FindReplicaSet(ctx, application, logger)
-	secret, err = r.Manager.CreateSecret(&application, rs, secret, logger)
+	obj := r.FindDependentObject(ctx, application, logger)
+	secret, err = r.Manager.CreateSecret(&application, obj, secret, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
 		return fail(err)
@@ -204,7 +205,21 @@ func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application
 	return &secret
 }
 
-func (r *AivenApplicationReconciler) FindReplicaSet(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) *appsv1.ReplicaSet {
+func (r *AivenApplicationReconciler) FindDependentObject(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) client.Object {
+	rs := r.findReplicaSet(ctx, app, logger)
+	if rs != nil {
+		return rs
+	}
+
+	cj := r.findCronJob(ctx, app, logger)
+	if cj != nil {
+		return cj
+	}
+
+	return r.findJob(ctx, app, logger)
+}
+
+func (r *AivenApplicationReconciler) findReplicaSet(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) client.Object {
 	var correlationId string
 	var ok bool
 	if correlationId, ok = app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
@@ -235,6 +250,74 @@ func (r *AivenApplicationReconciler) FindReplicaSet(ctx context.Context, app aiv
 	}
 
 	logger.Infof("No ReplicaSet found for correlation ID %s and secret %s", correlationId, app.Spec.SecretName)
+	return nil
+}
+
+func (r *AivenApplicationReconciler) findCronJob(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) client.Object {
+	var correlationId string
+	var ok bool
+	if correlationId, ok = app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
+		logger.Infof("AivenApplication %s missing DeploymentCorrelationID, unable to find owning CronJob", app.GetName())
+		return nil
+	}
+	var cronJobs batchv1.CronJobList
+	var mLabels = client.MatchingLabels{
+		constants.AppLabel: app.GetName(),
+	}
+
+	err := metrics.ObserveKubernetesLatency("CronJob_List", func() error {
+		return r.List(ctx, &cronJobs, mLabels, client.InNamespace(app.GetNamespace()))
+	})
+	if err != nil {
+		logger.Warnf("failed to list replicasets: %v", err)
+		return nil
+	}
+
+	for _, rs := range cronJobs.Items {
+		if rsCorrId, ok := rs.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; ok && rsCorrId == correlationId {
+			for _, volume := range rs.Spec.JobTemplate.Spec.Template.Spec.Volumes {
+				if volume.Name == AivenVolumeName && volume.Secret.SecretName == app.Spec.SecretName {
+					return &rs
+				}
+			}
+		}
+	}
+
+	logger.Infof("No CronJob found for correlation ID %s and secret %s", correlationId, app.Spec.SecretName)
+	return nil
+}
+
+func (r *AivenApplicationReconciler) findJob(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) client.Object {
+	var correlationId string
+	var ok bool
+	if correlationId, ok = app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
+		logger.Infof("AivenApplication %s missing DeploymentCorrelationID, unable to find owning Job", app.GetName())
+		return nil
+	}
+	var jobs batchv1.JobList
+	var mLabels = client.MatchingLabels{
+		constants.AppLabel: app.GetName(),
+	}
+
+	err := metrics.ObserveKubernetesLatency("Job_List", func() error {
+		return r.List(ctx, &jobs, mLabels, client.InNamespace(app.GetNamespace()))
+	})
+	if err != nil {
+		logger.Warnf("failed to list replicasets: %v", err)
+		return nil
+	}
+
+	for _, rs := range jobs.Items {
+		if rsCorrId, ok := rs.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; ok && rsCorrId == correlationId {
+			for _, volume := range rs.Spec.Template.Spec.Volumes {
+				if volume.Name == AivenVolumeName && volume.Secret.SecretName == app.Spec.SecretName {
+					return &rs
+				}
+			}
+		}
+	}
+
+	logger.Infof("No Job found for correlation ID %s and secret %s", correlationId, app.Spec.SecretName)
 	return nil
 }
 
