@@ -33,6 +33,11 @@ const (
 
 type schemeAdders func(s *runtime.Scheme) error
 
+type identifier struct {
+	GVK            schema.GroupVersionKind
+	NamespacedName types.NamespacedName
+}
+
 func setupScheme() *runtime.Scheme {
 	var scheme = runtime.NewScheme()
 
@@ -341,40 +346,6 @@ func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) 
 func TestAivenApplicationReconciler_FindReplicaSet(t *testing.T) {
 	scheme := setupScheme()
 
-	rs := &appsv1.ReplicaSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      rsName,
-			Namespace: namespace,
-			Annotations: map[string]string{
-				nais_io_v1.DeploymentCorrelationIDAnnotation: correlationId,
-			},
-			Labels: map[string]string{
-				constants.AppLabel: appName,
-			},
-		},
-		Spec: appsv1.ReplicaSetSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Volumes: []corev1.Volume{
-						{
-							Name: AivenVolumeName,
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{
-									SecretName: secretName,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	type identifier struct {
-		GVK            schema.GroupVersionKind
-		NamespacedName types.NamespacedName
-	}
-
 	tests := []struct {
 		name              string
 		application       aiven_nais_io_v1.AivenApplication
@@ -397,15 +368,22 @@ func TestAivenApplicationReconciler_FindReplicaSet(t *testing.T) {
 				WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
 				Build(),
 			additionalObjects: []client.Object{
-				rs,
+				makeReplicaSet(rsName, correlationId, appName),
 			},
-			wantedObject: &identifier{
-				GVK: rs.GetObjectKind().GroupVersionKind(),
-				NamespacedName: types.NamespacedName{
-					Namespace: rs.GetNamespace(),
-					Name:      rs.GetName(),
-				},
+			wantedObject: makeIdentifier((&appsv1.ReplicaSet{}).GroupVersionKind(), rsName),
+		},
+		{
+			name: "FoundReplicaSetAmongMany",
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, 2)}}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
+				WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
+				Build(),
+			additionalObjects: []client.Object{
+				makeReplicaSet(rsName, correlationId, appName),
+				makeReplicaSet("other-name", "other-correlation", appName),
 			},
+			wantedObject: makeIdentifier((&appsv1.ReplicaSet{}).GroupVersionKind(), rsName),
 		},
 	}
 
@@ -432,17 +410,73 @@ func TestAivenApplicationReconciler_FindReplicaSet(t *testing.T) {
 					return
 				}
 			} else {
-				actual := &identifier{
-					GVK: result.GroupVersionKind(),
-					NamespacedName: types.NamespacedName{
-						Namespace: rs.GetNamespace(),
-						Name:      rs.GetName(),
-					},
+				if result == nil {
+					t.Errorf("FindReplicaSet found nothing, even though %v was expected", tt.wantedObject)
+					return
 				}
+
+				actual := makeIdentifierFromReplicaSet(result)
 				if !reflect.DeepEqual(actual, tt.wantedObject) {
-					t.Errorf("FindReplicaSet: actual object %v, expected object %v", actual, tt.wantedObject)
+					t.Errorf("FindReplicaSet found wrong object; actual object %v, expected object %v", actual, tt.wantedObject)
+					return
 				}
 			}
 		})
+	}
+}
+
+func makeIdentifierFromReplicaSet(rs *appsv1.ReplicaSet) *identifier {
+	return &identifier{
+		GVK: rs.GetObjectKind().GroupVersionKind(),
+		NamespacedName: types.NamespacedName{
+			Namespace: rs.GetNamespace(),
+			Name:      rs.GetName(),
+		},
+	}
+}
+
+func makeIdentifier(gvk schema.GroupVersionKind, name string) *identifier {
+	return &identifier{
+		GVK: gvk,
+		NamespacedName: types.NamespacedName{
+			Namespace: namespace,
+			Name:      name,
+		},
+	}
+}
+
+func makeReplicaSet(rsName string, correlationId string, appName string) *appsv1.ReplicaSet {
+	rs := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      rsName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				nais_io_v1.DeploymentCorrelationIDAnnotation: correlationId,
+			},
+			Labels: map[string]string{
+				constants.AppLabel: appName,
+			},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Template: makePodTemplateSpec(),
+		},
+	}
+	return rs
+}
+
+func makePodTemplateSpec() corev1.PodTemplateSpec {
+	return corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{
+			Volumes: []corev1.Volume{
+				{
+					Name: AivenVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: secretName,
+						},
+					},
+				},
+			},
+		},
 	}
 }
