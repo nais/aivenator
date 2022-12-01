@@ -162,7 +162,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger.Infof("Creating secret")
 	secret := r.initSecret(ctx, application, logger)
-	rs := r.findReplicaSet(ctx, application, logger)
+	rs := r.FindReplicaSet(ctx, application, logger)
 	secret, err = r.Manager.CreateSecret(&application, rs, secret, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
@@ -204,7 +204,7 @@ func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application
 	return &secret
 }
 
-func (r *AivenApplicationReconciler) findReplicaSet(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) *appsv1.ReplicaSet {
+func (r *AivenApplicationReconciler) FindReplicaSet(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) *appsv1.ReplicaSet {
 	var correlationId string
 	var ok bool
 	if correlationId, ok = app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
