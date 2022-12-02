@@ -67,12 +67,12 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 	scheme := setupScheme()
 
 	type args struct {
-		application aiven_nais_io_v1.AivenApplication
-		hasSecret   bool
-		hasRSOwner  bool
-		hasAppOwner bool
-		hasJobOwner bool
-		isProtected bool
+		application     aiven_nais_io_v1.AivenApplication
+		hasSecret       bool
+		hasRSOwner      bool
+		hasAppOwner     bool
+		hasCronJobOwner bool
+		isProtected     bool
 	}
 	tests := []struct {
 		name    string
@@ -83,12 +83,12 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 		{
 			name: "EmptyApplication",
 			args: args{
-				application: aiven_nais_io_v1.AivenApplication{},
-				hasSecret:   false,
-				hasRSOwner:  false,
-				hasAppOwner: false,
-				hasJobOwner: false,
-				isProtected: false,
+				application:     aiven_nais_io_v1.AivenApplication{},
+				hasSecret:       false,
+				hasRSOwner:      false,
+				hasAppOwner:     false,
+				hasCronJobOwner: false,
+				isProtected:     false,
 			},
 			want:    true,
 			wantErr: false,
@@ -96,12 +96,12 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 		{
 			name: "BaseApplication",
 			args: args{
-				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).Build(),
-				hasSecret:   false,
-				hasRSOwner:  false,
-				hasAppOwner: false,
-				hasJobOwner: false,
-				isProtected: false,
+				application:     aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).Build(),
+				hasSecret:       false,
+				hasRSOwner:      false,
+				hasAppOwner:     false,
+				hasCronJobOwner: false,
+				isProtected:     false,
 			},
 			want:    true,
 			wantErr: false,
@@ -112,11 +112,11 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
 					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "123"}).
 					Build(),
-				hasSecret:   false,
-				hasRSOwner:  true,
-				hasAppOwner: false,
-				hasJobOwner: false,
-				isProtected: false,
+				hasSecret:       false,
+				hasRSOwner:      true,
+				hasAppOwner:     false,
+				hasCronJobOwner: false,
+				isProtected:     false,
 			},
 			want:    true,
 			wantErr: false,
@@ -128,11 +128,11 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
-				hasSecret:   true,
-				hasRSOwner:  true,
-				hasAppOwner: false,
-				hasJobOwner: false,
-				isProtected: false,
+				hasSecret:       true,
+				hasRSOwner:      true,
+				hasAppOwner:     false,
+				hasCronJobOwner: false,
+				isProtected:     false,
 			},
 			want:    false,
 			wantErr: false,
@@ -144,11 +144,11 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
-				hasSecret:   false,
-				hasRSOwner:  false,
-				hasAppOwner: true,
-				hasJobOwner: false,
-				isProtected: false,
+				hasSecret:       false,
+				hasRSOwner:      false,
+				hasAppOwner:     true,
+				hasCronJobOwner: false,
+				isProtected:     false,
 			},
 			want:    true,
 			wantErr: false,
@@ -160,27 +160,27 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
-				hasSecret:   true,
-				hasRSOwner:  false,
-				hasAppOwner: true,
-				hasJobOwner: false,
-				isProtected: false,
+				hasSecret:       true,
+				hasRSOwner:      false,
+				hasAppOwner:     true,
+				hasCronJobOwner: false,
+				isProtected:     false,
 			},
 			want:    true,
 			wantErr: false,
 		},
 		{
-			name: "UnchangedNaisJobMissingReplicaSetOwnerReference",
+			name: "UnchangedHasCronJobOwnerReference",
 			args: args{
 				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
-				hasSecret:   true,
-				hasRSOwner:  false,
-				hasAppOwner: false,
-				hasJobOwner: true,
-				isProtected: false,
+				hasSecret:       true,
+				hasRSOwner:      false,
+				hasAppOwner:     false,
+				hasCronJobOwner: true,
+				isProtected:     false,
 			},
 			want:    false,
 			wantErr: false,
@@ -192,11 +192,11 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
-				hasSecret:   true,
-				hasRSOwner:  false,
-				hasAppOwner: false,
-				hasJobOwner: false,
-				isProtected: true,
+				hasSecret:       true,
+				hasRSOwner:      false,
+				hasAppOwner:     false,
+				hasCronJobOwner: false,
+				isProtected:     true,
 			},
 			want:    false,
 			wantErr: false,
@@ -207,11 +207,11 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 					Build(),
-				hasSecret:   false,
-				hasRSOwner:  false,
-				hasAppOwner: false,
-				hasJobOwner: false,
-				isProtected: true,
+				hasSecret:       false,
+				hasRSOwner:      false,
+				hasAppOwner:     false,
+				hasCronJobOwner: false,
+				isProtected:     true,
 			},
 			want:    true,
 			wantErr: false,
@@ -228,7 +228,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	jobKind, err := utils.GetGVK(scheme, &nais_io_v1.Naisjob{})
+	cronJobKind, err := utils.GetGVK(scheme, &batchv1.CronJob{})
 	if err != nil {
 		panic(err)
 	}
@@ -244,8 +244,8 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 				if tt.args.hasAppOwner {
 					ownerReferences = append(ownerReferences, metav1.OwnerReference{Kind: appKind.Kind})
 				}
-				if tt.args.hasJobOwner {
-					ownerReferences = append(ownerReferences, metav1.OwnerReference{Kind: jobKind.Kind})
+				if tt.args.hasCronJobOwner {
+					ownerReferences = append(ownerReferences, metav1.OwnerReference{Kind: cronJobKind.Kind})
 				}
 				annotations := make(map[string]string)
 				annotations[nais_io_v1.DeploymentCorrelationIDAnnotation] = correlationId

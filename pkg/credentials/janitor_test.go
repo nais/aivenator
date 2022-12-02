@@ -3,6 +3,8 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"github.com/nais/aivenator/pkg/mocks"
+	"k8s.io/apimachinery/pkg/runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -18,7 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/nais/aivenator/constants"
-	"github.com/nais/aivenator/controllers/mocks"
 	"github.com/nais/aivenator/pkg/utils"
 )
 
@@ -73,7 +74,8 @@ func (suite *JanitorTestSuite) TestNoSecretsFound() {
 		makeSecret(Secret1Name, NotMyNamespace, constants.AivenatorSecretType, NotMyAppName),
 		makeSecret(Secret2Name, NotMyNamespace, constants.AivenatorSecretType, MyAppName),
 	)
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	client := suite.clientBuilder.Build()
+	janitor := suite.buildJanitor(client)
 	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).Build()
 	errs := janitor.CleanUnusedSecrets(suite.ctx, application)
 
@@ -374,6 +376,8 @@ func (suite *JanitorTestSuite) TestErrors() {
 					call.Run(i.runFunc)
 				}
 			}
+			mockClient.On("Scheme").Maybe().Return(&runtime.Scheme{})
+
 			janitor := suite.buildJanitor(mockClient)
 			application := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
 			errs := janitor.CleanUnusedSecrets(suite.ctx, application)

@@ -179,7 +179,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	success(&application, hash)
 
-	if r.missingReplicaSetOwnerReference(*secret) {
+	if r.missingRelevantOwnerReference(*secret) {
 		interval := utils.NextRequeueInterval(secret, requeueInterval)
 		logger.Infof("Missing replicaset owner reference; requeueing in %d seconds", int(interval.Seconds()))
 		metrics.ApplicationsRequeued.With(prometheus.Labels{
@@ -206,6 +206,7 @@ func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application
 }
 
 func (r *AivenApplicationReconciler) FindDependentObject(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) client.Object {
+	// This should be kept in sync with the list in r.missingRelevantOwnerReference()
 	rs := r.findReplicaSet(ctx, app, logger)
 	if rs != nil {
 		return rs
@@ -454,7 +455,7 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 		return false, nil
 	}
 
-	if r.missingReplicaSetOwnerReference(old) {
+	if r.missingRelevantOwnerReference(old) {
 		logger.Infof("Missing ReplicaSet ownerReference; needs synchronization")
 		metrics.ProcessingReason.WithLabelValues(metrics.MissingOwnerReference.String()).Inc()
 		return true, nil
@@ -464,28 +465,32 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 	return false, nil
 }
 
-func (r *AivenApplicationReconciler) missingReplicaSetOwnerReference(secret corev1.Secret) bool {
+func (r *AivenApplicationReconciler) missingRelevantOwnerReference(secret corev1.Secret) bool {
 	if _, ok := secret.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
 		return false
 	}
 
-	rsKind, err := utils.GetGVK(r.Scheme(), &appsv1.ReplicaSet{})
-	if err != nil {
-		r.Logger.Error(err)
-		return false
+	// This list should probably be kept in sync with the one in pkg/credentials/janitor.go
+	types := []client.Object{
+		&appsv1.ReplicaSet{},
+		&batchv1.CronJob{},
+		&batchv1.Job{},
 	}
-	jobKind, err := utils.GetGVK(r.Scheme(), &nais_io_v1.Naisjob{})
-	if err != nil {
-		r.Logger.Error(err)
-		return false
+
+	var kinds []string
+	for _, object := range types {
+		gvk, err := utils.GetGVK(r.Scheme(), object)
+		if err != nil {
+			r.Logger.Warnf("unable to get gvk for %v: %v", object, err)
+		}
+		kinds = append(kinds, gvk.Kind)
 	}
 
 	for _, ownerReference := range secret.GetOwnerReferences() {
-		if ownerReference.Kind == rsKind.Kind {
-			return false
-		}
-		if ownerReference.Kind == jobKind.Kind {
-			return false
+		for _, kind := range kinds {
+			if ownerReference.Kind == kind {
+				return false
+			}
 		}
 	}
 	return true
