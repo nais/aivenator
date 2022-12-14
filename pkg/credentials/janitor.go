@@ -142,7 +142,10 @@ func (j *Janitor) cleanUnusedSecret(ctx context.Context, application aiven_nais_
 				continue
 			}
 			if ownerRef.Kind == gvk.Kind {
-				key := client.ObjectKey{}
+				key := client.ObjectKey{
+					Namespace: oldSecret.GetNamespace(),
+					Name:      ownerRef.Name,
+				}
 				err = j.Get(ctx, key, t)
 				if err != nil {
 					logger.Warnf("unable to get owning object %v from cluster: %v", key, err)
