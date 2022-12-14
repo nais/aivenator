@@ -18,7 +18,7 @@ func TestManager_Apply(t *testing.T) {
 	mockHandler.
 		On("Apply",
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*v1.ReplicaSet"),
+			mock.Anything,
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil).
@@ -50,7 +50,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 	mockHandler.
 		On("Apply",
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*v1.ReplicaSet"),
+			mock.Anything,
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil).
@@ -68,7 +68,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 	failingHandler.
 		On("Apply",
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*v1.ReplicaSet"),
+			mock.Anything,
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(handlerError)

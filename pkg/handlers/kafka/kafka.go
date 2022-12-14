@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"hash/crc32"
 	"os"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
-
-	appsv1 "k8s.io/api/apps/v1"
 
 	"github.com/aiven/aiven-go-client"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -72,7 +71,7 @@ type KafkaHandler struct {
 	projects     []string
 }
 
-func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *appsv1.ReplicaSet, secret *v1.Secret, logger *log.Entry) error {
+func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ client.Object, secret *v1.Secret, logger *log.Entry) error {
 	logger = logger.WithFields(log.Fields{"handler": "kafka"})
 	if application.Spec.Kafka == nil {
 		return nil

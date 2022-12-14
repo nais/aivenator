@@ -3,6 +3,7 @@ package opensearch
 import (
 	"context"
 	"fmt"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aiven/aiven-go-client"
 	"github.com/nais/aivenator/pkg/aiven/project"
@@ -11,7 +12,6 @@ import (
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
-	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -44,7 +44,7 @@ type OpenSearchHandler struct {
 	projectName string
 }
 
-func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ *appsv1.ReplicaSet, secret *v1.Secret, logger *log.Entry) error {
+func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ client.Object, secret *v1.Secret, logger *log.Entry) error {
 	logger = logger.WithFields(log.Fields{"handler": "opensearch"})
 	spec := application.Spec.OpenSearch
 	if spec == nil {

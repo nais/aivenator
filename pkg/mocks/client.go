@@ -9,6 +9,8 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
+	runtime "k8s.io/apimachinery/pkg/runtime"
+
 	types "k8s.io/apimachinery/pkg/types"
 )
 
@@ -68,6 +70,22 @@ func (_m *Client) List(ctx context.Context, list client.ObjectList, opts ...clie
 		r0 = rf(ctx, list, opts...)
 	} else {
 		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Scheme provides a mock function with given fields:
+func (_m *Client) Scheme() *runtime.Scheme {
+	ret := _m.Called()
+
+	var r0 *runtime.Scheme
+	if rf, ok := ret.Get(0).(func() *runtime.Scheme); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*runtime.Scheme)
+		}
 	}
 
 	return r0
