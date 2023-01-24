@@ -1,0 +1,54 @@
+{{ if .Values.replicationConfig }}
+---
+apiVersion: nais.io/v1
+kind: ReplicationConfig
+metadata:
+  name: {{ include "aivenator.fullname" . }}-netpol-egress
+  labels:
+    {{- include "aivenator.labels" . | nindent 4 }}
+spec:
+  namespaceSelector: {}
+  resources:
+    - template: |
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: aiven
+        spec:
+          egress:
+            - to:
+                - ipBlock:
+                    cidr: {{ .Values.aiven.mainCidr | required ".Values.aiven.mainCidr is required." | quote }}
+                {{- if .Values.aiven.cidrs }}
+                {{- range $key, $value := .Values.aiven.cidrs }}
+                - ipBlock:
+                    cidr: {{ . | quote }}
+                {{- end }}
+                {{- end }}
+          podSelector:
+            matchLabels:
+              aiven: enabled
+          policyTypes:
+            - Egress
+    - template: |
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: kafka-aiven
+        spec:
+          egress:
+            - to:
+                - ipBlock:
+                    cidr: {{ .Values.aiven.mainCidr | required ".Values.aiven.mainCidr is required." | quote }}
+                {{- if .Values.aiven.cidrs }}
+                {{- range $key, $value := .Values.aiven.cidrs }}
+                - ipBlock:
+                    cidr: {{ . | quote }}
+                {{- end }}
+                {{- end }}
+          podSelector:
+            matchLabels:
+              kafka: enabled
+          policyTypes:
+            - Egress
+{{ end }}
