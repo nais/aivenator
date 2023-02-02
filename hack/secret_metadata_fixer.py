@@ -32,7 +32,7 @@ SECRET_TYPE_LABEL = "type"
 SECRET_TYPE_LABEL_VALUE = "aivenator.aiven.nais.io"
 
 LOG = logging.getLogger(__name__)
-NAME_PATTERN = re.compile(r"kafka-(?P<app>.*)-(?P<pool>nav-.*)-[0-9a-f]{8}")
+NAME_PATTERN = re.compile(r"kafka-(?P<app>.*)-(?P<pool>nav-.*)-[0-9a-f]{7,8}")
 
 
 class MissingMetadata(Exception):
@@ -88,7 +88,7 @@ def get_service_user(secret):
     raise MissingMetadata("Unable to determine service user")
 
 
-def update_secret(context, secret, app, pool, service_user):
+def update_secret(context, secret, app, pool, service_user, dry_run):
     """
     - Add finalizer
     - Add ServiceUser Annotation: kafka.aiven.nais.io/serviceUser (copy from KAFKA_SCHEMA_REGISTRY_USER data if available)
@@ -122,13 +122,14 @@ def update_secret(context, secret, app, pool, service_user):
             "-f", "-",
         )
         LOG.debug(" ".join(cmd))
-        subprocess.run(cmd, check=True, encoding="utf-8", input=json.dumps(new_secret))
+        if not dry_run:
+            subprocess.run(cmd, check=True, encoding="utf-8", input=json.dumps(new_secret))
         return 1
     LOG.debug("No changes to secret %s/%s", name, namespace)
     return 0
 
 
-def process(secrets, context):
+def process(secrets, context, dry_run):
     updated_count = 0
     total_count = 0
     for secret in secrets:
@@ -144,7 +145,7 @@ def process(secrets, context):
             app = get_app_name(metadata, m.group("app"))
             pool = get_pool(metadata, m.group("pool"))
             service_user = get_service_user(secret)
-            updated_count += update_secret(context, secret, app, pool, service_user)
+            updated_count += update_secret(context, secret, app, pool, service_user, dry_run)
         except MissingMetadata as e:
             LOG.warning("Secret %s/%s was missing metadata: %s", secret_name, namespace, e)
             yield secret
@@ -155,7 +156,9 @@ def process(secrets, context):
 
 
 def report_failed(all_failed):
-    LOG.warning("%s secrets failed processing", len(all_failed))
+    failed_total = len(all_failed)
+    if failed_total:
+        LOG.warning("%s secrets failed processing", failed_total)
     for context, secret in all_failed:
         metadata = secret["metadata"]
         name = metadata["name"]
@@ -164,12 +167,12 @@ def report_failed(all_failed):
 
 
 def main(options):
-    k8s_contexts = {f"{options.env}-{c}" for c in ("gcp", "fss", "sbs")}
+    k8s_contexts = {f"{options.env}-{c}" for c in ("gcp", "fss")}
 
     all_failed = []
     for context in k8s_contexts:
         secrets = list_secrets(context)
-        failed = process(secrets, context)
+        failed = process(secrets, context, options.dry_run)
         all_failed.extend((context, secret) for secret in failed)
     report_failed(all_failed)
 
@@ -177,5 +180,6 @@ def main(options):
 if __name__ == '__main__':
     logging.basicConfig(format="[%(asctime)s|%(levelname)5.5s] %(message)s", level=logging.DEBUG)
     parser = argparse.ArgumentParser()
+    parser.add_argument("-n", "--dry-run", action="store_true", help="Make no actual changes")
     parser.add_argument("env", help="Environment to process")
     main(parser.parse_args())

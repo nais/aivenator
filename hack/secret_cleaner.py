@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 LOG = logging.getLogger(__name__)
 
-KAFKARATOR_NAME_PATTERN = re.compile(r"kafka-(?P<app>.*)-(?P<pool>nav-.*)-[0-9a-f]{8}")
+KAFKARATOR_NAME_PATTERN = re.compile(r"kafka-(?P<app>.*)-(?P<pool>nav-.*)-[0-9a-f]{7,8}")
 
 
 @dataclass
@@ -76,7 +76,7 @@ def list_secrets(contexts):
                 yield secret, ResourceID(secret_name, namespace, context)
 
 
-def delete(secret_id):
+def delete(secret_id, dry_run):
     LOG.info("Deleting secret %s", secret_id)
     cmd = (
         "kubectl",
@@ -86,7 +86,8 @@ def delete(secret_id):
         secret_id.name,
     )
     LOG.debug(" ".join(cmd))
-    subprocess.run(cmd, check=True)
+    if not dry_run:
+        subprocess.run(cmd, check=True)
 
 
 def get_all_containers(pod_spec):
@@ -159,7 +160,7 @@ def in_use(secret_id, pods):
 
 
 def main(options):
-    k8s_contexts = [f"{options.env}-{c}" for c in ("gcp", "fss", "sbs")]
+    k8s_contexts = [f"{options.env}-{c}" for c in ("gcp", "fss")]
 
     total_count = 0
     deleted_count = 0
@@ -173,7 +174,7 @@ def main(options):
         namespace = metadata["namespace"]
         if not in_use(secret_id, pods_by_namespace[namespace]):
             try:
-                delete(secret_id)
+                delete(secret_id, options.dry_run)
                 deleted_count += 1
             except subprocess.CalledProcessError as e:
                 LOG.error("Failed to delete secret %s: %s", secret_id, e.output)
@@ -183,5 +184,6 @@ def main(options):
 if __name__ == '__main__':
     logging.basicConfig(format="[%(asctime)s|%(levelname)5.5s] %(message)s", level=logging.DEBUG)
     parser = argparse.ArgumentParser()
+    parser.add_argument("-n", "--dry-run", action="store_true", help="Make no actual changes")
     parser.add_argument("env", help="Environment to process")
     main(parser.parse_args())
