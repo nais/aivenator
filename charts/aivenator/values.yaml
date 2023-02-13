@@ -17,6 +17,8 @@ resources:
 extraEnv: {}
 caBundle: false
 
+clusterName: # Name of the cluster in NAIS convention
+
 aiven:
   projects: # Space separated list of Aiven projects with Kafka clusters available for this aivenator instance
   mainProject: # Main Aiven project for services that only support one
