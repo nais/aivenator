@@ -18,11 +18,13 @@ extraEnv: {}
 caBundle: false
 
 clusterName: # Name of the cluster in NAIS convention
+tenant: # Name of the tenant
 
 aiven:
   projects: # Space separated list of Aiven projects with Kafka clusters available for this aivenator instance
   mainProject: # Main Aiven project for services that only support one
-  token: "" # API token for Aiven with access to above mentioned projects
+  serviceUserLimit: 50 # Number of service users allowed for main project Kafka
+  token: "" # API token for Aiven with access to above-mentioned projects
   mainCidr: # CIDR for main Aiven project VPC
   cidrs: [] # List of additional CIDRs for other Aiven project VPCs
 
