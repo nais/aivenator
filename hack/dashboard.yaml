@@ -30,7 +30,7 @@ variables:
       name: ds
       type: prometheus
       regex: /$tenant-(?!management)/
-      include_all: false
+      include_all: true
       multiple: true
   - query:
       name: aiven_op

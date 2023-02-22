@@ -1457,8 +1457,14 @@
         "type": "datasource",
         "datasource": null,
         "refresh": 1,
-        "options": [],
-        "includeAll": false,
+        "options": [
+          {
+            "text": "All",
+            "value": "$__all",
+            "selected": false
+          }
+        ],
+        "includeAll": true,
         "allFormat": "",
         "allValue": "",
         "multi": true,
