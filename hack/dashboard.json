@@ -895,6 +895,76 @@
               "show": false
             }
           ]
+        },
+        {
+          "datasource": "$ds",
+          "editable": false,
+          "error": false,
+          "gridPos": {},
+          "id": 13,
+          "isNew": false,
+          "renderer": "flot",
+          "repeat": "ds",
+          "span": 4,
+          "title": "Total ServiceUsers - $ds",
+          "transparent": true,
+          "type": "graph",
+          "aliasColors": {},
+          "bars": false,
+          "fill": 1,
+          "legend": {
+            "alignAsTable": false,
+            "avg": false,
+            "current": false,
+            "hideEmpty": true,
+            "hideZero": true,
+            "max": false,
+            "min": false,
+            "rightSide": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null as zero",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "refId": "",
+              "expr": "sum(aivenator_service_users_count) by (pool)",
+              "legendFormat": "{{ pool }}",
+              "format": "time_series"
+            }
+          ],
+          "tooltip": {
+            "shared": true,
+            "value_type": "",
+            "sort": 2
+          },
+          "x-axis": true,
+          "y-axis": true,
+          "xaxis": {
+            "format": "time",
+            "logBase": 1,
+            "show": true
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "logBase": 1,
+              "show": true
+            },
+            {
+              "format": "short",
+              "logBase": 1,
+              "show": false
+            }
+          ]
         }
       ],
       "repeat": null
@@ -911,7 +981,7 @@
           "editable": false,
           "error": false,
           "gridPos": {},
-          "id": 13,
+          "id": 14,
           "isNew": false,
           "renderer": "flot",
           "repeat": "ds",
@@ -981,7 +1051,7 @@
           "editable": false,
           "error": false,
           "gridPos": {},
-          "id": 14,
+          "id": 15,
           "isNew": false,
           "renderer": "flot",
           "repeat": "ds",
@@ -1051,7 +1121,7 @@
           "editable": false,
           "error": false,
           "gridPos": {},
-          "id": 15,
+          "id": 16,
           "isNew": false,
           "renderer": "flot",
           "repeat": "ds",
@@ -1121,7 +1191,7 @@
           "editable": false,
           "error": false,
           "gridPos": {},
-          "id": 16,
+          "id": 17,
           "isNew": false,
           "renderer": "flot",
           "repeat": "ds",
@@ -1201,7 +1271,7 @@
           "editable": false,
           "error": false,
           "gridPos": {},
-          "id": 17,
+          "id": 18,
           "isNew": false,
           "renderer": "flot",
           "repeat": "ds",
@@ -1274,7 +1344,7 @@
           "editable": false,
           "error": false,
           "gridPos": {},
-          "id": 18,
+          "id": 19,
           "isNew": false,
           "renderer": "flot",
           "repeat": "ds",

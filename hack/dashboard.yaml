@@ -237,6 +237,16 @@ rows:
             - prometheus:
                 query: sum(aivenator_service_users_deleted) by (pool)
                 legend: "{{ pool }}"
+      - graph:
+          title: Total ServiceUsers - $ds
+          datasource: $ds
+          repeat: ds
+          transparent: true
+          span: 4
+          targets:
+            - prometheus:
+                query: sum(aivenator_service_users_count) by (pool)
+                legend: "{{ pool }}"
   - name: Kubernetes operations
     collapse: true
     panels:
