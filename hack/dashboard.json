@@ -1,6 +1,6 @@
 {
-  "slug": "aivenator",
   "uid": "aivenator",
+  "slug": "aivenator",
   "title": "Aivenator",
   "originalTitle": "",
   "tags": [
@@ -1345,11 +1345,6 @@
         "refresh": false,
         "options": [
           {
-            "text": "ssb",
-            "value": "ssb",
-            "selected": false
-          },
-          {
             "text": "nav",
             "value": "nav",
             "selected": false
@@ -1362,6 +1357,11 @@
           {
             "text": "mtpilot",
             "value": "mtpilot",
+            "selected": false
+          },
+          {
+            "text": "ssb",
+            "value": "ssb",
             "selected": false
           }
         ],
@@ -1391,7 +1391,7 @@
         "includeAll": false,
         "allFormat": "",
         "allValue": "",
-        "multi": false,
+        "multi": true,
         "multiFormat": "",
         "query": "prometheus",
         "regex": "/$tenant-(?!management)/",
