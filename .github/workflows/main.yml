@@ -1,24 +1,20 @@
 name: Build and deploy Aivenator
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 on:
   push:
     paths-ignore:
       - hack/**
       - charts/**
-
 env:
   image_base: ghcr.io/${{ github.repository }}/aivenator
-
 jobs:
   build:
     name: Build and push
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # ratchet:actions/checkout@v3
       - name: Generate image environment variable
         id: set-image-tag
         run: |
@@ -32,53 +28,54 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push
-        uses: docker/build-push-action@v4
+        id: build-push
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # ratchet:docker/build-push-action@v4
         with:
           context: .
           push: "${{ github.ref == 'refs/heads/main' }}"
           tags: ${{ env.image_base }}:latest,${{ steps.set-image-tag.outputs.image }}
+      - Share
     outputs:
       image: "${{ steps.set-image-tag.outputs.image }}"
       version: "${{ steps.set-image-tag.outputs.version }}"
-
+      digest: "${{ steps.build-push.outputs.digest }}"
   deploy:
     name: Deploy to nais-yaml
     if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-      with:
-        path: aivenator
-    - uses: navikt/github-app-token-generator@v1
-      id: get-token
-      with:
-        private-key: ${{ secrets.NAIS_APP_PRIVATE_KEY }}
-        app-id: ${{ secrets.NAIS_APP_ID }}
-        repo: navikt/nais-yaml
-    - uses: actions/checkout@v3
-      with:
-        repository: navikt/nais-yaml
-        token: ${{ steps.get-token.outputs.token }}
-        path: nais-yaml
-    - name: Generate image environment variable
-      run: |
-        cd aivenator
-        version=$(./version.sh)
-        echo "version=${version}" >> $GITHUB_ENV
-        echo "AIVENATOR_IMAGE=${image_base}:${version}" >> $GITHUB_ENV
-        echo "NAIS_YAML=${GITHUB_WORKSPACE}/nais-yaml" >> $GITHUB_ENV
-    - name: Bump version in nais-yaml
-      run: |
-        cd nais-yaml
-        git config user.name "$GITHUB_ACTOR"
-        git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-        sed -E -i "s#aivenator_image:.+#aivenator_image: ${AIVENATOR_IMAGE}#" vars/global.yaml
-        git add .
-        git --no-pager diff --cached
-        git commit --no-verify -a -m "Bump Aivenator to version ${{ needs.build.outputs.version }}"
-        git push
-
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # ratchet:actions/checkout@v3
+        with:
+          path: aivenator
+      - uses: navikt/github-app-token-generator@a9cd374e271b8aef573b8c16ac46c44fb89b02db # ratchet:navikt/github-app-token-generator@v1
+        id: get-token
+        with:
+          private-key: ${{ secrets.NAIS_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.NAIS_APP_ID }}
+          repo: navikt/nais-yaml
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # ratchet:actions/checkout@v3
+        with:
+          repository: navikt/nais-yaml
+          token: ${{ steps.get-token.outputs.token }}
+          path: nais-yaml
+      - name: Generate image environment variable
+        run: |
+          cd aivenator
+          version=$(./version.sh)
+          echo "version=${version}" >> $GITHUB_ENV
+          echo "AIVENATOR_IMAGE=${image_base}:${version}" >> $GITHUB_ENV
+          echo "NAIS_YAML=${GITHUB_WORKSPACE}/nais-yaml" >> $GITHUB_ENV
+      - name: Bump version in nais-yaml
+        run: |
+          cd nais-yaml
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+          sed -E -i "s#aivenator_image:.+#aivenator_image: ${AIVENATOR_IMAGE}#" vars/global.yaml
+          git add .
+          git --no-pager diff --cached
+          git commit --no-verify -a -m "Bump Aivenator to version ${{ needs.build.outputs.version }}"
+          git push
   deploy-fasit:
     name: Deploy to Fasit
     if: github.ref == 'refs/heads/main'
@@ -88,7 +85,26 @@ jobs:
     needs:
       - build
     steps:
-      - uses: nais/fasit-deploy@main
+      - uses: nais/fasit-deploy@b2c0b6d049b53bef41b321eec406fe66938576fd # ratchet:nais/fasit-deploy@main
         with:
-          json: '{"image": {"tag": "${{ needs.build.outputs.version }}"}}'
+          json: '{"image": {"tag": ""}}'
           feature_name: aivenator
+  slsafy:
+    name: Sign the image
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@4079ad3567a89f68395480299c77e40170430341 # ratchet:sigstore/cosign-installer@main
+        with:
+          cosign-release: 'v2.0.0'
+      - name: Sign the container image
+        run: cosign sign ${{ env.image_base }}:${{ env.image_digest }}
+        env:
+          image_digest: ${{ needs.build.outputs.digest }}
