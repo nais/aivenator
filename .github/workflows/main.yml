@@ -34,7 +34,6 @@ jobs:
           context: .
           push: "${{ github.ref == 'refs/heads/main' }}"
           tags: ${{ env.image_base }}:latest,${{ steps.set-image-tag.outputs.image }}
-      - Share
     outputs:
       image: "${{ steps.set-image-tag.outputs.image }}"
       version: "${{ steps.set-image-tag.outputs.version }}"
