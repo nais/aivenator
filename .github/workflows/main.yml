@@ -66,6 +66,12 @@ jobs:
         uses: sigstore/cosign-installer@4079ad3567a89f68395480299c77e40170430341 # ratchet:sigstore/cosign-installer@main
         with:
           cosign-release: 'v2.0.0'
+      - name: Login to GitHub Packages Docker Registry
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # Use commit-sha1 instead of tag for security concerns
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Sign the container image
         run: echo "y" | cosign sign ${{ env.image_base }}@${{ env.image_digest }}
         env:
