@@ -67,6 +67,6 @@ jobs:
         with:
           cosign-release: 'v2.0.0'
       - name: Sign the container image
-        run: cosign sign ${{ env.image_base }}@${{ env.image_digest }}
+        run: echo "y" | cosign sign ${{ env.image_base }}@${{ env.image_digest }}
         env:
           image_digest: ${{ needs.build.outputs.digest }}
