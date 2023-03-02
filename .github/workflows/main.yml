@@ -53,7 +53,7 @@ jobs:
           json: '{"image": {"tag": ""}}'
           feature_name: aivenator
   slsafy:
-    name: Sign the image
+    name: Sign and attest the image
     if: github.ref == 'refs/heads/main'
     needs:
       - build
@@ -87,6 +87,6 @@ jobs:
         env:
           img: ${{ needs.build.outputs.image }}
       - name: Attest image
-        run: cosign attest --predicate cyclone.sbom.json --type cyclonedx ${{ env.img }}
+        run: echo "y" | cosign attest --predicate cyclone.sbom.json --type cyclonedx ${{ env.image_base }}@${{ env.image_digest }}
         env:
-          img: ${{ needs.build.outputs.image }}
+          image_digest: ${{ needs.build.outputs.digest }}
