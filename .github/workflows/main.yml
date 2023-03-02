@@ -67,7 +67,7 @@ jobs:
         with:
           cosign-release: 'v2.0.0'
       - name: Login to GitHub Packages Docker Registry
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # Use commit-sha1 instead of tag for security concerns
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # ratchet:docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -76,3 +76,16 @@ jobs:
         run: echo "y" | cosign sign ${{ env.image_base }}@${{ env.image_digest }}
         env:
           image_digest: ${{ needs.build.outputs.digest }}
+      - name: Create SBOM for image
+        uses: aquasecurity/trivy-action@8bd2f9fbda2109502356ff8a6a89da55b1ead252 # ratchet:aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          format: 'cyclonedx'
+          output: 'cyclone.sbom.json'
+          image-ref: ${{ env.img }}
+        env:
+          img: ${{ needs.build.outputs.image }}
+      - name: Attach SBOM to image
+        run: cosign attach sbom --sbom cyclone.sbom.json ${{ env.img }}
+        env:
+          img: ${{ needs.build.outputs.image }}
