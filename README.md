@@ -74,7 +74,7 @@ In order to run the integration tests, you need to set the `AIVEN_TOKEN` environ
 Some of the integration tests also need the kubebuilder tools.
 These will be installed in `./.testbin/` by `make kubebuilder`.
 
-Verifying the Aivenator image
+Verifying the Aivenator image and its contents
 ----------------------
 
 The image is signed "keylessly" (is that a word?) using [Sigstore cosign](https://github.com/sigstore/cosign). 
@@ -85,5 +85,11 @@ cosign verify ghcr.io/nais/aivenator/aivenator:<tag> \
 --certificate-identity "https://github.com/nais/aivenator/.github/workflows/main.yml@refs/heads/main"
 ```
 
-The images are also accompanied by SBOMs in the [CycloneDX](https://cyclonedx.org/) format.
-You can find them in the [package overview](https://github.com/nais/aivenator/pkgs/container/aivenator%2Faivenator).
+The images are also attested with SBOMs in the [CycloneDX](https://cyclonedx.org/) format.
+You can verify these by running 
+```
+cosign verify-attestation --type cyclonedx \
+--certificate-identity "https://github.com/nais/aivenator/.github/workflows/main.yml@refs/heads/main" \
+--certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+ghcr.io/nais/aivenator/aivenator@sha256:<shasum>
+```
