@@ -73,3 +73,17 @@ Assuming liberator is checked out in a sibling directory to aivenator, you can u
 In order to run the integration tests, you need to set the `AIVEN_TOKEN` environment variable with a valid Aiven API token.
 Some of the integration tests also need the kubebuilder tools.
 These will be installed in `./.testbin/` by `make kubebuilder`.
+
+Verifying the Aivenator image
+----------------------
+
+The image is signed "keylessly" (is that a word?) using [Sigstore cosign](https://github.com/sigstore/cosign). 
+To verify its authenticity run 
+```
+cosign verify ghcr.io/nais/aivenator/aivenator:<tag> \
+--certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+--certificate-identity "https://github.com/nais/aivenator/.github/workflows/main.yml@refs/heads/main"
+```
+
+The images are also accompanied by SBOMs in the [CycloneDX](https://cyclonedx.org/) format.
+You can find them in the [package overview](https://github.com/nais/aivenator/pkgs/container/aivenator%2Faivenator).
