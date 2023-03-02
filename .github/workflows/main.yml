@@ -86,6 +86,6 @@ jobs:
         env:
           img: ${{ needs.build.outputs.image }}
       - name: Attach SBOM to image
-        run: cosign attach sbom --sbom cyclone.sbom.json ${{ env.img }}
+        run: cosign attach sbom --sbom cyclone.sbom.json --type cyclonedx ${{ env.img }}
         env:
           img: ${{ needs.build.outputs.image }}
