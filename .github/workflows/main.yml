@@ -77,7 +77,7 @@ jobs:
         run: echo "y" | cosign sign ${{ env.image_base }}@${{ env.image_digest }}
         env:
           image_digest: ${{ needs.build.outputs.digest }}
-      - name: Create SBOM for image
+      - name: Create SBOM
         uses: aquasecurity/trivy-action@8bd2f9fbda2109502356ff8a6a89da55b1ead252 # ratchet:aquasecurity/trivy-action@master
         with:
           scan-type: 'image'
@@ -86,7 +86,7 @@ jobs:
           image-ref: ${{ env.img }}
         env:
           img: ${{ needs.build.outputs.image }}
-      - name: Attach SBOM to image
-        run: cosign attach sbom --sbom cyclone.sbom.json --type cyclonedx ${{ env.img }}
+      - name: Attest image
+        run: cosign attest --predicate cyclone.sbom.json --type cyclonedx ${{ env.img }}
         env:
           img: ${{ needs.build.outputs.image }}
