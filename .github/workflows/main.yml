@@ -83,9 +83,9 @@ jobs:
           scan-type: 'image'
           format: 'cyclonedx'
           output: 'cyclone.sbom.json'
-          image-ref: ${{ env.img }}
+          image-ref: ${{ env.image_base }}@${{ env.image_digest }}
         env:
-          img: ${{ needs.build.outputs.image }}
+          image_digest: ${{ needs.build.outputs.digest }}
       - name: Attest image
         run: echo "y" | cosign attest --predicate cyclone.sbom.json --type cyclonedx ${{ env.image_base }}@${{ env.image_digest }}
         env:
