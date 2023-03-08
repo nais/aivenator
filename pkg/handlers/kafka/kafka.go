@@ -159,15 +159,17 @@ func (h KafkaHandler) provideServiceUser(application *aiven_nais_io_v1.AivenAppl
 		return nil, err
 	}
 
-	serviceUserName, err := kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, suffix)
-	if err != nil {
-		err = fmt.Errorf("unable to create service user name: %s %w", err, utils.UnrecoverableError)
-		utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
-		return nil, err
-	}
+	var serviceUserName string
 
 	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
 		serviceUserName = nameFromAnnotation
+	} else {
+		serviceUserName, err = kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, suffix)
+		if err != nil {
+			err = fmt.Errorf("unable to create service user name: %s %w", err, utils.UnrecoverableError)
+			utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
+			return nil, err
+		}
 	}
 
 	aivenUser, err = h.serviceuser.Get(serviceUserName, projectName, serviceName, logger)
