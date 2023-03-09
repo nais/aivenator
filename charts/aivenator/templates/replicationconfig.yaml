@@ -7,7 +7,68 @@ metadata:
   labels:
     {{- include "aivenator.labels" . | nindent 4 }}
 spec:
-  namespaceSelector: {}
+  namespaceSelector: 
+    matchExpressions:
+      key: name
+      operator: In
+      values:
+        - nais
+        - nais-system
+  resources:
+    - template: |
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: aiven
+        spec:
+          egress:
+            - to:
+                - ipBlock:
+                    cidr: {{ .Values.aiven.mainCidr | required ".Values.aiven.mainCidr is required." | quote }}
+                {{- if .Values.aiven.cidrs }}
+                {{- range $key, $value := .Values.aiven.cidrs }}
+                - ipBlock:
+                    cidr: {{ . | quote }}
+                {{- end }}
+                {{- end }}
+          podSelector:
+            matchLabels:
+              aiven: enabled
+          policyTypes:
+            - Egress
+    - template: |
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: kafka-aiven
+        spec:
+          egress:
+            - to:
+                - ipBlock:
+                    cidr: {{ .Values.aiven.mainCidr | required ".Values.aiven.mainCidr is required." | quote }}
+                {{- if .Values.aiven.cidrs }}
+                {{- range $key, $value := .Values.aiven.cidrs }}
+                - ipBlock:
+                    cidr: {{ . | quote }}
+                {{- end }}
+                {{- end }}
+          podSelector:
+            matchLabels:
+              kafka: enabled
+          policyTypes:
+            - Egress
+---
+apiVersion: nais.io/v1
+kind: ReplicationConfig
+metadata:
+  name: {{ include "aivenator.fullname" . }}-netpol-egress-team
+  labels:
+    {{- include "aivenator.labels" . | nindent 4 }}
+spec:
+  namespaceSelector: 
+    matchExpressions:
+      key: team
+      operator: Exists
   resources:
     - template: |
         apiVersion: networking.k8s.io/v1
