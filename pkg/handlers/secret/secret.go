@@ -42,19 +42,32 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, obj clien
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
 	})
 
+	updateOwnerReferences(application, obj, secret)
+
+	return nil
+}
+
+func updateOwnerReferences(application *aiven_nais_io_v1.AivenApplication, obj client.Object, secret *corev1.Secret) {
+	var ownerReference metav1.OwnerReference
 	if obj != nil {
 		apiVersion, kind := obj.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
-		secret.SetOwnerReferences([]metav1.OwnerReference{{
+		ownerReference = metav1.OwnerReference{
 			APIVersion: apiVersion,
 			Kind:       kind,
 			Name:       obj.GetName(),
 			UID:        obj.GetUID(),
-		}})
+		}
 	} else {
-		secret.SetOwnerReferences([]metav1.OwnerReference{application.GetOwnerReference()})
+		ownerReference = application.GetOwnerReference()
 	}
 
-	return nil
+	for _, reference := range secret.GetOwnerReferences() {
+		if reference == ownerReference {
+			return
+		}
+	}
+
+	secret.ObjectMeta.OwnerReferences = append(secret.ObjectMeta.OwnerReferences, ownerReference)
 }
 
 func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *metav1.ObjectMeta) {

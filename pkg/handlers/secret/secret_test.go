@@ -130,8 +130,40 @@ func TestHandler_Apply(t *testing.T) {
 					assert.Contains(t, a.secret.Annotations, nais_io_v1.DeploymentCorrelationIDAnnotation, "new annotation missing")
 					assert.Contains(t, a.secret.Finalizers, "pre-existing-finalizer", "existing finalizer missing")
 
-					assert.NotContains(t, a.secret.OwnerReferences, metav1.OwnerReference{Name: "pre-existing-owner-reference"}, "old ownerReference still there")
+					assert.Contains(t, a.secret.OwnerReferences, metav1.OwnerReference{Name: "pre-existing-owner-reference"}, "old ownerReference missing")
 					assert.Contains(t, a.secret.OwnerReferences, a.application.GetOwnerReference(), "new ownerReference missing")
+				},
+			},
+		},
+		{
+			name: "ReprocessingSecret",
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
+					Build(),
+				secret: corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        secretName,
+						Namespace:   namespace,
+						Labels:      map[string]string{"pre-existing-label": "pre-existing-label"},
+						Annotations: map[string]string{"pre-existing-annotation": "pre-existing-annotation"},
+						OwnerReferences: []metav1.OwnerReference{{
+							APIVersion: "aiven.nais.io/v1",
+							Kind:       "AivenApplication",
+							Name:       applicationName,
+						}},
+						Finalizers: []string{"pre-existing-finalizer"},
+					},
+				},
+				assert: func(t *testing.T, a args) {
+					assert.Contains(t, a.secret.Labels, "pre-existing-label", "existing label missing")
+					assert.Contains(t, a.secret.Labels, constants.AppLabel, "new label missing")
+					assert.Contains(t, a.secret.Annotations, "pre-existing-annotation", "existing annotation missing")
+					assert.Contains(t, a.secret.Annotations, nais_io_v1.DeploymentCorrelationIDAnnotation, "new annotation missing")
+					assert.Contains(t, a.secret.Finalizers, "pre-existing-finalizer", "existing finalizer missing")
+
+					assert.Contains(t, a.secret.OwnerReferences, a.application.GetOwnerReference(), "new ownerReference missing")
+					assert.Len(t, a.secret.OwnerReferences, 1, "duplicate ownerReferences")
 				},
 			},
 		},
