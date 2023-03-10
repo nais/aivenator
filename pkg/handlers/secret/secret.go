@@ -48,26 +48,34 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, obj clien
 }
 
 func updateOwnerReferences(application *aiven_nais_io_v1.AivenApplication, obj client.Object, secret *corev1.Secret) {
-	var ownerReference metav1.OwnerReference
+	appOwnerReference := application.GetOwnerReference()
+
+	ownerReferences := make(map[metav1.OwnerReference]bool, len(secret.GetOwnerReferences()))
+	for _, reference := range secret.GetOwnerReferences() {
+		ownerReferences[reference] = true
+	}
+	ownerReferences[appOwnerReference] = true
+
 	if obj != nil {
 		apiVersion, kind := obj.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
-		ownerReference = metav1.OwnerReference{
+		ownerReference := metav1.OwnerReference{
 			APIVersion: apiVersion,
 			Kind:       kind,
 			Name:       obj.GetName(),
 			UID:        obj.GetUID(),
 		}
-	} else {
-		ownerReference = application.GetOwnerReference()
+		ownerReferences[ownerReference] = true
+		ownerReferences[appOwnerReference] = false
 	}
 
-	for _, reference := range secret.GetOwnerReferences() {
-		if reference == ownerReference {
-			return
+	var newOwnerReferences []metav1.OwnerReference
+	for reference, keep := range ownerReferences {
+		if keep {
+			newOwnerReferences = append(newOwnerReferences, reference)
 		}
 	}
 
-	secret.ObjectMeta.OwnerReferences = append(secret.ObjectMeta.OwnerReferences, ownerReference)
+	secret.ObjectMeta.OwnerReferences = newOwnerReferences
 }
 
 func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *metav1.ObjectMeta) {
