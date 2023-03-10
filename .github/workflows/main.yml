@@ -10,10 +10,15 @@ on:
       - '*.md'
 env:
   image_base: ghcr.io/${{ github.repository }}/aivenator
+
 jobs:
   build:
     name: Build and push
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # ratchet:actions/checkout@v3
       - name: Generate image environment variable
@@ -35,10 +40,25 @@ jobs:
           context: .
           push: "${{ github.ref == 'refs/heads/main' }}"
           tags: ${{ env.image_base }}:latest,${{ steps.set-image-tag.outputs.image }}
+      - name: Install cosign
+        uses: sigstore/cosign-installer@c3667d99424e7e6047999fb6246c0da843953c65 # ratchet:sigstore/cosign-installer@main
+        with:
+          cosign-release: 'v2.0.0'
+      - name: Sign the container image
+        run: cosign sign --yes ${{ env.image_base }}@${{ steps.build-push.outputs.digest }}
+      - name: Create SBOM
+        uses: aquasecurity/trivy-action@1f0aa582c8c8f5f7639610d6d38baddfea4fdcee # ratchet:aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          format: 'cyclonedx'
+          output: 'cyclone.sbom.json'
+          image-ref: ${{ env.image_base }}@${{ steps.build-push.outputs.digest }}
+      - name: Attest
+        run: cosign attest --yes --predicate cyclone.sbom.json --type cyclonedx ${{ env.image_base }}@${{ steps.build-push.outputs.digest }}
     outputs:
       image: "${{ steps.set-image-tag.outputs.image }}"
       version: "${{ steps.set-image-tag.outputs.version }}"
-      digest: "${{ steps.build-push.outputs.digest }}"
+
   deploy-fasit:
     name: Deploy to Fasit
     if: github.ref == 'refs/heads/main'
@@ -52,41 +72,3 @@ jobs:
         with:
           json: '{"image": {"tag": "${{ needs.build.outputs.version }}"}}'
           feature_name: aivenator
-  slsafy:
-    name: Sign and attest the image
-    if: github.ref == 'refs/heads/main'
-    needs:
-      - build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-    steps:
-      - name: Install cosign
-        uses: sigstore/cosign-installer@c3667d99424e7e6047999fb6246c0da843953c65 # ratchet:sigstore/cosign-installer@main
-        with:
-          cosign-release: 'v2.0.0'
-      - name: Login to GitHub Packages Docker Registry
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # ratchet:docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Sign the container image
-        run: echo "y" | cosign sign ${{ env.image_base }}@${{ env.image_digest }}
-        env:
-          image_digest: ${{ needs.build.outputs.digest }}
-      - name: Create SBOM
-        uses: aquasecurity/trivy-action@1f0aa582c8c8f5f7639610d6d38baddfea4fdcee # ratchet:aquasecurity/trivy-action@master
-        with:
-          scan-type: 'image'
-          format: 'cyclonedx'
-          output: 'cyclone.sbom.json'
-          image-ref: ${{ env.image_base }}@${{ env.image_digest }}
-        env:
-          image_digest: ${{ needs.build.outputs.digest }}
-      - name: Attest image
-        run: echo "y" | cosign attest --predicate cyclone.sbom.json --type cyclonedx ${{ env.image_base }}@${{ env.image_digest }}
-        env:
-          image_digest: ${{ needs.build.outputs.digest }}
