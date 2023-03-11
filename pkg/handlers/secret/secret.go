@@ -24,7 +24,7 @@ const (
 type Handler struct {
 }
 
-func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, obj client.Object, secret *corev1.Secret, logger *log.Entry) error {
+func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, objects []client.Object, secret *corev1.Secret, logger *log.Entry) error {
 	secretName := application.Spec.SecretName
 
 	errors := validation.IsDNS1123Label(secretName)
@@ -42,12 +42,10 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, obj clien
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
 	})
 
-	updateOwnerReferences(application, obj, secret)
-
-	return nil
+	return updateOwnerReferences(application, objects, secret)
 }
 
-func updateOwnerReferences(application *aiven_nais_io_v1.AivenApplication, obj client.Object, secret *corev1.Secret) {
+func updateOwnerReferences(application *aiven_nais_io_v1.AivenApplication, objects []client.Object, secret *corev1.Secret) error {
 	appOwnerReference := application.GetOwnerReference()
 
 	ownerReferences := make(map[metav1.OwnerReference]bool, len(secret.GetOwnerReferences()))
@@ -56,13 +54,10 @@ func updateOwnerReferences(application *aiven_nais_io_v1.AivenApplication, obj c
 	}
 	ownerReferences[appOwnerReference] = true
 
-	if obj != nil {
-		apiVersion, kind := obj.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
-		ownerReference := metav1.OwnerReference{
-			APIVersion: apiVersion,
-			Kind:       kind,
-			Name:       obj.GetName(),
-			UID:        obj.GetUID(),
+	for _, object := range objects {
+		ownerReference, err := utils.MakeOwnerReference(object)
+		if err != nil {
+			return err
 		}
 		ownerReferences[ownerReference] = true
 		ownerReferences[appOwnerReference] = false
@@ -76,6 +71,7 @@ func updateOwnerReferences(application *aiven_nais_io_v1.AivenApplication, obj c
 	}
 
 	secret.ObjectMeta.OwnerReferences = newOwnerReferences
+	return nil
 }
 
 func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *metav1.ObjectMeta) {

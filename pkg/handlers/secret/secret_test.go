@@ -29,7 +29,7 @@ const (
 func TestHandler_Apply(t *testing.T) {
 	type args struct {
 		application         aiven_nais_io_v1.AivenApplication
-		rs                  client.Object
+		objects             []client.Object
 		secret              corev1.Secret
 		assert              func(*testing.T, args)
 		assertUnrecoverable bool
@@ -65,7 +65,7 @@ func TestHandler_Apply(t *testing.T) {
 			name: "BaseApplication",
 			args: args{
 				application: exampleAivenApplication,
-				rs:          nil,
+				objects:     nil,
 				secret:      corev1.Secret{},
 				assert: func(t *testing.T, a args) {
 					assert.Equal(t, constants.AivenatorSecretType, a.secret.Labels[constants.SecretTypeLabel])
@@ -82,8 +82,8 @@ func TestHandler_Apply(t *testing.T) {
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 					WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
 					Build(),
-				rs:     nil,
-				secret: corev1.Secret{},
+				objects: nil,
+				secret:  corev1.Secret{},
 				assert: func(t *testing.T, a args) {
 					assert.Equal(t, correlationId, a.secret.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation])
 					assert.Equal(t, a.application.Spec.SecretName, a.secret.GetName())
@@ -94,7 +94,7 @@ func TestHandler_Apply(t *testing.T) {
 			name: "ApplicationOwnerReference",
 			args: args{
 				application: exampleAivenApplication,
-				rs:          nil,
+				objects:     nil,
 				secret:      corev1.Secret{},
 				assert: func(t *testing.T, a args) {
 					assert.Contains(t, a.secret.OwnerReferences, a.application.GetOwnerReference(), "AivenApplication ownerReference missing")
@@ -105,7 +105,7 @@ func TestHandler_Apply(t *testing.T) {
 			name: "ReplicaSetOwnerReference",
 			args: args{
 				application: exampleAivenApplication,
-				rs:          exampleReplicaSet,
+				objects:     []client.Object{exampleReplicaSet},
 				secret:      corev1.Secret{},
 				assert: func(t *testing.T, a args) {
 					assert.Contains(t, a.secret.OwnerReferences, makeOwnerReference(exampleReplicaSet), "ReplicaSet ownerReference missing")
@@ -169,7 +169,7 @@ func TestHandler_Apply(t *testing.T) {
 			name: "ReplaceAivenApplicationOwnerWithReplicaSet",
 			args: args{
 				application: exampleAivenApplication,
-				rs:          exampleReplicaSet,
+				objects:     []client.Object{exampleReplicaSet},
 				secret: corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            secretName,
@@ -191,7 +191,7 @@ func TestHandler_Apply(t *testing.T) {
 			name: "AddSecondReplicaSetOwnerWithReplicaSet",
 			args: args{
 				application: exampleAivenApplication,
-				rs:          exampleReplicaSet,
+				objects:     []client.Object{exampleReplicaSet},
 				secret: corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            secretName,
@@ -216,8 +216,8 @@ func TestHandler_Apply(t *testing.T) {
 				application: aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, Protected: true}).
 					Build(),
-				rs:     nil,
-				secret: corev1.Secret{},
+				objects: nil,
+				secret:  corev1.Secret{},
 				assert: func(t *testing.T, a args) {
 					assert.Equal(t, "true", a.secret.GetAnnotations()[constants.AivenatorProtectedAnnotation])
 				},
@@ -227,7 +227,7 @@ func TestHandler_Apply(t *testing.T) {
 			name: "HasTimestamp",
 			args: args{
 				application: exampleAivenApplication,
-				rs:          nil,
+				objects:     nil,
 				secret:      corev1.Secret{},
 				assert: func(t *testing.T, a args) {
 					value := a.secret.StringData[AivenSecretUpdatedKey]
@@ -242,7 +242,7 @@ func TestHandler_Apply(t *testing.T) {
 			args: args{
 				application: aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 					Build(),
-				rs:                  nil,
+				objects:             nil,
 				secret:              corev1.Secret{},
 				assertUnrecoverable: true,
 			},
@@ -253,7 +253,7 @@ func TestHandler_Apply(t *testing.T) {
 				application: aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: "my_super_(c@@LS_ecE43109*23"}).
 					Build(),
-				rs:                  nil,
+				objects:             nil,
 				secret:              corev1.Secret{},
 				assertUnrecoverable: true,
 			},
@@ -262,7 +262,7 @@ func TestHandler_Apply(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := Handler{}
-			err := s.Apply(&tt.args.application, tt.args.rs, &tt.args.secret, nil)
+			err := s.Apply(&tt.args.application, tt.args.objects, &tt.args.secret, nil)
 
 			if tt.args.assertUnrecoverable {
 				assert.Error(t, err)

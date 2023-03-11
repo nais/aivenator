@@ -139,7 +139,8 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return fail(err)
 	}
 
-	needsSync, err := r.NeedsSynchronization(ctx, application, hash, logger)
+	objs := r.FindDependentObjects(ctx, application, logger)
+	needsSync, err := r.NeedsSynchronization(ctx, application, hash, objs, logger)
 	if err != nil {
 		utils.LocalFail("NeedsSynchronization", &application, err, logger)
 		return fail(err)
@@ -163,8 +164,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger.Infof("Creating secret")
 	secret := r.initSecret(ctx, application, logger)
-	obj := r.FindDependentObject(ctx, application, logger)
-	secret, err = r.Manager.CreateSecret(&application, obj, secret, logger)
+	secret, err = r.Manager.CreateSecret(&application, objs, secret, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
 		return fail(err)
@@ -205,22 +205,23 @@ func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application
 	return &secret
 }
 
-func (r *AivenApplicationReconciler) FindDependentObject(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) client.Object {
-	// This should be kept in sync with the list in r.missingRelevantOwnerReference()
-	rs := r.findReplicaSet(ctx, app, logger)
-	if rs != nil {
-		return rs
-	}
+func (r *AivenApplicationReconciler) FindDependentObjects(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) []client.Object {
+	result := make([]client.Object, 0, 10)
 
-	cj := r.findCronJob(ctx, app, logger)
-	if cj != nil {
-		return cj
-	}
+	// These should be kept in sync with the list in r.missingRelevantOwnerReference()
+	rs := r.findReplicaSets(ctx, app, logger)
+	result = append(result, rs...)
 
-	return r.findJob(ctx, app, logger)
+	cj := r.findCronJobs(ctx, app, logger)
+	result = append(result, cj...)
+
+	j := r.findJobs(ctx, app, logger)
+	result = append(result, j...)
+
+	return result
 }
 
-func (r *AivenApplicationReconciler) findReplicaSet(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) client.Object {
+func (r *AivenApplicationReconciler) findReplicaSets(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) []client.Object {
 	var correlationId string
 	var ok bool
 	if correlationId, ok = app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
@@ -240,21 +241,24 @@ func (r *AivenApplicationReconciler) findReplicaSet(ctx context.Context, app aiv
 		return nil
 	}
 
-	for _, rs := range replicaSets.Items {
+	found := make([]client.Object, 0, len(replicaSets.Items))
+	for i, rs := range replicaSets.Items {
 		if rsCorrId, ok := rs.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; ok && rsCorrId == correlationId {
 			for _, volume := range rs.Spec.Template.Spec.Volumes {
 				if volume.Name == AivenVolumeName && volume.Secret.SecretName == app.Spec.SecretName {
-					return &rs
+					found = append(found, &replicaSets.Items[i])
 				}
 			}
 		}
 	}
 
-	logger.Infof("No ReplicaSet found for correlation ID %s and secret %s", correlationId, app.Spec.SecretName)
-	return nil
+	if len(found) == 0 {
+		logger.Infof("No ReplicaSet found for correlation ID %s and secret %s", correlationId, app.Spec.SecretName)
+	}
+	return found
 }
 
-func (r *AivenApplicationReconciler) findCronJob(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) client.Object {
+func (r *AivenApplicationReconciler) findCronJobs(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) []client.Object {
 	var correlationId string
 	var ok bool
 	if correlationId, ok = app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
@@ -274,21 +278,24 @@ func (r *AivenApplicationReconciler) findCronJob(ctx context.Context, app aiven_
 		return nil
 	}
 
-	for _, rs := range cronJobs.Items {
-		if rsCorrId, ok := rs.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; ok && rsCorrId == correlationId {
-			for _, volume := range rs.Spec.JobTemplate.Spec.Template.Spec.Volumes {
+	found := make([]client.Object, 0, len(cronJobs.Items))
+	for i, cronJob := range cronJobs.Items {
+		if cjCorrId, ok := cronJob.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; ok && cjCorrId == correlationId {
+			for _, volume := range cronJob.Spec.JobTemplate.Spec.Template.Spec.Volumes {
 				if volume.Name == AivenVolumeName && volume.Secret.SecretName == app.Spec.SecretName {
-					return &rs
+					found = append(found, &cronJobs.Items[i])
 				}
 			}
 		}
 	}
 
-	logger.Infof("No CronJob found for correlation ID %s and secret %s", correlationId, app.Spec.SecretName)
-	return nil
+	if len(found) == 0 {
+		logger.Infof("No CronJob found for correlation ID %s and secret %s", correlationId, app.Spec.SecretName)
+	}
+	return found
 }
 
-func (r *AivenApplicationReconciler) findJob(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) client.Object {
+func (r *AivenApplicationReconciler) findJobs(ctx context.Context, app aiven_nais_io_v1.AivenApplication, logger *log.Entry) []client.Object {
 	var correlationId string
 	var ok bool
 	if correlationId, ok = app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
@@ -308,18 +315,21 @@ func (r *AivenApplicationReconciler) findJob(ctx context.Context, app aiven_nais
 		return nil
 	}
 
-	for _, rs := range jobs.Items {
-		if rsCorrId, ok := rs.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; ok && rsCorrId == correlationId {
-			for _, volume := range rs.Spec.Template.Spec.Volumes {
+	found := make([]client.Object, 0, len(jobs.Items))
+	for i, job := range jobs.Items {
+		if jobCorrId, ok := job.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; ok && jobCorrId == correlationId {
+			for _, volume := range job.Spec.Template.Spec.Volumes {
 				if volume.Name == AivenVolumeName && volume.Secret.SecretName == app.Spec.SecretName {
-					return &rs
+					found = append(found, &jobs.Items[i])
 				}
 			}
 		}
 	}
 
-	logger.Infof("No Job found for correlation ID %s and secret %s", correlationId, app.Spec.SecretName)
-	return nil
+	if len(found) == 0 {
+		logger.Infof("No Job found for correlation ID %s and secret %s", correlationId, app.Spec.SecretName)
+	}
+	return found
 }
 
 func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) (bool, error) {
@@ -432,7 +442,7 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 	return err
 }
 
-func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, application aiven_nais_io_v1.AivenApplication, hash string, logger *log.Entry) (bool, error) {
+func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, application aiven_nais_io_v1.AivenApplication, hash string, objs []client.Object, logger *log.Entry) (bool, error) {
 	if application.Status.SynchronizationHash != hash {
 		logger.Infof("Hash changed; needs synchronization")
 		metrics.ProcessingReason.WithLabelValues(metrics.HashChanged.String()).Inc()
@@ -455,13 +465,44 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 		return false, nil
 	}
 
+	missing, err := r.missingActualOwnerReference(objs, old)
+	if err != nil {
+		return false, err
+	}
+	if missing {
+		logger.Infof("Missing ownerReference for existing object; needs synchronization")
+		metrics.ProcessingReason.WithLabelValues(metrics.MissingOwnerReference.String()).Inc()
+		return true, nil
+	}
+
 	if r.missingRelevantOwnerReference(old) {
-		logger.Infof("Missing ReplicaSet ownerReference; needs synchronization")
+		logger.Infof("Missing relevant ownerReference; needs synchronization")
 		metrics.ProcessingReason.WithLabelValues(metrics.MissingOwnerReference.String()).Inc()
 		return true, nil
 	}
 
 	logger.Infof("Already synchronized")
+	return false, nil
+}
+
+func (r *AivenApplicationReconciler) missingActualOwnerReference(objs []client.Object, old corev1.Secret) (bool, error) {
+	presentOwnerReferences := make(map[v1.OwnerReference]bool, len(objs))
+	for _, obj := range objs {
+		ownerReference, err := utils.MakeOwnerReference(obj)
+		if err != nil {
+			return false, err
+		}
+		presentOwnerReferences[ownerReference] = false
+	}
+	for _, ownerReference := range old.GetOwnerReferences() {
+		presentOwnerReferences[ownerReference] = true
+	}
+
+	for _, present := range presentOwnerReferences {
+		if !present {
+			return true, nil
+		}
+	}
 	return false, nil
 }
 

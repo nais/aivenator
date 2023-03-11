@@ -29,9 +29,12 @@ const (
 	secretName    = "my-secret-name"
 	syncHash      = "4264acf8ec09e93"
 	correlationId = "a-correlation-id"
-	rsName        = "replicaset"
-	cjName        = "cronjob"
-	jName         = "job"
+	rsName1       = "replicaset1"
+	rsName2       = "replicaset2"
+	cjName1       = "cronjob1"
+	cjName2       = "cronjob2"
+	jName1        = "job1"
+	jName2        = "job2"
 )
 
 type schemeAdders func(s *runtime.Scheme) error
@@ -73,6 +76,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 		hasAppOwner     bool
 		hasCronJobOwner bool
 		isProtected     bool
+		potentialOwners []client.Object
 	}
 	tests := []struct {
 		name    string
@@ -216,6 +220,25 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			want:    true,
 			wantErr: false,
 		},
+		{
+			name: "ExistingObjectNotInOwnerReferences",
+			args: args{
+				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
+					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
+					Build(),
+				hasSecret:       true,
+				hasRSOwner:      false,
+				hasAppOwner:     true,
+				hasCronJobOwner: false,
+				isProtected:     false,
+				potentialOwners: []client.Object{
+					makeReplicaSet(rsName1, correlationId, appName),
+				},
+			},
+			want:    true,
+			wantErr: false,
+		},
 	}
 
 	ctx := context.Background()
@@ -272,7 +295,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 				t.Errorf("Failed to generate hash: %s", err)
 				return
 			}
-			got, err := r.NeedsSynchronization(ctx, tt.args.application, hash, r.Logger)
+			got, err := r.NeedsSynchronization(ctx, tt.args.application, hash, tt.args.potentialOwners, r.Logger)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NeedsSynchronization() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -347,15 +370,22 @@ func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) 
 	}
 }
 
-func TestAivenApplicationReconciler_FindDependentObject(t *testing.T) {
+func TestAivenApplicationReconciler_FindDependentObjects(t *testing.T) {
 	scheme := setupScheme()
 
 	tests := []struct {
 		name              string
 		application       aiven_nais_io_v1.AivenApplication
 		additionalObjects []client.Object
-		wantedObject      *identifier
+		wantedObjects     []identifier
 	}{
+		{
+			name: "NoCorrelationId",
+			application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, -2)}}).
+				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
+				Build(),
+		},
 		{
 			name: "NoReplicaSet",
 			application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
@@ -372,9 +402,13 @@ func TestAivenApplicationReconciler_FindDependentObject(t *testing.T) {
 				WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
 				Build(),
 			additionalObjects: []client.Object{
-				makeReplicaSet(rsName, correlationId, appName),
+				makeReplicaSet(rsName1, correlationId, appName),
+				makeReplicaSet(rsName2, correlationId, appName),
 			},
-			wantedObject: makeIdentifier((&appsv1.ReplicaSet{}).GroupVersionKind(), rsName),
+			wantedObjects: []identifier{
+				makeIdentifier((&appsv1.ReplicaSet{}).GroupVersionKind(), rsName1),
+				makeIdentifier((&appsv1.ReplicaSet{}).GroupVersionKind(), rsName2),
+			},
 		},
 		{
 			name: "FoundReplicaSetAmongMany",
@@ -384,10 +418,14 @@ func TestAivenApplicationReconciler_FindDependentObject(t *testing.T) {
 				WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
 				Build(),
 			additionalObjects: []client.Object{
-				makeReplicaSet(rsName, correlationId, appName),
+				makeReplicaSet(rsName1, correlationId, appName),
 				makeReplicaSet("other-name", "other-correlation", appName),
+				makeReplicaSet(rsName2, correlationId, appName),
 			},
-			wantedObject: makeIdentifier((&appsv1.ReplicaSet{}).GroupVersionKind(), rsName),
+			wantedObjects: []identifier{
+				makeIdentifier((&appsv1.ReplicaSet{}).GroupVersionKind(), rsName1),
+				makeIdentifier((&appsv1.ReplicaSet{}).GroupVersionKind(), rsName2),
+			},
 		},
 		{
 			name: "FoundCronJob",
@@ -398,9 +436,13 @@ func TestAivenApplicationReconciler_FindDependentObject(t *testing.T) {
 				Build(),
 			additionalObjects: []client.Object{
 				makeReplicaSet("other-name", "other-correlation", appName),
-				makeCronJob(cjName, correlationId, appName),
+				makeCronJob(cjName1, correlationId, appName),
+				makeCronJob(cjName2, correlationId, appName),
 			},
-			wantedObject: makeIdentifier((&batchv1.CronJob{}).GroupVersionKind(), cjName),
+			wantedObjects: []identifier{
+				makeIdentifier((&batchv1.CronJob{}).GroupVersionKind(), cjName1),
+				makeIdentifier((&batchv1.CronJob{}).GroupVersionKind(), cjName2),
+			},
 		},
 		{
 			name: "FoundJob",
@@ -412,9 +454,13 @@ func TestAivenApplicationReconciler_FindDependentObject(t *testing.T) {
 			additionalObjects: []client.Object{
 				makeReplicaSet("other-name", "other-correlation", appName),
 				makeCronJob("other-name", "other-correlation", appName),
-				makeJob(jName, correlationId, appName),
+				makeJob(jName1, correlationId, appName),
+				makeJob(jName2, correlationId, appName),
 			},
-			wantedObject: makeIdentifier((&batchv1.Job{}).GroupVersionKind(), jName),
+			wantedObjects: []identifier{
+				makeIdentifier((&batchv1.Job{}).GroupVersionKind(), jName1),
+				makeIdentifier((&batchv1.Job{}).GroupVersionKind(), jName2),
+			},
 		},
 	}
 
@@ -434,30 +480,43 @@ func TestAivenApplicationReconciler_FindDependentObject(t *testing.T) {
 				Manager: credentials.Manager{},
 			}
 
-			result := r.FindDependentObject(ctx, tt.application, r.Logger)
-			if tt.wantedObject == nil {
-				if result != nil {
-					t.Errorf("FindDependentObject found object %v where none was wanted", result)
+			result := r.FindDependentObjects(ctx, tt.application, r.Logger)
+			if len(tt.wantedObjects) == 0 {
+				if len(result) > 0 {
+					t.Errorf("FindDependentObjects found object %v where none was wanted", result)
 					return
 				}
 			} else {
-				if result == nil {
-					t.Errorf("FindDependentObject found nothing, even though %v was expected", tt.wantedObject)
+				if len(result) == 0 {
+					t.Errorf("FindDependentObjects found nothing, even though %v was expected", tt.wantedObjects)
 					return
 				}
 
-				actual := makeIdentifierFromObject(result)
-				if !reflect.DeepEqual(actual, tt.wantedObject) {
-					t.Errorf("FindDependentObject found wrong object; actual object %v, expected object %v", actual, tt.wantedObject)
-					return
+				actuallyPresent := make(map[identifier]bool, len(tt.wantedObjects))
+				for _, id := range tt.wantedObjects {
+					actuallyPresent[id] = false
+				}
+				for _, object := range result {
+					actual := makeIdentifierFromObject(object)
+					for _, wantedObject := range tt.wantedObjects {
+						if reflect.DeepEqual(actual, wantedObject) {
+							actuallyPresent[actual] = true
+						}
+					}
+				}
+				for id, present := range actuallyPresent {
+					if !present {
+						t.Errorf("Missing object for identifier %v", id)
+						return
+					}
 				}
 			}
 		})
 	}
 }
 
-func makeIdentifierFromObject(obj client.Object) *identifier {
-	return &identifier{
+func makeIdentifierFromObject(obj client.Object) identifier {
+	return identifier{
 		GVK: obj.GetObjectKind().GroupVersionKind(),
 		NamespacedName: types.NamespacedName{
 			Namespace: obj.GetNamespace(),
@@ -466,8 +525,8 @@ func makeIdentifierFromObject(obj client.Object) *identifier {
 	}
 }
 
-func makeIdentifier(gvk schema.GroupVersionKind, name string) *identifier {
-	return &identifier{
+func makeIdentifier(gvk schema.GroupVersionKind, name string) identifier {
+	return identifier{
 		GVK: gvk,
 		NamespacedName: types.NamespacedName{
 			Namespace: namespace,
