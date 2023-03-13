@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"time"
 
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
@@ -32,12 +33,21 @@ import (
 const (
 	requeueInterval    = time.Second * 10
 	secretWriteTimeout = time.Second * 2
-
-	rolloutComplete = "RolloutComplete"
-	rolloutFailed   = "RolloutFailed"
-
-	AivenVolumeName = "aiven-credentials"
+	rolloutComplete    = "RolloutComplete"
+	rolloutFailed      = "RolloutFailed"
+	AivenVolumeName    = "aiven-credentials"
 )
+
+var relevantKinds map[string]bool
+
+func init() {
+	// This list should probably be kept in sync with the one in pkg/credentials/janitor.go
+	relevantKinds = map[string]bool{
+		"ReplicaSet": true,
+		"CronJob":    true,
+		"Job":        true,
+	}
+}
 
 func NewReconciler(mgr manager.Manager, logger *log.Logger, credentialsManager credentials.Manager, credentialsJanitor credentials.Janitor) AivenApplicationReconciler {
 	return AivenApplicationReconciler{
@@ -179,7 +189,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	success(&application, hash)
 
-	if r.missingRelevantOwnerReference(*secret) {
+	if r.missingRelevantOwnerReference(ctx, *secret, logger) {
 		interval := utils.NextRequeueInterval(secret, requeueInterval)
 		logger.Infof("Missing replicaset owner reference; requeueing in %d seconds", int(interval.Seconds()))
 		metrics.ApplicationsRequeued.With(prometheus.Labels{
@@ -475,7 +485,7 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 		return true, nil
 	}
 
-	if r.missingRelevantOwnerReference(old) {
+	if r.missingRelevantOwnerReference(ctx, old, logger) {
 		logger.Infof("Missing relevant ownerReference; needs synchronization")
 		metrics.ProcessingReason.WithLabelValues(metrics.MissingOwnerReference.String()).Inc()
 		return true, nil
@@ -506,35 +516,43 @@ func (r *AivenApplicationReconciler) missingActualOwnerReference(objs []client.O
 	return false, nil
 }
 
-func (r *AivenApplicationReconciler) missingRelevantOwnerReference(secret corev1.Secret) bool {
-	if _, ok := secret.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]; !ok {
+// missingRelevantOwnerReference checks if at least one OwnerReference points to a "pod-owning" resource with the correct correlationId
+// "pod-owning" is defined as the kinds listed in the map relevantKinds
+func (r *AivenApplicationReconciler) missingRelevantOwnerReference(ctx context.Context, secret corev1.Secret, logger log.FieldLogger) bool {
+	correlationId, ok := secret.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]
+	if !ok {
 		return false
 	}
 
-	// This list should probably be kept in sync with the one in pkg/credentials/janitor.go
-	types := []client.Object{
-		&appsv1.ReplicaSet{},
-		&batchv1.CronJob{},
-		&batchv1.Job{},
-	}
-
-	var kinds []string
-	for _, object := range types {
-		gvk, err := utils.GetGVK(r.Scheme(), object)
-		if err != nil {
-			r.Logger.Warnf("unable to get gvk for %v: %v", object, err)
-		}
-		kinds = append(kinds, gvk.Kind)
-	}
-
 	for _, ownerReference := range secret.GetOwnerReferences() {
-		for _, kind := range kinds {
-			if ownerReference.Kind == kind {
-				return false
-			}
+		if relevantKinds[ownerReference.Kind] && r.ownerReferenceMatches(ctx, ownerReference, correlationId, secret.GetNamespace(), logger) {
+			return false
 		}
 	}
 	return true
+}
+
+func (r *AivenApplicationReconciler) ownerReferenceMatches(ctx context.Context, ownerReference v1.OwnerReference, correlationId string, namespace string, logger log.FieldLogger) bool {
+	object := v1.PartialObjectMetadata{
+		TypeMeta: v1.TypeMeta{
+			Kind:       ownerReference.Kind,
+			APIVersion: ownerReference.APIVersion,
+		},
+	}
+	key := types.NamespacedName{
+		Namespace: namespace,
+		Name:      ownerReference.Name,
+	}
+	err := r.Get(ctx, key, &object)
+	if err != nil {
+		logger.Warnf("Unable to get referenced owner %v: %v", key, err)
+		return false
+	}
+	referenceCorrelationId, ok := object.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]
+	if !ok {
+		return false
+	}
+	return referenceCorrelationId == correlationId
 }
 
 func isProtected(secret corev1.Secret) bool {

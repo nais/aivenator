@@ -262,13 +262,18 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			if tt.args.hasSecret {
 				ownerReferences := make([]metav1.OwnerReference, 0)
 				if tt.args.hasRSOwner {
-					ownerReferences = append(ownerReferences, metav1.OwnerReference{Kind: rsKind.Kind})
+					ownerReferences = append(ownerReferences, makeOwnerReference(rsName1, rsKind))
+					clientBuilder.WithRuntimeObjects(makeReplicaSet(rsName1, correlationId, appName))
 				}
 				if tt.args.hasAppOwner {
-					ownerReferences = append(ownerReferences, metav1.OwnerReference{Kind: appKind.Kind})
+					ownerReferences = append(ownerReferences, makeOwnerReference(appName, appKind))
+					clientBuilder.WithRuntimeObjects(&nais_io_v1alpha1.Application{
+						ObjectMeta: makeObjectMeta(appName, correlationId, appName),
+					})
 				}
 				if tt.args.hasCronJobOwner {
-					ownerReferences = append(ownerReferences, metav1.OwnerReference{Kind: cronJobKind.Kind})
+					ownerReferences = append(ownerReferences, makeOwnerReference(cjName1, cronJobKind))
+					clientBuilder.WithRuntimeObjects(makeCronJob(cjName1, correlationId, appName))
 				}
 				annotations := make(map[string]string)
 				annotations[nais_io_v1.DeploymentCorrelationIDAnnotation] = correlationId
@@ -512,6 +517,15 @@ func TestAivenApplicationReconciler_FindDependentObjects(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func makeOwnerReference(name string, gvk *schema.GroupVersionKind) metav1.OwnerReference {
+	apiVersion, kind := gvk.ToAPIVersionAndKind()
+	return metav1.OwnerReference{
+		APIVersion: apiVersion,
+		Kind:       kind,
+		Name:       name,
 	}
 }
 
