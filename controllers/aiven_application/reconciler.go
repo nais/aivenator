@@ -32,20 +32,20 @@ const (
 	AivenVolumeName    = "aiven-credentials"
 )
 
-func NewReconciler(mgr manager.Manager, logger *log.Logger, credentialsManager credentials.Manager, credentialsJanitor credentials.Janitor) AivenApplicationReconciler {
+func NewReconciler(mgr manager.Manager, logger *log.Logger, credentialsManager credentials.Manager, appChanges chan<- aiven_nais_io_v1.AivenApplication) AivenApplicationReconciler {
 	return AivenApplicationReconciler{
-		Client:  mgr.GetClient(),
-		Logger:  logger.WithFields(log.Fields{"component": "AivenApplicationReconciler"}),
-		Manager: credentialsManager,
-		Janitor: credentialsJanitor,
+		Client:     mgr.GetClient(),
+		Logger:     logger.WithFields(log.Fields{"component": "AivenApplicationReconciler"}),
+		Manager:    credentialsManager,
+		appChanges: appChanges,
 	}
 }
 
 type AivenApplicationReconciler struct {
 	client.Client
-	Logger  *log.Entry
-	Manager credentials.Manager
-	Janitor credentials.Janitor
+	Logger     *log.Entry
+	Manager    credentials.Manager
+	appChanges chan<- aiven_nais_io_v1.AivenApplication
 }
 
 func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -119,12 +119,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}()
 
-	errs := r.Janitor.CleanUnusedSecrets(ctx, application)
-	if len(errs) > 0 {
-		for _, err := range errs {
-			logger.Error(err)
-		}
-	}
+	r.appChanges <- application
 
 	hash, err := application.Hash()
 	if err != nil {

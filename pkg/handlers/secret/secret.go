@@ -62,7 +62,8 @@ func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[strin
 	}
 
 	if application.Spec.Protected && application.Spec.ExpiresAt != nil {
-		annotations[constants.AivenatorProtectedExpireAtAnnotation] = strconv.FormatBool(true)
+		annotations[constants.AivenatorProtectedWithTimeLimitAnnotation] = strconv.FormatBool(true)
+		annotations[constants.AivenatorProtectedExpiresAtAnnotation] = application.Spec.ExpiresAt.Format(time.RFC3339)
 	}
 	return annotations
 }

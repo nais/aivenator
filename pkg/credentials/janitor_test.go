@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/nais/aivenator/pkg/mocks"
+	"github.com/nais/liberator/pkg/scheme"
 	"k8s.io/apimachinery/pkg/runtime"
 	"strconv"
 	"testing"
@@ -28,16 +29,16 @@ const (
 	NotMyAppName = "app2"
 	MyUser       = "user"
 
-	Secret1Name  = "secret1"
-	Secret2Name  = "secret2"
-	Secret3Name  = "secret3"
-	Secret4Name  = "secret4"
-	Secret5Name  = "secret5"
-	Secret6Name  = "secret6"
-	Secret7Name  = "secret7"
-	Secret8Name  = "secret8"
-	Secret9Name  = "secret9"
-	Secret10Name = "secret10"
+	UnusedSecret                        = "secret1"
+	NotOurSecretTypeSecret              = "secret2"
+	SecretUsedByPod                     = "secret3"
+	ProtectedNotTimeLimited             = "secret4"
+	UnusedSecretWithNoAnnotations       = "secret5"
+	SecretBelongingToOtherApp           = "secret6"
+	CurrentlyRequestedSecret            = "secret7"
+	ProtectedNotExpired                 = "secret8"
+	ProtectedExpired                    = "secret9"
+	ProtectedTimeLimitedWithNoExpirySet = "secret10"
 
 	MyNamespace    = "namespace"
 	NotMyNamespace = "not-my-namespace"
@@ -60,6 +61,12 @@ func (suite *JanitorTestSuite) SetupSuite() {
 
 func (suite *JanitorTestSuite) SetupTest() {
 	suite.clientBuilder = fake.NewClientBuilder()
+	s := runtime.NewScheme()
+	_, err := scheme.AddAll(s)
+	if err != nil {
+		suite.FailNowf("failed setup", "error adding runtime types to scheme: %v", err)
+	}
+	suite.clientBuilder.WithScheme(s)
 }
 
 func (suite *JanitorTestSuite) buildJanitor(client Client) *Janitor {
@@ -71,13 +78,13 @@ func (suite *JanitorTestSuite) buildJanitor(client Client) *Janitor {
 
 func (suite *JanitorTestSuite) TestNoSecretsFound() {
 	suite.clientBuilder.WithRuntimeObjects(
-		makeSecret(Secret1Name, NotMyNamespace, constants.AivenatorSecretType, NotMyAppName),
-		makeSecret(Secret2Name, NotMyNamespace, constants.AivenatorSecretType, MyAppName),
+		makeSecret(UnusedSecret, NotMyNamespace, constants.AivenatorSecretType, NotMyAppName),
+		makeSecret(NotOurSecretTypeSecret, NotMyNamespace, constants.AivenatorSecretType, MyAppName),
 	)
 	client := suite.clientBuilder.Build()
 	janitor := suite.buildJanitor(client)
 	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).Build()
-	errs := janitor.CleanUnusedSecrets(suite.ctx, application)
+	errs := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
 
 	suite.Empty(errs)
 }
@@ -93,126 +100,37 @@ type secretSetup struct {
 }
 
 func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
+	pastDate := time.Now().Add(-48 * time.Hour)
+	futureDate := time.Now().Add(48 * time.Hour)
 	secrets := []secretSetup{
-		{Secret1Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, false, "Unused secret should be deleted"},
-		{Secret1Name, NotMyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret in another namespace should be kept"},
-		{Secret2Name, MyNamespace, NotMySecretType, MyAppName, []MakeSecretOption{}, true, "Unrelated secret should be kept"},
-		{Secret3Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Used secret should be kept"},
-		{Secret4Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected}, true, "Protected secret should be kept"},
-		{Secret5Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretHasNoAnnotations}, false, "Unused secret should be deleted, even if annotations are nil"},
-		{Secret6Name, MyNamespace, constants.AivenatorSecretType, NotMyAppName, []MakeSecretOption{}, true, "Secret belonging to different app should be kept"},
-		{Secret7Name, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret currently requested should be kept"},
+		{UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, false, "Unused secret should be deleted"},
+		{UnusedSecret, NotMyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret in another namespace should be kept"},
+		{NotOurSecretTypeSecret, MyNamespace, NotMySecretType, MyAppName, []MakeSecretOption{}, true, "Unrelated secret should be kept"},
+		{SecretUsedByPod, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Used secret should be kept"},
+		{ProtectedNotTimeLimited, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected}, true, "Protected secret should be kept"},
+		{UnusedSecretWithNoAnnotations, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretHasNoAnnotations}, false, "Unused secret should be deleted, even if annotations are nil"},
+		{SecretBelongingToOtherApp, MyNamespace, constants.AivenatorSecretType, NotMyAppName, []MakeSecretOption{}, true, "Secret belonging to different app should be kept"},
+		{CurrentlyRequestedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret currently requested should be kept"},
+		{ProtectedNotExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(futureDate)}, true, "Protected secret with time-limit that isn't expired should be kept"},
+		{ProtectedExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(pastDate)}, false, "Protected secret with time-limit that is expired should be deleted"},
+		{ProtectedTimeLimitedWithNoExpirySet, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit}, true, "Protected secret with time-limit but missing expires date should be kept"},
 	}
 	for _, s := range secrets {
 		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
 	}
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			SecretName: CurrentlyRequestedSecret,
+		}).
+		Build()
 	suite.clientBuilder.WithRuntimeObjects(
-		makePodForSecret(Secret3Name),
+		makePodForSecret(SecretUsedByPod),
+		&application,
 	)
 
 	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			SecretName: Secret7Name,
-		}).
-		Build()
-	errs := janitor.CleanUnusedSecrets(suite.ctx, application)
-
-	suite.Empty(errs)
-
-	for _, tt := range secrets {
-		suite.Run(tt.reason, func() {
-			actual := &corev1.Secret{}
-			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-				Namespace: tt.namespace,
-				Name:      tt.name,
-			}, actual)
-			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-		})
-	}
-}
-
-func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndNotExpired() {
-	secrets := []secretSetup{
-		{Secret8Name, MyNamespace, constants.AivenatorSecretType, MyUser, []MakeSecretOption{SecretIsProtected, SecretIsExpired}, true, "Protected and time limited secret should be kept if not expired"},
-	}
-	for _, s := range secrets {
-		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
-	}
-
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	application8 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			SecretName: "some-other-secret-8",
-			ExpiresAt:  &metav1.Time{Time: time.Now().AddDate(0, 0, 2)},
-		}).
-		Build()
-	errs := janitor.CleanUnusedSecrets(suite.ctx, application8)
-
-	suite.Empty(errs)
-
-	for _, tt := range secrets {
-		suite.Run(tt.reason, func() {
-			actual := &corev1.Secret{}
-			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-				Namespace: tt.namespace,
-				Name:      tt.name,
-			}, actual)
-			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-		})
-	}
-}
-
-func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndExpired() {
-	secrets := []secretSetup{
-		{Secret9Name, MyNamespace, constants.AivenatorSecretType, MyUser, []MakeSecretOption{SecretIsProtected, SecretIsExpired}, false, "Protected and time limited secret should be deleted if expired"},
-	}
-	for _, s := range secrets {
-		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
-	}
-
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-
-	application9 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			SecretName: "some-other-secret-9",
-			ExpiresAt:  &metav1.Time{Time: time.Now().AddDate(0, 0, -2)},
-		}).
-		Build()
-
-	errs := janitor.CleanUnusedSecrets(suite.ctx, application9)
-	suite.Empty(errs)
-
-	for _, tt := range secrets {
-		suite.Run(tt.reason, func() {
-			actual := &corev1.Secret{}
-			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-				Namespace: tt.namespace,
-				Name:      tt.name,
-			}, actual)
-			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-		})
-	}
-}
-
-func (suite *JanitorTestSuite) TestUnusedSecretsFoundWithProtectionAndExpiredAtNotSet() {
-	secrets := []secretSetup{
-		{Secret10Name, MyNamespace, constants.AivenatorSecretType, MyUser, []MakeSecretOption{SecretIsProtected, SecretIsExpired}, true, "Protected and time limited secret should be left alone if Spec.ExpiresAt is not set"},
-	}
-	for _, s := range secrets {
-		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
-	}
-
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-
-	application10 := aiven_nais_io_v1.NewAivenApplicationBuilder(MyUser, MyNamespace).
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			SecretName: "some-other-secret-10",
-		}).
-		Build()
-
-	errs := janitor.CleanUnusedSecrets(suite.ctx, application10)
-	suite.Empty(errs)
+	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+	suite.Nil(err)
 
 	for _, tt := range secrets {
 		suite.Run(tt.reason, func() {
@@ -236,7 +154,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 	tests := []struct {
 		name         string
 		interactions []interaction
-		expected     []error
+		expected     error
 	}{
 		{
 			name: "TestErrorGettingSecrets",
@@ -248,7 +166,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 					nil,
 				},
 			},
-			expected: []error{fmt.Errorf("failed to retrieve list of secrets: api error")},
+			expected: fmt.Errorf("failed to retrieve list of secrets: api error"),
 		},
 		{
 			name: "TestErrorGettingPods",
@@ -266,35 +184,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 					nil,
 				},
 			},
-			expected: []error{fmt.Errorf("failed to retrieve list of pods: api error")},
-		},
-		{
-			name: "TestErrorDeletingSecret",
-			interactions: []interaction{
-				{
-					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-					[]interface{}{nil},
-					func(arguments mock.Arguments) {
-						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
-							secretList.Items = []corev1.Secret{*makeSecret(Secret1Name, MyNamespace, constants.AivenatorSecretType, MyAppName)}
-						}
-					},
-				},
-				{
-					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.PodList")},
-					[]interface{}{nil},
-					nil,
-				},
-				{
-					"Delete",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.Secret")},
-					[]interface{}{fmt.Errorf("api error")},
-					nil,
-				},
-			},
-			expected: []error{fmt.Errorf("failed to delete secret secret1 in namespace namespace: api error")},
+			expected: fmt.Errorf("failed to retrieve list of pods: api error"),
 		},
 		{
 			name: "TestSecretNotFoundWhenDeleting",
@@ -305,7 +195,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 					[]interface{}{nil},
 					func(arguments mock.Arguments) {
 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
-							secretList.Items = []corev1.Secret{*makeSecret(Secret1Name, MyNamespace, constants.AivenatorSecretType, MyAppName)}
+							secretList.Items = []corev1.Secret{*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName)}
 						}
 					},
 				},
@@ -316,13 +206,37 @@ func (suite *JanitorTestSuite) TestErrors() {
 					nil,
 				},
 				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.CronJobList")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.JobList")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
 					"Delete",
 					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.Secret")},
-					[]interface{}{errors.NewNotFound(corev1.Resource("secret"), Secret1Name)},
+					[]interface{}{errors.NewNotFound(corev1.Resource("secret"), UnusedSecret)},
 					nil,
 				},
 			},
-			expected: []error{},
+			expected: nil,
 		},
 		{
 			name: "TestContinueAfterErrorDeletingSecret",
@@ -334,8 +248,8 @@ func (suite *JanitorTestSuite) TestErrors() {
 					func(arguments mock.Arguments) {
 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
 							secretList.Items = []corev1.Secret{
-								*makeSecret(Secret1Name, MyNamespace, constants.AivenatorSecretType, MyAppName),
-								*makeSecret(Secret2Name, MyNamespace, constants.AivenatorSecretType, MyAppName),
+								*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName),
+								*makeSecret(NotOurSecretTypeSecret, MyNamespace, constants.AivenatorSecretType, MyAppName),
 							}
 						}
 					},
@@ -347,9 +261,33 @@ func (suite *JanitorTestSuite) TestErrors() {
 					nil,
 				},
 				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.CronJobList")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.JobList")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
 					"Delete",
 					[]interface{}{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
-						return s.GetName() == Secret1Name
+						return s.GetName() == UnusedSecret
 					})},
 					[]interface{}{fmt.Errorf("api error")},
 					nil,
@@ -357,13 +295,13 @@ func (suite *JanitorTestSuite) TestErrors() {
 				{
 					"Delete",
 					[]interface{}{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
-						return s.GetName() == Secret2Name
+						return s.GetName() == NotOurSecretTypeSecret
 					})},
 					[]interface{}{nil},
 					nil,
 				},
 			},
-			expected: []error{fmt.Errorf("failed to delete secret secret1 in namespace namespace: api error")},
+			expected: nil,
 		},
 	}
 
@@ -380,9 +318,9 @@ func (suite *JanitorTestSuite) TestErrors() {
 
 			janitor := suite.buildJanitor(mockClient)
 			application := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
-			errs := janitor.CleanUnusedSecrets(suite.ctx, application)
+			err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
 
-			suite.Equal(tt.expected, errs)
+			suite.Equal(tt.expected, err)
 			mockClient.AssertExpectations(suite.T())
 		})
 	}
@@ -407,7 +345,8 @@ func makePodForSecret(secretName string) *corev1.Pod {
 type makeSecretOpts struct {
 	protected        bool
 	hasNoAnnotations bool
-	expiredAt        bool
+	hasTimeLimit     bool
+	expiresAt        *time.Time
 }
 
 type MakeSecretOption func(opts *makeSecretOpts)
@@ -420,8 +359,14 @@ func SecretIsProtected(opts *makeSecretOpts) {
 	opts.protected = true
 }
 
-func SecretIsExpired(opts *makeSecretOpts) {
-	opts.expiredAt = true
+func SecretHasTimeLimit(opts *makeSecretOpts) {
+	opts.hasTimeLimit = true
+}
+
+func SecretExpiresAt(expiresAt time.Time) func(opts *makeSecretOpts) {
+	return func(opts *makeSecretOpts) {
+		opts.expiresAt = &expiresAt
+	}
 }
 
 func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSecretOption) *corev1.Secret {
@@ -446,10 +391,17 @@ func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSec
 		})
 	}
 
-	if opts.expiredAt {
+	if opts.hasTimeLimit {
 		annotations := s.GetAnnotations()
 		s.SetAnnotations(utils.MergeStringMap(annotations, map[string]string{
-			constants.AivenatorProtectedExpireAtAnnotation: strconv.FormatBool(opts.expiredAt),
+			constants.AivenatorProtectedWithTimeLimitAnnotation: strconv.FormatBool(opts.hasTimeLimit),
+		}))
+	}
+
+	if opts.expiresAt != nil {
+		annotations := s.GetAnnotations()
+		s.SetAnnotations(utils.MergeStringMap(annotations, map[string]string{
+			constants.AivenatorProtectedExpiresAtAnnotation: opts.expiresAt.Format(time.RFC3339),
 		}))
 	}
 	return s

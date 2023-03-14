@@ -8,6 +8,7 @@ import (
 	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/credentials"
 	"github.com/nais/aivenator/pkg/utils"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	liberator_scheme "github.com/nais/liberator/pkg/scheme"
 	"net/http"
 	"os"
@@ -198,14 +199,10 @@ func newAivenClient() (*aiven.Client, error) {
 }
 
 func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string) error {
+	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
+
 	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}))
-	credentialsJanitor := credentials.Janitor{
-		Client: mgr.GetClient(),
-		Logger: logger.WithFields(log.Fields{
-			"component": "AivenApplicationJanitor",
-		}),
-	}
-	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, credentialsJanitor)
+	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges)
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to set up reconciler: %s", err)
@@ -222,6 +219,19 @@ func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Log
 		return fmt.Errorf("unable to set up finalizer: %s", err)
 	}
 	logger.Info("Aiven Secret finalizer setup complete")
+
+	// TODO: Better naming
+	credentialsJanitor := credentials.Janitor{
+		Client: mgr.GetClient(),
+		Logger: logger.WithFields(log.Fields{
+			"component": "AivenApplicationJanitor",
+		}),
+	}
+	janitor := secrets.NewJanitor(credentialsJanitor, appChanges, logger.WithFields(log.Fields{"component": "SecretsJanitor"}))
+	if err := mgr.Add(janitor); err != nil {
+		return fmt.Errorf("unable to add janitor to manager: %v", err)
+	}
+	logger.Info("Aiven Secret janitor setup complete")
 
 	return nil
 }

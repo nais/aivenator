@@ -15,6 +15,6 @@ func HasProtected(annotations map[string]string) bool {
 }
 
 func HasTimeLimited(annotations map[string]string) bool {
-	value, found := hasAnnotation(annotations, constants.AivenatorProtectedExpireAtAnnotation)
+	value, found := hasAnnotation(annotations, constants.AivenatorProtectedWithTimeLimitAnnotation)
 	return found && value == "true"
 }

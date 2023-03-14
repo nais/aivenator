@@ -39,7 +39,7 @@ type Client interface {
 	Scheme() *runtime.Scheme
 }
 
-func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais_io_v1.AivenApplication) []error {
+func (j *Janitor) CleanUnusedSecretsForApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication) error {
 	var secrets corev1.SecretList
 	var mLabels = client.MatchingLabels{
 		constants.AppLabel:        application.GetName(),
@@ -50,55 +50,68 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context, application aiven_nais
 		return j.List(ctx, &secrets, mLabels, client.InNamespace(application.GetNamespace()))
 	})
 	if err != nil {
-		return []error{fmt.Errorf("failed to retrieve list of secrets: %s", err)}
+		return fmt.Errorf("failed to retrieve list of secrets: %v", err)
 	}
 
+	return j.cleanUnusedSecrets(ctx, secrets)
+}
+
+func (j *Janitor) CleanUnusedSecrets(ctx context.Context) error {
+	var secrets corev1.SecretList
+	var mLabels = client.MatchingLabels{
+		constants.SecretTypeLabel: constants.AivenatorSecretType,
+	}
+
+	err := metrics.ObserveKubernetesLatency("Secret_List", func() error {
+		return j.List(ctx, &secrets, mLabels)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to retrieve list of secrets: %v", err)
+	}
+
+	return j.cleanUnusedSecrets(ctx, secrets)
+}
+
+func (j *Janitor) cleanUnusedSecrets(ctx context.Context, secrets corev1.SecretList) error {
 	podList := corev1.PodList{}
-	err = metrics.ObserveKubernetesLatency("Pod_List", func() error {
+	err := metrics.ObserveKubernetesLatency("Pod_List", func() error {
 		return j.List(ctx, &podList)
 	})
 	if err != nil {
-		return []error{fmt.Errorf("failed to retrieve list of pods: %s", err)}
+		return fmt.Errorf("failed to retrieve list of pods: %v", err)
 	}
 
-	errs := make([]error, 0)
 	secretLists := kubernetes.ListUsedAndUnusedSecretsForPods(secrets, podList)
 	counts := counters{
 		InUse: len(secretLists.Used.Items),
-	}
-
-	// This list should probably be kept in sync with the one in controllers/aiven_application/reconciler.go
-	types := []client.Object{
-		&appsv1.ReplicaSet{},
-		&batchv1.CronJob{},
-		&batchv1.Job{},
 	}
 
 	if found := len(secretLists.Unused.Items); found > 0 {
 		j.Logger.Infof("Found %d unused secrets managed by Aivenator", found)
 
 		for _, oldSecret := range secretLists.Unused.Items {
-			err = j.cleanUnusedSecret(ctx, application, oldSecret, counts, types)
+			err = j.cleanUnusedSecret(ctx, oldSecret, counts)
 			if err != nil {
-				errs = append(errs, err)
+				j.Logger.Warn(err)
 			}
 		}
 	}
 
-	metrics.SecretsManaged.With(prometheus.Labels{
-		metrics.LabelNamespace:   application.GetNamespace(),
-		metrics.LabelSecretState: "protected",
-	}).Set(float64(counts.Protected))
-	metrics.SecretsManaged.With(prometheus.Labels{
-		metrics.LabelNamespace:   application.GetNamespace(),
-		metrics.LabelSecretState: "protected-with-time-limit",
-	}).Set(float64(counts.ProtectedWithTimeLimit))
-	metrics.SecretsManaged.With(prometheus.Labels{
-		metrics.LabelNamespace:   application.GetNamespace(),
-		metrics.LabelSecretState: "in_use",
-	}).Set(float64(counts.InUse))
+	// TODO: Make these counts correct
+	//metrics.SecretsManaged.With(prometheus.Labels{
+	//	metrics.LabelNamespace:   application.GetNamespace(),
+	//	metrics.LabelSecretState: "protected",
+	//}).Set(float64(counts.Protected))
+	//metrics.SecretsManaged.With(prometheus.Labels{
+	//	metrics.LabelNamespace:   application.GetNamespace(),
+	//	metrics.LabelSecretState: "protected-with-time-limit",
+	//}).Set(float64(counts.ProtectedWithTimeLimit))
+	//metrics.SecretsManaged.With(prometheus.Labels{
+	//	metrics.LabelNamespace:   application.GetNamespace(),
+	//	metrics.LabelSecretState: "in_use",
+	//}).Set(float64(counts.InUse))
 
-	return errs
+	return nil
 }
 
 func inUse(object client.Object, secretName string) (bool, error) {
@@ -110,8 +123,14 @@ func inUse(object client.Object, secretName string) (bool, error) {
 		volumes = t.Spec.Template.Spec.Volumes
 	case *batchv1.CronJob:
 		volumes = t.Spec.JobTemplate.Spec.Template.Spec.Volumes
+	case *aiven_nais_io_v1.AivenApplication:
+		if t.Spec.SecretName == secretName {
+			return true, nil
+		} else {
+			return false, nil
+		}
 	default:
-		return false, fmt.Errorf("input object is not of supported type")
+		return false, fmt.Errorf("input object %v is not of supported type", object)
 	}
 
 	for _, volume := range volumes {
@@ -122,56 +141,46 @@ func inUse(object client.Object, secretName string) (bool, error) {
 	return false, nil
 }
 
-func (j *Janitor) cleanUnusedSecret(ctx context.Context, application aiven_nais_io_v1.AivenApplication, oldSecret corev1.Secret, counts counters, types []client.Object) error {
+func (j *Janitor) cleanUnusedSecret(ctx context.Context, oldSecret corev1.Secret, counts counters) error {
 	logger := j.Logger.WithFields(log.Fields{
 		"secret_name": oldSecret.GetName(),
 		"namespace":   oldSecret.GetNamespace(),
 	})
 
-	if oldSecret.GetName() == application.Spec.SecretName {
-		logger.Infof("Will not delete currently requested secret")
-		counts.InUse += 1
-		return nil
+	// TODO: Move this further up the callstack so we don't call it as often
+	objects, err := j.collectPossibleUsers(ctx)
+	if err != nil {
+		return err
 	}
 
-	for _, ownerRef := range oldSecret.GetOwnerReferences() {
-		for _, t := range types {
-			gvk, err := utils.GetGVK(j.Scheme(), t)
-			if err != nil {
-				logger.Warnf("unable to resolve gvk for %v: %v", t, err)
-				continue
-			}
-			if ownerRef.Kind == gvk.Kind {
-				key := client.ObjectKey{
-					Namespace: oldSecret.GetNamespace(),
-					Name:      ownerRef.Name,
-				}
-				err = j.Get(ctx, key, t)
-				if err != nil {
-					logger.Warnf("unable to get owning object %v from cluster: %v", key, err)
-					continue
-				}
-				result, err := inUse(t, oldSecret.GetName())
-				if err != nil {
-					logger.Warn(err)
-				}
-				if result {
-					logger.Infof("Secret owned by %v/%v, leaving alone", gvk.Kind, key)
-					return nil
-				}
-			}
+	for _, object := range objects {
+		gvk, err := utils.GetGVK(j.Scheme(), object)
+		if err != nil {
+			logger.Warnf("unable to resolve gvk for %v: %v", object, err)
+			continue
+		}
+
+		result, err := inUse(object, oldSecret.GetName())
+		if err != nil {
+			logger.Warn(err)
+		}
+		if result {
+			key := client.ObjectKeyFromObject(object)
+			logger.Infof("Secret in use by %v/%v, leaving alone", gvk.Kind, key)
+			return nil
 		}
 	}
 
 	oldSecretAnnotations := oldSecret.GetAnnotations()
 	if annotations.HasProtected(oldSecretAnnotations) {
 		if annotations.HasTimeLimited(oldSecretAnnotations) {
-			if application.Spec.ExpiresAt == nil {
+			expiresAtAnnotation := oldSecretAnnotations[constants.AivenatorProtectedExpiresAtAnnotation]
+			if len(expiresAtAnnotation) == 0 {
 				logger.Infof("Secret is protected, but doesn't expire; leaving alone")
 				return nil
 			}
 
-			parsedTimeStamp, err := utils.Parse(application.FormatExpiresAt())
+			parsedTimeStamp, err := utils.Parse(expiresAtAnnotation)
 			if err != nil {
 				counts.ProtectedWithTimeLimit += 1
 				logger.Infof("Secret is protected and unable to parse expiresAt, leaving alone")
@@ -197,6 +206,47 @@ func (j *Janitor) cleanUnusedSecret(ctx context.Context, application aiven_nais_
 	return j.deleteSecret(ctx, oldSecret, logger)
 }
 
+func (j *Janitor) collectPossibleUsers(ctx context.Context) ([]client.Object, error) {
+	objects := make([]client.Object, 0)
+
+	aivenAppList := &aiven_nais_io_v1.AivenApplicationList{}
+	err := getItemList(ctx, j, aivenAppList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list AivenApplications: %v", err)
+	}
+	for i, _ := range aivenAppList.Items {
+		objects = append(objects, &aivenAppList.Items[i])
+	}
+
+	replicaSetList := &appsv1.ReplicaSetList{}
+	err = getItemList(ctx, j, replicaSetList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ReplicaSets: %v", err)
+	}
+	for i, _ := range replicaSetList.Items {
+		objects = append(objects, &replicaSetList.Items[i])
+	}
+
+	cronJobList := &batchv1.CronJobList{}
+	err = getItemList(ctx, j, cronJobList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list CronJobs: %v", err)
+	}
+	for i, _ := range cronJobList.Items {
+		objects = append(objects, &cronJobList.Items[i])
+	}
+
+	JobList := &batchv1.JobList{}
+	err = getItemList(ctx, j, JobList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Jobs: %v", err)
+	}
+	for i, _ := range JobList.Items {
+		objects = append(objects, &JobList.Items[i])
+	}
+	return objects, nil
+}
+
 func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, logger log.FieldLogger) error {
 	logger.Infof("Deleting secret")
 	err := metrics.ObserveKubernetesLatency("Secret_Delete", func() error {
@@ -210,6 +260,16 @@ func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, log
 			metrics.LabelResourceType: "Secret",
 			metrics.LabelNamespace:    oldSecret.GetNamespace(),
 		}).Inc()
+	}
+	return nil
+}
+
+func getItemList(ctx context.Context, client Client, items client.ObjectList) error {
+	err := metrics.ObserveKubernetesLatency("List", func() error {
+		return client.List(ctx, items)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to retrieve list of pods: %v", err)
 	}
 	return nil
 }

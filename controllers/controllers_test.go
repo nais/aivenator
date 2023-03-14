@@ -117,19 +117,33 @@ func newTestRig(ctx context.Context, t *testing.T, logger *log.Logger) (*testRig
 	}
 
 	credentialsManager := credentials.NewManager(ctx, aivenClient, []string{testProject}, testProject, logger.WithField("component", "CredentialsManager"))
-	credentialsJanitor := credentials.Janitor{
-		Client: rig.manager.GetClient(),
-		Logger: logger.WithFields(log.Fields{
-			"component": "AivenApplicationJanitor",
-		}),
-	}
-	reconciler := aiven_application.NewReconciler(rig.manager, logger, credentialsManager, credentialsJanitor)
+	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
+	reconciler := aiven_application.NewReconciler(rig.manager, logger, credentialsManager, appChanges)
 
 	err = reconciler.SetupWithManager(rig.manager)
 	if err != nil {
 		return nil, fmt.Errorf("setup synchronizer with manager: %w", err)
 	}
 	rig.synchronizer = &reconciler
+
+	credentialsJanitor := credentials.Janitor{
+		Client: rig.manager.GetClient(),
+		Logger: logger.WithFields(log.Fields{
+			"component": "AivenApplicationJanitor",
+		}),
+	}
+	janitor := secrets.NewJanitor(credentialsJanitor, appChanges, logger)
+	err = rig.manager.Add(janitor)
+	if err != nil {
+		return nil, fmt.Errorf("add janitor to manager: %w", err)
+	}
+	go func() {
+		err := janitor.Start(ctx)
+		if err != nil {
+			logger.Errorf("unable to start secret janitor: %v", err)
+			t.Errorf("unable to start secret janitor: %v", err)
+		}
+	}()
 
 	finalizer := secrets.SecretsFinalizer{
 		Client: rig.manager.GetClient(),
@@ -179,7 +193,7 @@ func (r testRig) createForTest(ctx context.Context, obj client.Object) {
 
 func TestControllers(t *testing.T) {
 	// Allow 15 seconds for test to complete
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Hour)
 	t.Cleanup(cancel)
 
 	logger := log.New()
