@@ -2,7 +2,6 @@ package secret
 
 import (
 	"fmt"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
 	"time"
 
@@ -24,7 +23,7 @@ const (
 type Handler struct {
 }
 
-func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, objects []client.Object, secret *corev1.Secret, logger *log.Entry) error {
+func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger *log.Entry) error {
 	secretName := application.Spec.SecretName
 
 	errors := validation.IsDNS1123Label(secretName)
@@ -42,35 +41,6 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, objects [
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
 	})
 
-	return updateOwnerReferences(application, objects, secret)
-}
-
-func updateOwnerReferences(application *aiven_nais_io_v1.AivenApplication, objects []client.Object, secret *corev1.Secret) error {
-	appOwnerReference := application.GetOwnerReference()
-
-	ownerReferences := make(map[metav1.OwnerReference]bool, len(secret.GetOwnerReferences()))
-	for _, reference := range secret.GetOwnerReferences() {
-		ownerReferences[reference] = true
-	}
-	ownerReferences[appOwnerReference] = true
-
-	for _, object := range objects {
-		ownerReference, err := utils.MakeOwnerReference(object)
-		if err != nil {
-			return err
-		}
-		ownerReferences[ownerReference] = true
-		ownerReferences[appOwnerReference] = false
-	}
-
-	var newOwnerReferences []metav1.OwnerReference
-	for reference, keep := range ownerReferences {
-		if keep {
-			newOwnerReferences = append(newOwnerReferences, reference)
-		}
-	}
-
-	secret.ObjectMeta.OwnerReferences = newOwnerReferences
 	return nil
 }
 

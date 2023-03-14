@@ -6,7 +6,6 @@ import (
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"reflect"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 
 	"github.com/aiven/aiven-go-client"
@@ -19,7 +18,7 @@ import (
 )
 
 type Handler interface {
-	Apply(application *aiven_nais_io_v1.AivenApplication, objects []client.Object, secret *v1.Secret, logger *log.Entry) error
+	Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error
 	Cleanup(secret *v1.Secret, logger *log.Entry) error
 }
 
@@ -37,10 +36,10 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 	}
 }
 
-func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, objects []client.Object, secret *v1.Secret, logger *log.Entry) (*v1.Secret, error) {
+func (c Manager) CreateSecret(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) (*v1.Secret, error) {
 	for _, handler := range c.handlers {
 		processingStart := time.Now()
-		err := handler.Apply(application, objects, secret, logger)
+		err := handler.Apply(application, secret, logger)
 		if err != nil {
 			cleanupError := c.Cleanup(secret, logger)
 			if cleanupError != nil {

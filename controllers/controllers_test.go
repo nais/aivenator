@@ -230,15 +230,6 @@ func TestControllers(t *testing.T) {
 	// Check secret created with correct data
 	secret := v1.Secret{}
 	rig.assertExists(ctx, &secret, secretKey)
-	actualOwnerReferences := secret.GetOwnerReferences()
-	assert.Equal(t, 1, len(actualOwnerReferences))
-	expectedOwnerReference := metav1.OwnerReference{
-		APIVersion: replicaSet.APIVersion,
-		Kind:       replicaSet.Kind,
-		Name:       replicaSet.Name,
-		UID:        replicaSet.UID,
-	}
-	assert.Equal(t, expectedOwnerReference, actualOwnerReferences[0])
 	actualFinalizers := secret.GetFinalizers()
 	assert.Equal(t, 1, len(actualFinalizers))
 	assert.Equal(t, constants.AivenatorFinalizer, actualFinalizers[0])

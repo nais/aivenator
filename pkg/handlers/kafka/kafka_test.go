@@ -167,7 +167,7 @@ func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
 func (suite *KafkaHandlerTestSuite) TestNoKafka() {
 	application := suite.applicationBuilder.Build()
 	secret := &v1.Secret{}
-	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.NoError(err)
 	suite.Equal(&v1.Secret{}, secret)
@@ -183,7 +183,7 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.NoError(err)
 	expected := &v1.Secret{
@@ -224,7 +224,7 @@ func (suite *KafkaHandlerTestSuite) TestSecretExists() {
 	}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores, ServiceUsersGet))
 
-	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.NoError(err)
 	suite.Equal(secret.GetAnnotations()[ServiceUserAnnotation], serviceUserName)
@@ -247,7 +247,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 			Status:   500,
 		})
 
-	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
@@ -270,7 +270,7 @@ func (suite *KafkaHandlerTestSuite) TestProjectGetCAFailed() {
 			Status:   500,
 		})
 
-	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
@@ -293,7 +293,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 			Status:   500,
 		})
 
-	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
@@ -316,7 +316,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserNotFound() {
 	}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores, ServiceUsersGetNotFound))
 
-	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.NoError(err)
 	expected := &v1.Secret{
@@ -352,7 +352,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
 			Username: serviceUserName,
 		}, nil)
 
-	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.mockServiceUsers.AssertNotCalled(suite.T(), "Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	suite.NoError(err)
@@ -380,7 +380,7 @@ func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.True(errors.Is(err, utils.UnrecoverableError))
@@ -400,7 +400,7 @@ func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 	suite.mockGenerator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("local-fail"))
 
-	err := suite.kafkaHandler.Apply(&application, nil, secret, suite.logger)
+	err := suite.kafkaHandler.Apply(&application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationLocalFailure))
