@@ -116,7 +116,7 @@ var (
 		Name:      "secrets_managed",
 		Namespace: Namespace,
 		Help:      "number of secrets managed",
-	}, []string{LabelNamespace, LabelSecretState})
+	}, []string{LabelSecretState})
 )
 
 func ObserveAivenLatency(operation, pool string, fun func() error) error {

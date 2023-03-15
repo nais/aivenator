@@ -58,7 +58,8 @@ func (j *Janitor) CleanUnusedSecretsForApplication(ctx context.Context, applicat
 		return err
 	}
 
-	return j.cleanUnusedSecrets(ctx, secrets, objects)
+	_, err = j.cleanUnusedSecrets(ctx, secrets, objects)
+	return err
 }
 
 func (j *Janitor) CleanUnusedSecrets(ctx context.Context) error {
@@ -79,16 +80,31 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context) error {
 		return err
 	}
 
-	return j.cleanUnusedSecrets(ctx, secrets, objects)
+	counts, err := j.cleanUnusedSecrets(ctx, secrets, objects)
+	if err != nil {
+		return err
+	}
+
+	metrics.SecretsManaged.With(prometheus.Labels{
+		metrics.LabelSecretState: "protected",
+	}).Set(float64(counts.Protected))
+	metrics.SecretsManaged.With(prometheus.Labels{
+		metrics.LabelSecretState: "protected-with-time-limit",
+	}).Set(float64(counts.ProtectedWithTimeLimit))
+	metrics.SecretsManaged.With(prometheus.Labels{
+		metrics.LabelSecretState: "in_use",
+	}).Set(float64(counts.InUse))
+
+	return nil
 }
 
-func (j *Janitor) cleanUnusedSecrets(ctx context.Context, secrets corev1.SecretList, objects []client.Object) error {
+func (j *Janitor) cleanUnusedSecrets(ctx context.Context, secrets corev1.SecretList, objects []client.Object) (*counters, error) {
 	podList := corev1.PodList{}
 	err := metrics.ObserveKubernetesLatency("Pod_List", func() error {
 		return j.List(ctx, &podList)
 	})
 	if err != nil {
-		return fmt.Errorf("failed to retrieve list of pods: %v", err)
+		return nil, fmt.Errorf("failed to retrieve list of pods: %v", err)
 	}
 
 	secretLists := kubernetes.ListUsedAndUnusedSecretsForPods(secrets, podList)
@@ -107,21 +123,7 @@ func (j *Janitor) cleanUnusedSecrets(ctx context.Context, secrets corev1.SecretL
 		}
 	}
 
-	// TODO: Make these counts correct
-	//metrics.SecretsManaged.With(prometheus.Labels{
-	//	metrics.LabelNamespace:   application.GetNamespace(),
-	//	metrics.LabelSecretState: "protected",
-	//}).Set(float64(counts.Protected))
-	//metrics.SecretsManaged.With(prometheus.Labels{
-	//	metrics.LabelNamespace:   application.GetNamespace(),
-	//	metrics.LabelSecretState: "protected-with-time-limit",
-	//}).Set(float64(counts.ProtectedWithTimeLimit))
-	//metrics.SecretsManaged.With(prometheus.Labels{
-	//	metrics.LabelNamespace:   application.GetNamespace(),
-	//	metrics.LabelSecretState: "in_use",
-	//}).Set(float64(counts.InUse))
-
-	return nil
+	return &counts, nil
 }
 
 func inUse(object client.Object, secretName string) (bool, error) {
