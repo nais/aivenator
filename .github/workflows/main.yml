@@ -41,12 +41,15 @@ jobs:
           push: "${{ github.ref == 'refs/heads/main' }}"
           tags: ${{ env.image_base }}:latest,${{ steps.set-image-tag.outputs.image }}
       - name: Install cosign
+        if: github.ref == 'refs/heads/main'
         uses: sigstore/cosign-installer@c3667d99424e7e6047999fb6246c0da843953c65 # ratchet:sigstore/cosign-installer@main
         with:
           cosign-release: 'v2.0.0'
       - name: Sign the container image
+        if: github.ref == 'refs/heads/main'
         run: cosign sign --yes ${{ env.image_base }}@${{ steps.build-push.outputs.digest }}
       - name: Create SBOM
+        if: github.ref == 'refs/heads/main'
         uses: aquasecurity/trivy-action@1f0aa582c8c8f5f7639610d6d38baddfea4fdcee # ratchet:aquasecurity/trivy-action@master
         with:
           scan-type: 'image'
@@ -54,6 +57,7 @@ jobs:
           output: 'cyclone.sbom.json'
           image-ref: ${{ env.image_base }}@${{ steps.build-push.outputs.digest }}
       - name: Attest
+        if: github.ref == 'refs/heads/main'
         run: cosign attest --yes --predicate cyclone.sbom.json --type cyclonedx ${{ env.image_base }}@${{ steps.build-push.outputs.digest }}
     outputs:
       image: "${{ steps.set-image-tag.outputs.image }}"
