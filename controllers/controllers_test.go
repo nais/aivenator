@@ -58,6 +58,8 @@ func testBinDirectory() string {
 }
 
 func newTestRig(ctx context.Context, t *testing.T, logger *log.Logger) (*testRig, error) {
+	ctx, cancelFunc := context.WithCancel(ctx)
+
 	err := os.Setenv("KUBEBUILDER_ASSETS", testBinDirectory())
 	if err != nil {
 		return nil, fmt.Errorf("failed to set environment variable: %w", err)
@@ -79,6 +81,7 @@ func newTestRig(ctx context.Context, t *testing.T, logger *log.Logger) (*testRig
 
 	t.Cleanup(func() {
 		t.Log("Stopping Kubernetes")
+		cancelFunc()
 		if err := rig.kubernetes.Stop(); err != nil {
 			t.Errorf("failed to stop kubernetes test rig: %s", err)
 		}
