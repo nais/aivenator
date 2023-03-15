@@ -21,7 +21,7 @@ import (
 	"github.com/nais/aivenator/pkg/utils"
 )
 
-type Janitor struct {
+type Cleaner struct {
 	Client
 	Logger *log.Entry
 }
@@ -39,7 +39,7 @@ type Client interface {
 	Scheme() *runtime.Scheme
 }
 
-func (j *Janitor) CleanUnusedSecretsForApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication) error {
+func (j *Cleaner) CleanUnusedSecretsForApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication) error {
 	var secrets corev1.SecretList
 	var mLabels = client.MatchingLabels{
 		constants.AppLabel:        application.GetName(),
@@ -62,7 +62,7 @@ func (j *Janitor) CleanUnusedSecretsForApplication(ctx context.Context, applicat
 	return err
 }
 
-func (j *Janitor) CleanUnusedSecrets(ctx context.Context) error {
+func (j *Cleaner) CleanUnusedSecrets(ctx context.Context) error {
 	var secrets corev1.SecretList
 	var mLabels = client.MatchingLabels{
 		constants.SecretTypeLabel: constants.AivenatorSecretType,
@@ -98,7 +98,7 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context) error {
 	return nil
 }
 
-func (j *Janitor) cleanUnusedSecrets(ctx context.Context, secrets corev1.SecretList, objects []client.Object) (*counters, error) {
+func (j *Cleaner) cleanUnusedSecrets(ctx context.Context, secrets corev1.SecretList, objects []client.Object) (*counters, error) {
 	podList := corev1.PodList{}
 	err := metrics.ObserveKubernetesLatency("Pod_List", func() error {
 		return j.List(ctx, &podList)
@@ -153,7 +153,7 @@ func inUse(object client.Object, secretName string) (bool, error) {
 	return false, nil
 }
 
-func (j *Janitor) cleanUnusedSecret(ctx context.Context, oldSecret corev1.Secret, counts counters, objects []client.Object) error {
+func (j *Cleaner) cleanUnusedSecret(ctx context.Context, oldSecret corev1.Secret, counts counters, objects []client.Object) error {
 	logger := j.Logger.WithFields(log.Fields{
 		"secret_name": oldSecret.GetName(),
 		"namespace":   oldSecret.GetNamespace(),
@@ -212,7 +212,7 @@ func (j *Janitor) cleanUnusedSecret(ctx context.Context, oldSecret corev1.Secret
 	return j.deleteSecret(ctx, oldSecret, logger)
 }
 
-func (j *Janitor) collectPossibleUsers(ctx context.Context, appName string) ([]client.Object, error) {
+func (j *Cleaner) collectPossibleUsers(ctx context.Context, appName string) ([]client.Object, error) {
 	objects := make([]client.Object, 0)
 
 	aivenAppList := &aiven_nais_io_v1.AivenApplicationList{}
@@ -253,7 +253,7 @@ func (j *Janitor) collectPossibleUsers(ctx context.Context, appName string) ([]c
 	return objects, nil
 }
 
-func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, logger log.FieldLogger) error {
+func (j *Cleaner) deleteSecret(ctx context.Context, oldSecret corev1.Secret, logger log.FieldLogger) error {
 	logger.Infof("Deleting secret")
 	err := metrics.ObserveKubernetesLatency("Secret_Delete", func() error {
 		return j.Delete(ctx, &oldSecret)

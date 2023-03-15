@@ -16,14 +16,14 @@ const (
 type Janitor struct {
 	client.Client
 	logger     log.FieldLogger
-	janitor    credentials.Janitor
+	cleaner    credentials.Cleaner
 	appChanges <-chan aiven_nais_io_v1.AivenApplication
 }
 
-func NewJanitor(janitor credentials.Janitor, appChanges <-chan aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *Janitor {
+func NewJanitor(cleaner credentials.Cleaner, appChanges <-chan aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *Janitor {
 	return &Janitor{
 		logger:     logger,
-		janitor:    janitor,
+		cleaner:    cleaner,
 		appChanges: appChanges,
 	}
 }
@@ -39,15 +39,15 @@ func (j *Janitor) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ticker.C:
-			j.logger.Info("Running janitor for all secrets")
-			err := j.janitor.CleanUnusedSecrets(ctx)
+			j.logger.Info("Running cleaner for all secrets")
+			err := j.cleaner.CleanUnusedSecrets(ctx)
 			if err != nil {
 				return err
 			}
 		case app := <-j.appChanges:
 			// Clean secrets for app
-			j.logger.Infof("Running janitor for secrets belonging to aivenapp %s/%s", app.GetNamespace(), app.GetName())
-			err := j.janitor.CleanUnusedSecretsForApplication(ctx, app)
+			j.logger.Infof("Running cleaner for secrets belonging to aivenapp %s/%s", app.GetNamespace(), app.GetName())
+			err := j.cleaner.CleanUnusedSecretsForApplication(ctx, app)
 			if err != nil {
 				return err
 			}

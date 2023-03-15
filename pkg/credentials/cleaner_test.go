@@ -69,8 +69,8 @@ func (suite *JanitorTestSuite) SetupTest() {
 	suite.clientBuilder.WithScheme(s)
 }
 
-func (suite *JanitorTestSuite) buildJanitor(client Client) *Janitor {
-	return &Janitor{
+func (suite *JanitorTestSuite) buildJanitor(client Client) *Cleaner {
+	return &Cleaner{
 		Client: client,
 		Logger: suite.logger,
 	}

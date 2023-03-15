@@ -220,14 +220,13 @@ func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Log
 	}
 	logger.Info("Aiven Secret finalizer setup complete")
 
-	// TODO: Better naming
-	credentialsJanitor := credentials.Janitor{
+	credentialsCleaner := credentials.Cleaner{
 		Client: mgr.GetClient(),
 		Logger: logger.WithFields(log.Fields{
-			"component": "AivenApplicationJanitor",
+			"component": "SecretsCleaner",
 		}),
 	}
-	janitor := secrets.NewJanitor(credentialsJanitor, appChanges, logger.WithFields(log.Fields{"component": "SecretsJanitor"}))
+	janitor := secrets.NewJanitor(credentialsCleaner, appChanges, logger.WithFields(log.Fields{"component": "SecretsJanitor"}))
 	if err := mgr.Add(janitor); err != nil {
 		return fmt.Errorf("unable to add janitor to manager: %v", err)
 	}

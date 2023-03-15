@@ -126,13 +126,13 @@ func newTestRig(ctx context.Context, t *testing.T, logger *log.Logger) (*testRig
 	}
 	rig.synchronizer = &reconciler
 
-	credentialsJanitor := credentials.Janitor{
+	credentialsCleaner := credentials.Cleaner{
 		Client: rig.manager.GetClient(),
 		Logger: logger.WithFields(log.Fields{
-			"component": "AivenApplicationJanitor",
+			"component": "SecretsCleaner",
 		}),
 	}
-	janitor := secrets.NewJanitor(credentialsJanitor, appChanges, logger)
+	janitor := secrets.NewJanitor(credentialsCleaner, appChanges, logger)
 	err = rig.manager.Add(janitor)
 	if err != nil {
 		return nil, fmt.Errorf("add janitor to manager: %w", err)
