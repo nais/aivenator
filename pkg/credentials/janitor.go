@@ -53,7 +53,12 @@ func (j *Janitor) CleanUnusedSecretsForApplication(ctx context.Context, applicat
 		return fmt.Errorf("failed to retrieve list of secrets: %v", err)
 	}
 
-	return j.cleanUnusedSecrets(ctx, secrets)
+	objects, err := j.collectPossibleUsers(ctx, application.GetName())
+	if err != nil {
+		return err
+	}
+
+	return j.cleanUnusedSecrets(ctx, secrets, objects)
 }
 
 func (j *Janitor) CleanUnusedSecrets(ctx context.Context) error {
@@ -69,10 +74,15 @@ func (j *Janitor) CleanUnusedSecrets(ctx context.Context) error {
 		return fmt.Errorf("failed to retrieve list of secrets: %v", err)
 	}
 
-	return j.cleanUnusedSecrets(ctx, secrets)
+	objects, err := j.collectPossibleUsers(ctx, "")
+	if err != nil {
+		return err
+	}
+
+	return j.cleanUnusedSecrets(ctx, secrets, objects)
 }
 
-func (j *Janitor) cleanUnusedSecrets(ctx context.Context, secrets corev1.SecretList) error {
+func (j *Janitor) cleanUnusedSecrets(ctx context.Context, secrets corev1.SecretList, objects []client.Object) error {
 	podList := corev1.PodList{}
 	err := metrics.ObserveKubernetesLatency("Pod_List", func() error {
 		return j.List(ctx, &podList)
@@ -90,7 +100,7 @@ func (j *Janitor) cleanUnusedSecrets(ctx context.Context, secrets corev1.SecretL
 		j.Logger.Infof("Found %d unused secrets managed by Aivenator", found)
 
 		for _, oldSecret := range secretLists.Unused.Items {
-			err = j.cleanUnusedSecret(ctx, oldSecret, counts)
+			err = j.cleanUnusedSecret(ctx, oldSecret, counts, objects)
 			if err != nil {
 				j.Logger.Warn(err)
 			}
@@ -141,17 +151,11 @@ func inUse(object client.Object, secretName string) (bool, error) {
 	return false, nil
 }
 
-func (j *Janitor) cleanUnusedSecret(ctx context.Context, oldSecret corev1.Secret, counts counters) error {
+func (j *Janitor) cleanUnusedSecret(ctx context.Context, oldSecret corev1.Secret, counts counters, objects []client.Object) error {
 	logger := j.Logger.WithFields(log.Fields{
 		"secret_name": oldSecret.GetName(),
 		"namespace":   oldSecret.GetNamespace(),
 	})
-
-	// TODO: Move this further up the callstack so we don't call it as often
-	objects, err := j.collectPossibleUsers(ctx)
-	if err != nil {
-		return err
-	}
 
 	for _, object := range objects {
 		gvk, err := utils.GetGVK(j.Scheme(), object)
@@ -206,11 +210,11 @@ func (j *Janitor) cleanUnusedSecret(ctx context.Context, oldSecret corev1.Secret
 	return j.deleteSecret(ctx, oldSecret, logger)
 }
 
-func (j *Janitor) collectPossibleUsers(ctx context.Context) ([]client.Object, error) {
+func (j *Janitor) collectPossibleUsers(ctx context.Context, appName string) ([]client.Object, error) {
 	objects := make([]client.Object, 0)
 
 	aivenAppList := &aiven_nais_io_v1.AivenApplicationList{}
-	err := getItemList(ctx, j, aivenAppList)
+	err := getItemList(ctx, j, aivenAppList, appName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list AivenApplications: %v", err)
 	}
@@ -219,7 +223,7 @@ func (j *Janitor) collectPossibleUsers(ctx context.Context) ([]client.Object, er
 	}
 
 	replicaSetList := &appsv1.ReplicaSetList{}
-	err = getItemList(ctx, j, replicaSetList)
+	err = getItemList(ctx, j, replicaSetList, appName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list ReplicaSets: %v", err)
 	}
@@ -228,7 +232,7 @@ func (j *Janitor) collectPossibleUsers(ctx context.Context) ([]client.Object, er
 	}
 
 	cronJobList := &batchv1.CronJobList{}
-	err = getItemList(ctx, j, cronJobList)
+	err = getItemList(ctx, j, cronJobList, appName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list CronJobs: %v", err)
 	}
@@ -237,7 +241,7 @@ func (j *Janitor) collectPossibleUsers(ctx context.Context) ([]client.Object, er
 	}
 
 	JobList := &batchv1.JobList{}
-	err = getItemList(ctx, j, JobList)
+	err = getItemList(ctx, j, JobList, appName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Jobs: %v", err)
 	}
@@ -264,9 +268,14 @@ func (j *Janitor) deleteSecret(ctx context.Context, oldSecret corev1.Secret, log
 	return nil
 }
 
-func getItemList(ctx context.Context, client Client, items client.ObjectList) error {
+func getItemList(ctx context.Context, c Client, items client.ObjectList, appName string) error {
+	var mLabels = client.MatchingLabels{}
+	if len(appName) > 0 {
+		mLabels[constants.AppLabel] = appName
+	}
+
 	err := metrics.ObserveKubernetesLatency("List", func() error {
-		return client.List(ctx, items)
+		return c.List(ctx, items, mLabels)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to retrieve list of pods: %v", err)

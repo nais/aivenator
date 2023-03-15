@@ -123,6 +123,9 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 			SecretName: CurrentlyRequestedSecret,
 		}).
 		Build()
+	application.SetLabels(map[string]string{
+		constants.AppLabel: MyAppName,
+	})
 	suite.clientBuilder.WithRuntimeObjects(
 		makePodForSecret(SecretUsedByPod),
 		&application,
@@ -183,6 +186,30 @@ func (suite *JanitorTestSuite) TestErrors() {
 					[]interface{}{fmt.Errorf("api error")},
 					nil,
 				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]interface{}{nil},
+					nil,
+				},
+				{
+					"List",
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]interface{}{nil},
+					nil,
+				},
 			},
 			expected: fmt.Errorf("failed to retrieve list of pods: api error"),
 		},
@@ -207,25 +234,25 @@ func (suite *JanitorTestSuite) TestErrors() {
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList")},
+					[]interface{}{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
 					[]interface{}{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList")},
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
 					[]interface{}{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.CronJobList")},
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
 					[]interface{}{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.JobList")},
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
 					[]interface{}{nil},
 					nil,
 				},
@@ -262,25 +289,25 @@ func (suite *JanitorTestSuite) TestErrors() {
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList")},
+					[]interface{}{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
 					[]interface{}{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList")},
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
 					[]interface{}{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.CronJobList")},
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
 					[]interface{}{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.JobList")},
+					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
 					[]interface{}{nil},
 					nil,
 				},
