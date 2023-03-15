@@ -280,7 +280,7 @@ func getItemList(ctx context.Context, c Client, items client.ObjectList, appName
 		return c.List(ctx, items, mLabels)
 	})
 	if err != nil {
-		return fmt.Errorf("failed to retrieve list of pods: %v", err)
+		return fmt.Errorf("failed to retrieve list of resources: %v", err)
 	}
 	return nil
 }
