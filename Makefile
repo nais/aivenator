@@ -1,4 +1,4 @@
-K8S_VERSION := 1.19.0
+K8S_VERSION := 1.24.2
 arch        := amd64
 os          := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 testbin_dir := ./.testbin/

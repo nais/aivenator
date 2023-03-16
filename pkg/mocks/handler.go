@@ -4,7 +4,6 @@ package mocks
 
 import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
-	client "sigs.k8s.io/controller-runtime/pkg/client"
 
 	logrus "github.com/sirupsen/logrus"
 
@@ -18,13 +17,13 @@ type Handler struct {
 	mock.Mock
 }
 
-// Apply provides a mock function with given fields: application, objects, secret, logger
-func (_m *Handler) Apply(application *aiven_nais_io_v1.AivenApplication, objects []client.Object, secret *v1.Secret, logger *logrus.Entry) error {
-	ret := _m.Called(application, objects, secret, logger)
+// Apply provides a mock function with given fields: application, secret, logger
+func (_m *Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *logrus.Entry) error {
+	ret := _m.Called(application, secret, logger)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*aiven_nais_io_v1.AivenApplication, []client.Object, *v1.Secret, *logrus.Entry) error); ok {
-		r0 = rf(application, objects, secret, logger)
+	if rf, ok := ret.Get(0).(func(*aiven_nais_io_v1.AivenApplication, *v1.Secret, *logrus.Entry) error); ok {
+		r0 = rf(application, secret, logger)
 	} else {
 		r0 = ret.Error(0)
 	}

@@ -18,12 +18,11 @@ func TestManager_Apply(t *testing.T) {
 	mockHandler.
 		On("Apply",
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.Anything,
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
-			secret := args.Get(2).(*corev1.Secret)
+			secret := args.Get(1).(*corev1.Secret)
 			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
 			for key, value := range expectedAnnotations {
 				secret.ObjectMeta.Annotations[key] = value
@@ -34,7 +33,7 @@ func TestManager_Apply(t *testing.T) {
 
 	// when
 	secret := &corev1.Secret{}
-	secret, err := manager.CreateSecret(&application, nil, secret, nil)
+	secret, err := manager.CreateSecret(&application, secret, nil)
 
 	// then
 	assert.NoError(t, err)
@@ -50,12 +49,11 @@ func TestManager_ApplyFailed(t *testing.T) {
 	mockHandler.
 		On("Apply",
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.Anything,
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
-			secret := args.Get(2).(*corev1.Secret)
+			secret := args.Get(1).(*corev1.Secret)
 			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
 			for key, value := range expectedAnnotations {
 				secret.ObjectMeta.Annotations[key] = value
@@ -68,7 +66,6 @@ func TestManager_ApplyFailed(t *testing.T) {
 	failingHandler.
 		On("Apply",
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.Anything,
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(handlerError)
@@ -80,7 +77,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 
 	// when
 	secret := &corev1.Secret{}
-	_, err := manager.CreateSecret(&application, nil, secret, nil)
+	_, err := manager.CreateSecret(&application, secret, nil)
 
 	// then
 	assert.Error(t, err)

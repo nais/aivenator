@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 
 	"github.com/aiven/aiven-go-client"
@@ -71,7 +70,7 @@ type KafkaHandler struct {
 	projects     []string
 }
 
-func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, _ []client.Object, secret *v1.Secret, logger *log.Entry) error {
+func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {
 	logger = logger.WithFields(log.Fields{"handler": "kafka"})
 	if application.Spec.Kafka == nil {
 		return nil
