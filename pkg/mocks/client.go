@@ -40,13 +40,20 @@ func (_m *Client) Delete(ctx context.Context, obj client.Object, opts ...client.
 	return r0
 }
 
-// Get provides a mock function with given fields: ctx, key, obj
-func (_m *Client) Get(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-	ret := _m.Called(ctx, key, obj)
+// Get provides a mock function with given fields: ctx, key, obj, opts
+func (_m *Client) Get(ctx context.Context, key types.NamespacedName, obj client.Object, opts ...client.GetOption) error {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, key, obj)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, types.NamespacedName, client.Object) error); ok {
-		r0 = rf(ctx, key, obj)
+	if rf, ok := ret.Get(0).(func(context.Context, types.NamespacedName, client.Object, ...client.GetOption) error); ok {
+		r0 = rf(ctx, key, obj, opts...)
 	} else {
 		r0 = ret.Error(0)
 	}

@@ -35,7 +35,7 @@ type counters struct {
 type Client interface {
 	List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error
 	Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error
-	Get(ctx context.Context, key client.ObjectKey, obj client.Object) error
+	Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error
 	Scheme() *runtime.Scheme
 }
 
