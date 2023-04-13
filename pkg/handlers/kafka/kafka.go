@@ -48,12 +48,18 @@ const (
 
 var clusterName = ""
 
-func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry) KafkaHandler {
+func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry, useNativeGenerator bool) KafkaHandler {
+	var generator certificate.Generator
+	if useNativeGenerator {
+		generator = certificate.NewNativeGenerator()
+	} else {
+		generator = certificate.NewExecGenerator()
+	}
 	handler := KafkaHandler{
 		project:      project.NewManager(aiven.CA),
 		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:      service.NewManager(aiven.Services),
-		generator:    certificate.NewExecGenerator(),
+		generator:    generator,
 		nameResolver: liberator_service.NewCachedNameResolver(aiven.Services),
 		projects:     projects,
 	}

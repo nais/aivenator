@@ -4,9 +4,11 @@ package certificate
 
 import (
 	"encoding/base64"
+	"fmt"
 	"github.com/aiven/aiven-go-client"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"path"
 	"testing"
 )
 
@@ -41,18 +43,31 @@ func TestCredStoreGenerator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	generator := NewExecGenerator()
+	workdir, err := os.MkdirTemp("", "credstores_test-workdir-*")
+	runGenerator := func(t *testing.T, desc string, generator Generator) {
+		stores, err := generator.MakeCredStores(test_user.AccessKey, test_user.AccessCert, caCert)
+		if err != nil {
+			log.Errorf("failed to create cred stores: %v", err)
+			t.Fatal(err)
+		}
 
-	stores, err := generator.MakeCredStores(test_user.AccessKey, test_user.AccessCert, caCert)
-	if err != nil {
-		log.Errorf("failed to create cred stores: %v", err)
-		t.Fatal(err)
+		log.Infof("Generated CredStores using %s:", desc)
+		log.Infof("Secret: '%v'", stores.Secret)
+		truststorePath := path.Join(workdir, fmt.Sprintf("%s.client.truststore.jks", desc))
+		_ = os.WriteFile(truststorePath, stores.Truststore, 0644)
+		log.Infof("Truststore (saved to %s):", truststorePath)
+		log.Info(base64.StdEncoding.EncodeToString(stores.Truststore))
+		keystorePath := path.Join(workdir, fmt.Sprintf("%s.client.keystore.p12", desc))
+		_ = os.WriteFile(keystorePath, stores.Keystore, 0644)
+		log.Infof("Keystore (saved to %s):", keystorePath)
+		log.Info(base64.StdEncoding.EncodeToString(stores.Keystore))
 	}
 
-	log.Infof("Generated CredStores:")
-	log.Infof("Secret: '%v'", stores.Secret)
-	log.Info("Truststore:")
-	log.Info(base64.StdEncoding.EncodeToString(stores.Truststore))
-	log.Info("Keystore:")
-	log.Info(base64.StdEncoding.EncodeToString(stores.Keystore))
+	t.Run("native", func(t *testing.T) {
+		runGenerator(t, "native", NewNativeGenerator())
+	})
+
+	t.Run("exec", func(t *testing.T) {
+		runGenerator(t, "exec", NewExecGenerator())
+	})
 }

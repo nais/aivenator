@@ -46,6 +46,7 @@ const (
 	Projects                     = "projects"
 	SyncPeriod                   = "sync-period"
 	MainProject                  = "main-project"
+	UseNativeGenerator           = "use-native-generator"
 )
 
 const (
@@ -63,12 +64,13 @@ func init() {
 
 	flag.String(AivenToken, "", "Administrator credentials for Aiven")
 	flag.String(MetricsAddress, "127.0.0.1:8080", "The address the metric endpoint binds to.")
-	flag.String(LogFormat, "text", "Log format, either \"text\" or \"json\"")
+	flag.String(LogFormat, LogFormatText, fmt.Sprintf("Log format, one of %s", strings.Join([]string{LogFormatText, LogFormatJSON}, ", ")))
 	flag.String(LogLevel, "info", logLevelHelp())
 	flag.Duration(KubernetesWriteRetryInterval, time.Second*10, "Requeueing interval when Kubernetes writes fail")
 	flag.Duration(SyncPeriod, time.Hour*1, "How often to re-synchronize all AivenApplication resources including credential rotation")
 	flag.StringSlice(Projects, []string{"nav-integration-test"}, "List of projects allowed to operate on")
 	flag.String(MainProject, "nav-integration-test", "Main project to operate on for services that only allow one")
+	flag.Bool(UseNativeGenerator, false, "Switch to using the native generator for JVM credential stores")
 
 	flag.Parse()
 
@@ -159,7 +161,7 @@ func main() {
 	logger.Info("Aivenator running")
 	terminator := context.Background()
 
-	if err := manageCredentials(terminator, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject)); err != nil {
+	if err := manageCredentials(terminator, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject), viper.GetBool(UseNativeGenerator)); err != nil {
 		logger.Errorln(err)
 		os.Exit(ExitCredentialsManager)
 	}
@@ -198,10 +200,10 @@ func newAivenClient() (*aiven.Client, error) {
 	return aivenClient, err
 }
 
-func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string) error {
+func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string, useNativeGenerator bool) error {
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
 
-	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}))
+	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}), useNativeGenerator)
 	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges)
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
