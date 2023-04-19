@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.3.0
-	github.com/aiven/aiven-go-client v1.7.0
+	github.com/aiven/aiven-go-client v1.12.0
 	github.com/nais/liberator v0.0.0-20230324140747-d96ffea90c29
 	github.com/prometheus/client_golang v1.15.0
 	github.com/sirupsen/logrus v1.9.0
@@ -38,6 +38,8 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
