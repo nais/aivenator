@@ -28,9 +28,4 @@ FROM alpine:3
 WORKDIR /
 COPY --from=builder /workspace/aivenator /aivenator
 
-# Add utilities for creating keystore and truststore
-RUN apk --no-cache add \
-    openssl \
-    openjdk11-jre-headless
-
 CMD ["/aivenator"]

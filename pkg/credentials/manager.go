@@ -26,11 +26,11 @@ type Manager struct {
 	handlers []Handler
 }
 
-func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger *log.Entry, useNativeGenerator bool) Manager {
+func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger *log.Entry) Manager {
 	return Manager{
 		handlers: []Handler{
 			secret.Handler{},
-			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger, useNativeGenerator),
+			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
 			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
 		},
 	}

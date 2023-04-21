@@ -66,8 +66,4 @@ func TestCredStoreGenerator(t *testing.T) {
 	t.Run("native", func(t *testing.T) {
 		runGenerator(t, "native", NewNativeGenerator())
 	})
-
-	t.Run("exec", func(t *testing.T) {
-		runGenerator(t, "exec", NewExecGenerator())
-	})
 }
