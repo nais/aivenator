@@ -25,6 +25,7 @@ jobs:
           google_service_account: gh-aivenator
           push: ${{ github.actor != 'dependabot[bot]' && github.ref == 'refs/heads/main' }}
           workload_identity_provider: ${{ secrets.NAIS_IO_WORKLOAD_IDENTITY_PROVIDER }}
+          multi-platform: true
     outputs:
       version: "${{ steps.build-push-sign.outputs.version }}"
 
