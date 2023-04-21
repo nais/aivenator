@@ -1,11 +1,11 @@
 # Build the manager binary
-FROM --platform=$BUILDPLATFORM golang:1.20 as builder
+FROM --platform=$BUILDPLATFORM cgr.dev/chainguard/go:1.20 as builder
 
 # download kubebuilder and extract it to tmp
 ARG BUILDOS BUILDARCH
 RUN echo $BUILDOS && \
     echo $BUILDARCH && \
-    curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.3.1/kubebuilder_2.3.1_${BUILDOS}_${BUILDARCH}.tar.gz | tar -xz -C /tmp/
+    wget -qO - https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.3.1/kubebuilder_2.3.1_${BUILDOS}_${BUILDARCH}.tar.gz | tar -xz -C /tmp/
 
 # move to a long-term location and put it on your path
 # (you'll need to set the KUBEBUILDER_ASSETS env var if you put it somewhere else)
@@ -35,7 +35,7 @@ RUN make test
 # Build
 RUN CGO_ENABLED=0 go build -a -installsuffix cgo -o aivenator cmd/aivenator/main.go
 
-FROM alpine:3
+FROM cgr.dev/chainguard/static
 WORKDIR /
 COPY --from=builder /workspace/aivenator /aivenator
 
