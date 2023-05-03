@@ -57,3 +57,16 @@ func MakeOwnerReference(in client.Object) (metav1.OwnerReference, error) {
 		UID:        metaAccessor.GetUID(),
 	}, nil
 }
+
+func SelectSuffix(access string) string {
+	switch access {
+	case "admin":
+		return ""
+	case "write":
+		return "-w"
+	case "readwrite":
+		return "-rw"
+	default:
+		return "-r"
+	}
+}

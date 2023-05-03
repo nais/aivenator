@@ -61,7 +61,7 @@ func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication,
 		return utils.AivenFail("GetService", application, err, logger)
 	}
 
-	serviceUserName := fmt.Sprintf("%s%s", application.GetNamespace(), selectSuffix(spec.Access))
+	serviceUserName := fmt.Sprintf("%s%s", application.GetNamespace(), utils.SelectSuffix(spec.Access))
 
 	aivenUser, err := h.serviceuser.Get(serviceUserName, h.projectName, serviceName, logger)
 	if err != nil {
@@ -85,17 +85,4 @@ func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication,
 
 func (h OpenSearchHandler) Cleanup(_ *v1.Secret, _ *log.Entry) error {
 	return nil
-}
-
-func selectSuffix(access string) string {
-	switch access {
-	case "admin":
-		return ""
-	case "write":
-		return "-w"
-	case "readwrite":
-		return "-rw"
-	default:
-		return "-r"
-	}
 }
