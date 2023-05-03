@@ -26,6 +26,7 @@ type ServiceAddresses struct {
 	ServiceURI     string
 	SchemaRegistry string
 	OpenSearch     string
+	Redis          string
 }
 
 func NewManager(service *aiven.ServicesHandler) ServiceManager {
@@ -48,9 +49,10 @@ func (r *Manager) GetServiceAddresses(projectName, serviceName string) (*Service
 			return nil, err
 		}
 		addresses = &ServiceAddresses{
-			ServiceURI:     GetServiceURI(aivenService),
-			OpenSearch:     GetOpenSearchAddress(aivenService),
-			SchemaRegistry: GetSchemaRegistryAddress(aivenService),
+			ServiceURI:     getServiceURI(aivenService),
+			SchemaRegistry: getServiceAddress(aivenService, "schema_registry", "https"),
+			OpenSearch:     getServiceAddress(aivenService, "opensearch", "https"),
+			Redis:          getServiceAddress(aivenService, "redis", "rediss"),
 		}
 		r.addressCache[key] = addresses
 	}
@@ -67,22 +69,14 @@ func (r *Manager) Get(projectName, serviceName string) (*aiven.Service, error) {
 	return service, err
 }
 
-func GetServiceURI(service *aiven.Service) string {
+func getServiceURI(service *aiven.Service) string {
 	return service.URI
 }
 
-func GetSchemaRegistryAddress(service *aiven.Service) string {
-	schemaRegistryComponent := findComponent("schema_registry", service.Components)
-	if schemaRegistryComponent != nil {
-		return fmt.Sprintf("https://%s:%d", schemaRegistryComponent.Host, schemaRegistryComponent.Port)
-	}
-	return ""
-}
-
-func GetOpenSearchAddress(service *aiven.Service) string {
-	openSearchComponent := findComponent("opensearch", service.Components)
-	if openSearchComponent != nil {
-		return fmt.Sprintf("https://%s:%d", openSearchComponent.Host, openSearchComponent.Port)
+func getServiceAddress(service *aiven.Service, componentName, scheme string) string {
+	component := findComponent(componentName, service.Components)
+	if component != nil {
+		return fmt.Sprintf("%s://%s:%d", scheme, component.Host, component.Port)
 	}
 	return ""
 }
