@@ -16,25 +16,25 @@ type ServiceUserManager struct {
 	mock.Mock
 }
 
-// Create provides a mock function with given fields: serviceUserName, projectName, serviceName, logger
-func (_m *ServiceUserManager) Create(serviceUserName string, projectName string, serviceName string, logger *logrus.Entry) (*aiven.ServiceUser, error) {
-	ret := _m.Called(serviceUserName, projectName, serviceName, logger)
+// Create provides a mock function with given fields: serviceUserName, projectName, serviceName, accessControl, logger
+func (_m *ServiceUserManager) Create(serviceUserName string, projectName string, serviceName string, accessControl *aiven.AccessControl, logger *logrus.Entry) (*aiven.ServiceUser, error) {
+	ret := _m.Called(serviceUserName, projectName, serviceName, accessControl, logger)
 
 	var r0 *aiven.ServiceUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, *logrus.Entry) (*aiven.ServiceUser, error)); ok {
-		return rf(serviceUserName, projectName, serviceName, logger)
+	if rf, ok := ret.Get(0).(func(string, string, string, *aiven.AccessControl, *logrus.Entry) (*aiven.ServiceUser, error)); ok {
+		return rf(serviceUserName, projectName, serviceName, accessControl, logger)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, *logrus.Entry) *aiven.ServiceUser); ok {
-		r0 = rf(serviceUserName, projectName, serviceName, logger)
+	if rf, ok := ret.Get(0).(func(string, string, string, *aiven.AccessControl, *logrus.Entry) *aiven.ServiceUser); ok {
+		r0 = rf(serviceUserName, projectName, serviceName, accessControl, logger)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*aiven.ServiceUser)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, *logrus.Entry) error); ok {
-		r1 = rf(serviceUserName, projectName, serviceName, logger)
+	if rf, ok := ret.Get(1).(func(string, string, string, *aiven.AccessControl, *logrus.Entry) error); ok {
+		r1 = rf(serviceUserName, projectName, serviceName, accessControl, logger)
 	} else {
 		r1 = ret.Error(1)
 	}

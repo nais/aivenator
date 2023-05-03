@@ -34,7 +34,7 @@ func NewManager(ctx context.Context, serviceUsers *aiven.ServiceUsersHandler) Se
 }
 
 type ServiceUserManager interface {
-	Create(serviceUserName, projectName, serviceName string, logger *log.Entry) (*aiven.ServiceUser, error)
+	Create(serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger *log.Entry) (*aiven.ServiceUser, error)
 	Get(serviceUserName, projectName, serviceName string, logger *log.Entry) (*aiven.ServiceUser, error)
 	Delete(serviceUserName, projectName, serviceName string, logger *log.Entry) error
 	ObserveServiceUsersCount(projectName, serviceName string, logger *log.Entry)
@@ -140,9 +140,10 @@ func (m *Manager) Delete(serviceUserName, projectName, serviceName string, logge
 	return nil
 }
 
-func (m *Manager) Create(serviceUserName, projectName, serviceName string, logger *log.Entry) (*aiven.ServiceUser, error) {
+func (m *Manager) Create(serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger *log.Entry) (*aiven.ServiceUser, error) {
 	req := aiven.CreateServiceUserRequest{
-		Username: serviceUserName,
+		Username:      serviceUserName,
+		AccessControl: accessControl,
 	}
 
 	var aivenUser *aiven.ServiceUser

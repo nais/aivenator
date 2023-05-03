@@ -180,7 +180,7 @@ func (h KafkaHandler) provideServiceUser(application *aiven_nais_io_v1.AivenAppl
 		return nil, utils.AivenFail("GetServiceUser", application, err, logger)
 	}
 
-	aivenUser, err = h.serviceuser.Create(serviceUserName, projectName, serviceName, logger)
+	aivenUser, err = h.serviceuser.Create(serviceUserName, projectName, serviceName, nil, logger)
 	if err != nil {
 		return nil, utils.AivenFail("CreateServiceUser", application, err, logger)
 	}

@@ -77,7 +77,7 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 			Return(ca, nil)
 	}
 	if _, ok := enabled[ServiceUsersCreate]; ok {
-		suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			Return(&aiven.ServiceUser{
 				Username: serviceUserName,
 			}, nil)
@@ -286,7 +286,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 		Build()
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores, ServiceUsersGetNotFound))
-	suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+	suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
