@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"testing"
 	"time"
 )
 
@@ -20,6 +21,11 @@ const (
 	secretName      = "my-secret"
 	correlationId   = "correlation-id"
 )
+
+func TestSecret(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Secret Suite")
+}
 
 var _ = Describe("secret.Handler", func() {
 	exampleAivenApplication := aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
