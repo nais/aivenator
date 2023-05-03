@@ -13,7 +13,7 @@ import (
 
 var UnrecoverableError = errors.New("UnrecoverableError")
 
-func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, logger *logrus.Entry) error {
+func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, logger logrus.FieldLogger) error {
 	errorMessage := UnwrapAivenError(err)
 	message := fmt.Errorf("operation %s failed in Aiven: %w", operation, errorMessage)
 	logger.Error(message)

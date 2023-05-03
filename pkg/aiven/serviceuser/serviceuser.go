@@ -34,10 +34,10 @@ func NewManager(ctx context.Context, serviceUsers *aiven.ServiceUsersHandler) Se
 }
 
 type ServiceUserManager interface {
-	Create(serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger *log.Entry) (*aiven.ServiceUser, error)
-	Get(serviceUserName, projectName, serviceName string, logger *log.Entry) (*aiven.ServiceUser, error)
-	Delete(serviceUserName, projectName, serviceName string, logger *log.Entry) error
-	ObserveServiceUsersCount(projectName, serviceName string, logger *log.Entry)
+	Create(serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error)
+	Get(serviceUserName, projectName, serviceName string, logger log.FieldLogger) (*aiven.ServiceUser, error)
+	Delete(serviceUserName, projectName, serviceName string, logger log.FieldLogger) error
+	ObserveServiceUsersCount(projectName, serviceName string, logger log.FieldLogger)
 	GetCacheExpiration() time.Duration
 }
 
@@ -56,7 +56,7 @@ func (m *Manager) GetCacheExpiration() time.Duration {
 	return cacheExpiration
 }
 
-func (m *Manager) ObserveServiceUsersCount(projectName, serviceName string, logger *log.Entry) {
+func (m *Manager) ObserveServiceUsersCount(projectName, serviceName string, logger log.FieldLogger) {
 	var users []*aiven.ServiceUser
 	err := metrics.ObserveAivenLatency("ServiceUser_List", projectName, func() error {
 		var err error
@@ -88,7 +88,7 @@ func (m *Manager) countUsersAndUpdateCache(projectName, serviceName string, user
 	return counts
 }
 
-func (m *Manager) Get(serviceUserName, projectName, serviceName string, logger *log.Entry) (*aiven.ServiceUser, error) {
+func (m *Manager) Get(serviceUserName, projectName, serviceName string, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	key := cacheKey{projectName, serviceName, serviceUserName}
 	if val, found := m.serviceUserCache.Get(key); found {
 		logger.Debugf("serviceUserCache hit for %v", key)
@@ -126,7 +126,7 @@ func (m *Manager) Get(serviceUserName, projectName, serviceName string, logger *
 	return aivenUser, nil
 }
 
-func (m *Manager) Delete(serviceUserName, projectName, serviceName string, logger *log.Entry) error {
+func (m *Manager) Delete(serviceUserName, projectName, serviceName string, logger log.FieldLogger) error {
 	err := metrics.ObserveAivenLatency("ServiceUser_Delete", projectName, func() error {
 		var err error
 		err = m.serviceUsers.Delete(projectName, serviceName, serviceUserName)
@@ -140,7 +140,7 @@ func (m *Manager) Delete(serviceUserName, projectName, serviceName string, logge
 	return nil
 }
 
-func (m *Manager) Create(serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger *log.Entry) (*aiven.ServiceUser, error) {
+func (m *Manager) Create(serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	req := aiven.CreateServiceUserRequest{
 		Username:      serviceUserName,
 		AccessControl: accessControl,
