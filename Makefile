@@ -10,9 +10,13 @@ aivenator:
 test:
 	go test ./... -v -count=1 -coverprofile cover.out
 
+check:
+	go run honnef.co/go/tools/cmd/staticcheck ./...
+	go run golang.org/x/vuln/cmd/govulncheck -v ./...
+
 mocks:
-	cd pkg && mockery --all --case snake
-	cd controllers && mockery --all --case snake
+	cd pkg && go run github.com/vektra/mockery/v2 --all --case snake
+	cd controllers && go run github.com/vektra/mockery/v2 --all --case snake
 
 integration_test: kubebuilder
 	echo "*** Make sure to set the environment AIVEN_TOKEN to a valid token ***"
