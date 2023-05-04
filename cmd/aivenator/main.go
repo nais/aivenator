@@ -130,7 +130,7 @@ func main() {
 	}
 	logger.SetLevel(level)
 
-	aivenClient, err := newAivenClient()
+	aivenClient, err := newAivenClient(logger)
 	if err != nil {
 		logger.Errorf("unable to set up aiven client: %s", err)
 		os.Exit(ExitConfig)
@@ -185,7 +185,7 @@ func main() {
 	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
-func newAivenClient() (*aiven.Client, error) {
+func newAivenClient(logger log.FieldLogger) (*aiven.Client, error) {
 	aivenClient, err := aiven.NewTokenClient(viper.GetString(AivenToken), "")
 	if err != nil {
 		return nil, err
@@ -193,7 +193,7 @@ func newAivenClient() (*aiven.Client, error) {
 
 	_, err = aivenClient.Projects.List()
 	if err != nil {
-		return nil, fmt.Errorf("error verifying Aiven connection: %w", utils.UnwrapAivenError(err))
+		return nil, fmt.Errorf("error verifying Aiven connection: %w", utils.UnwrapAivenError(err, logger))
 	}
 	return aivenClient, err
 }
