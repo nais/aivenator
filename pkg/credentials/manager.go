@@ -18,7 +18,7 @@ import (
 )
 
 type Handler interface {
-	Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error
+	Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error
 	Cleanup(secret *v1.Secret, logger *log.Entry) error
 }
 

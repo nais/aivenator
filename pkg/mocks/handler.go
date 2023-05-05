@@ -18,11 +18,11 @@ type Handler struct {
 }
 
 // Apply provides a mock function with given fields: application, secret, logger
-func (_m *Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *logrus.Entry) error {
+func (_m *Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger logrus.FieldLogger) error {
 	ret := _m.Called(application, secret, logger)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*aiven_nais_io_v1.AivenApplication, *v1.Secret, *logrus.Entry) error); ok {
+	if rf, ok := ret.Get(0).(func(*aiven_nais_io_v1.AivenApplication, *v1.Secret, logrus.FieldLogger) error); ok {
 		r0 = rf(application, secret, logger)
 	} else {
 		r0 = ret.Error(0)

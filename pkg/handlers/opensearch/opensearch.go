@@ -42,7 +42,7 @@ type OpenSearchHandler struct {
 	projectName string
 }
 
-func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) error {
+func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
 	logger = logger.WithFields(log.Fields{"handler": "opensearch"})
 	spec := application.Spec.OpenSearch
 	if spec == nil {

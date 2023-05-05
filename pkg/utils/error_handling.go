@@ -48,7 +48,7 @@ func UnwrapAivenError(errorMessage error, logger logrus.FieldLogger) error {
 	return errorMessage
 }
 
-func LocalFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, logger *logrus.Entry) {
+func LocalFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, logger logrus.FieldLogger) {
 	message := fmt.Errorf("operation %s failed: %s", operation, err)
 	logger.Error(message)
 	application.Status.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{

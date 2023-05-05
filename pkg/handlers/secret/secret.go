@@ -23,7 +23,7 @@ const (
 type Handler struct {
 }
 
-func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger *log.Entry) error {
+func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error {
 	secretName := application.Spec.SecretName
 
 	errors := validation.IsDNS1123Label(secretName)
