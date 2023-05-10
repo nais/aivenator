@@ -3,7 +3,7 @@ module github.com/nais/aivenator
 go 1.20
 
 require (
-	github.com/Code-Hex/go-generics-cache v1.3.0
+	github.com/Code-Hex/go-generics-cache v1.3.1
 	github.com/aiven/aiven-go-client v1.14.0
 	github.com/nais/liberator v0.0.0-20230502174148-dde82d2019da
 	github.com/onsi/ginkgo/v2 v2.9.4
