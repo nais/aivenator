@@ -10,6 +10,8 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"regexp"
+	"strings"
 )
 
 // Annotations
@@ -24,6 +26,8 @@ const (
 	RedisPassword = "REDIS_PASSWORD"
 	RedisURI      = "REDIS_URI"
 )
+
+var namePattern = regexp.MustCompile("[^a-z0-9]")
 
 func NewRedisHandler(ctx context.Context, aiven *aiven.Client, projectName string) RedisHandler {
 	return RedisHandler{
@@ -41,55 +45,67 @@ type RedisHandler struct {
 
 func (h RedisHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
 	logger = logger.WithFields(log.Fields{"handler": "redis"})
-	spec := application.Spec.Redis
-	if spec == nil {
+	if len(application.Spec.Redis) == 0 {
 		return nil
 	}
 
-	serviceName := fmt.Sprintf("redis-%s-%s", application.GetNamespace(), spec.Instance)
+	for _, spec := range application.Spec.Redis {
+		serviceName := fmt.Sprintf("redis-%s-%s", application.GetNamespace(), spec.Instance)
 
-	logger = logger.WithFields(log.Fields{
-		"project": h.projectName,
-		"service": serviceName,
-	})
+		logger = logger.WithFields(log.Fields{
+			"project": h.projectName,
+			"service": serviceName,
+		})
 
-	addresses, err := h.service.GetServiceAddresses(h.projectName, serviceName)
-	if err != nil {
-		return utils.AivenFail("GetService", application, err, logger)
-	}
-
-	serviceUserName := fmt.Sprintf("%s%s", application.GetName(), utils.SelectSuffix(spec.Access))
-
-	aivenUser, err := h.serviceuser.Get(serviceUserName, h.projectName, serviceName, logger)
-	if err != nil {
-		if aiven.IsNotFound(err) {
-			accessControl := &aiven.AccessControl{
-				RedisACLCategories: getRedisACLCategories(spec.Access),
-				RedisACLKeys:       []string{"*"},
-				RedisACLChannels:   []string{"*"},
-			}
-			aivenUser, err = h.serviceuser.Create(serviceUserName, h.projectName, serviceName, accessControl, logger)
-			if err != nil {
-				return utils.AivenFail("CreateServiceUser", application, err, logger)
-			}
-		} else {
-			return utils.AivenFail("GetServiceUser", application, err, logger)
+		addresses, err := h.service.GetServiceAddresses(h.projectName, serviceName)
+		if err != nil {
+			return utils.AivenFail("GetService", application, err, logger)
 		}
+
+		serviceUserName := fmt.Sprintf("%s%s", application.GetName(), utils.SelectSuffix(spec.Access))
+
+		aivenUser, err := h.serviceuser.Get(serviceUserName, h.projectName, serviceName, logger)
+		if err != nil {
+			if aiven.IsNotFound(err) {
+				accessControl := &aiven.AccessControl{
+					RedisACLCategories: getRedisACLCategories(spec.Access),
+					RedisACLKeys:       []string{"*"},
+					RedisACLChannels:   []string{"*"},
+				}
+				aivenUser, err = h.serviceuser.Create(serviceUserName, h.projectName, serviceName, accessControl, logger)
+				if err != nil {
+					return utils.AivenFail("CreateServiceUser", application, err, logger)
+				}
+			} else {
+				return utils.AivenFail("GetServiceUser", application, err, logger)
+			}
+		}
+
+		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance), ServiceUserAnnotation)
+
+		secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
+			serviceUserAnnotationKey: aivenUser.Username,
+			ProjectAnnotation:        h.projectName,
+		}))
+		logger.Infof("Fetched service user %s", aivenUser.Username)
+
+		envVarSuffix := envVarName(spec.Instance)
+		secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
+			fmt.Sprintf("%s_%s", RedisUser, envVarSuffix):     aivenUser.Username,
+			fmt.Sprintf("%s_%s", RedisPassword, envVarSuffix): aivenUser.Password,
+			fmt.Sprintf("%s_%s", RedisURI, envVarSuffix):      addresses.Redis,
+		})
 	}
-
-	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
-		ServiceUserAnnotation: aivenUser.Username,
-		ProjectAnnotation:     h.projectName,
-	}))
-	logger.Infof("Fetched service user %s", aivenUser.Username)
-
-	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
-		RedisUser:     aivenUser.Username,
-		RedisPassword: aivenUser.Password,
-		RedisURI:      addresses.Redis,
-	})
 
 	return nil
+}
+
+func keyName(instanceName string) string {
+	return namePattern.ReplaceAllString(instanceName, "_")
+}
+
+func envVarName(instanceName string) string {
+	return strings.ToUpper(keyName(instanceName))
 }
 
 func getRedisACLCategories(access string) []string {

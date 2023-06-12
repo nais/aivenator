@@ -17,14 +17,46 @@ import (
 const (
 	appName         = "test-app"
 	namespace       = "team-a"
-	readUser        = "test-app-r"
 	servicePassword = "service-password"
 	projectName     = "my-project"
-	serviceName     = "redis-team-a-my-instance"
-	serviceURI      = "rediss://example.com:23456"
-	instance        = "my-instance"
-	access          = "read"
 )
+
+type testData struct {
+	instanceName             string
+	serviceName              string
+	serviceURI               string
+	access                   string
+	username                 string
+	serviceUserAnnotationKey string
+	usernameKey              string
+	passwordKey              string
+	uriKey                   string
+}
+
+var testInstances = []testData{
+	{
+		instanceName:             "my-instance1",
+		serviceName:              "redis-team-a-my-instance1",
+		serviceURI:               "rediss://my-instance1.example.com:23456",
+		access:                   "read",
+		username:                 "test-app-r",
+		serviceUserAnnotationKey: "my_instance1.redis.aiven.nais.io/serviceUser",
+		usernameKey:              "REDIS_USERNAME_MY_INSTANCE1",
+		passwordKey:              "REDIS_PASSWORD_MY_INSTANCE1",
+		uriKey:                   "REDIS_URI_MY_INSTANCE1",
+	},
+	{
+		instanceName:             "session-store",
+		serviceName:              "redis-team-a-session-store",
+		serviceURI:               "rediss://session-store.example.com:23456",
+		access:                   "readwrite",
+		username:                 "test-app-rw",
+		serviceUserAnnotationKey: "session_store.redis.aiven.nais.io/serviceUser",
+		usernameKey:              "REDIS_USERNAME_SESSION_STORE",
+		passwordKey:              "REDIS_PASSWORD_SESSION_STORE",
+		uriKey:                   "REDIS_URI_SESSION_STORE",
+	},
+}
 
 type mockContainer struct {
 	serviceUserManager *aivenator_mocks.ServiceUserManager
@@ -44,10 +76,10 @@ var _ = Describe("redis.Handler", func() {
 	var redisHandler RedisHandler
 	var mocks mockContainer
 
-	defaultServiceManagerMock := func() {
-		mocks.serviceManager.On("GetServiceAddresses", projectName, serviceName).
+	defaultServiceManagerMock := func(data testData) {
+		mocks.serviceManager.On("GetServiceAddresses", projectName, data.serviceName).
 			Return(&service.ServiceAddresses{
-				Redis: serviceURI,
+				Redis: data.serviceURI,
 			}, nil)
 	}
 
@@ -81,19 +113,23 @@ var _ = Describe("redis.Handler", func() {
 	})
 
 	When("it receives a spec with Redis requested", func() {
+		data := testInstances[0]
+
 		BeforeEach(func() {
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					Redis: &aiven_nais_io_v1.RedisSpec{
-						Instance: instance,
-						Access:   access,
+					Redis: []*aiven_nais_io_v1.RedisSpec{
+						{
+							Instance: data.instanceName,
+							Access:   data.access,
+						},
 					}}).
 				Build()
 		})
 
 		Context("and the service is unavailable", func() {
 			BeforeEach(func() {
-				mocks.serviceManager.On("GetServiceAddresses", projectName, serviceName).
+				mocks.serviceManager.On("GetServiceAddresses", projectName, data.serviceName).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
 						MoreInfo: "aiven-more-info",
@@ -111,8 +147,8 @@ var _ = Describe("redis.Handler", func() {
 
 		Context("and service users are unavailable", func() {
 			BeforeEach(func() {
-				defaultServiceManagerMock()
-				mocks.serviceUserManager.On("Get", readUser, projectName, serviceName, mock.Anything).
+				defaultServiceManagerMock(data)
+				mocks.serviceUserManager.On("Get", data.username, projectName, data.serviceName, mock.Anything).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
 						MoreInfo: "aiven-more-info",
@@ -130,12 +166,16 @@ var _ = Describe("redis.Handler", func() {
 	})
 
 	When("it receives a spec", func() {
+		data := testInstances[0]
+
 		BeforeEach(func() {
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					Redis: &aiven_nais_io_v1.RedisSpec{
-						Instance: instance,
-						Access:   access,
+					Redis: []*aiven_nais_io_v1.RedisSpec{
+						{
+							Instance: data.instanceName,
+							Access:   data.access,
+						},
 					}}).
 				Build()
 		})
@@ -144,18 +184,18 @@ var _ = Describe("redis.Handler", func() {
 			GinkgoHelper()
 			Expect(err).To(Succeed())
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ServiceUserAnnotation, readUser))
-			Expect(secret.StringData).To(HaveKeyWithValue(RedisUser, readUser))
-			Expect(secret.StringData).To(HaveKeyWithValue(RedisPassword, servicePassword))
-			Expect(secret.StringData).To(HaveKeyWithValue(RedisURI, serviceURI))
+			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
 		}
 
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
-				defaultServiceManagerMock()
-				mocks.serviceUserManager.On("Get", readUser, projectName, serviceName, mock.Anything).
+				defaultServiceManagerMock(data)
+				mocks.serviceUserManager.On("Get", data.username, projectName, data.serviceName, mock.Anything).
 					Return(&aiven.ServiceUser{
-						Username: readUser,
+						Username: data.username,
 						Password: servicePassword,
 					}, nil)
 			})
@@ -168,20 +208,20 @@ var _ = Describe("redis.Handler", func() {
 
 		Context("and the service user doesn't exist", func() {
 			BeforeEach(func() {
-				defaultServiceManagerMock()
-				mocks.serviceUserManager.On("Get", readUser, projectName, serviceName, mock.Anything).
+				defaultServiceManagerMock(data)
+				mocks.serviceUserManager.On("Get", data.username, projectName, data.serviceName, mock.Anything).
 					Return(nil, aiven.Error{
 						Message: "Service user does not exist",
 						Status:  404,
 					})
 				accessControl := &aiven.AccessControl{
-					RedisACLCategories: getRedisACLCategories(access),
+					RedisACLCategories: getRedisACLCategories(data.access),
 					RedisACLKeys:       []string{"*"},
 					RedisACLChannels:   []string{"*"},
 				}
-				mocks.serviceUserManager.On("Create", readUser, projectName, serviceName, accessControl, mock.Anything).
+				mocks.serviceUserManager.On("Create", data.username, projectName, data.serviceName, accessControl, mock.Anything).
 					Return(&aiven.ServiceUser{
-						Username: readUser,
+						Username: data.username,
 						Password: servicePassword,
 					}, nil)
 			})
@@ -189,6 +229,83 @@ var _ = Describe("redis.Handler", func() {
 			It("creates the new user and returns credentials for the new user", func() {
 				err := redisHandler.Apply(&application, &secret, logger)
 				assertHappy(&secret, err)
+			})
+		})
+	})
+
+	When("it receives a spec with multiple instances", func() {
+		BeforeEach(func() {
+			var specs []*aiven_nais_io_v1.RedisSpec
+			for _, data := range testInstances {
+				specs = append(specs, &aiven_nais_io_v1.RedisSpec{
+					Instance: data.instanceName,
+					Access:   data.access,
+				})
+			}
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Redis: specs,
+				}).
+				Build()
+		})
+
+		assertHappy := func(secret *v1.Secret, data testData, err error) {
+			GinkgoHelper()
+			Expect(err).To(Succeed())
+			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
+			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
+		}
+
+		Context("and the service user already exists", func() {
+			BeforeEach(func() {
+				for _, data := range testInstances {
+					defaultServiceManagerMock(data)
+					mocks.serviceUserManager.On("Get", data.username, projectName, data.serviceName, mock.Anything).
+						Return(&aiven.ServiceUser{
+							Username: data.username,
+							Password: servicePassword,
+						}, nil)
+				}
+			})
+
+			It("uses the existing user", func() {
+				err := redisHandler.Apply(&application, &secret, logger)
+				for _, data := range testInstances {
+					assertHappy(&secret, data, err)
+				}
+			})
+		})
+
+		Context("and the service user doesn't exist", func() {
+			BeforeEach(func() {
+				for _, data := range testInstances {
+					defaultServiceManagerMock(data)
+					mocks.serviceUserManager.On("Get", data.username, projectName, data.serviceName, mock.Anything).
+						Return(nil, aiven.Error{
+							Message: "Service user does not exist",
+							Status:  404,
+						})
+					accessControl := &aiven.AccessControl{
+						RedisACLCategories: getRedisACLCategories(data.access),
+						RedisACLKeys:       []string{"*"},
+						RedisACLChannels:   []string{"*"},
+					}
+					mocks.serviceUserManager.On("Create", data.username, projectName, data.serviceName, accessControl, mock.Anything).
+						Return(&aiven.ServiceUser{
+							Username: data.username,
+							Password: servicePassword,
+						}, nil)
+				}
+			})
+
+			It("creates the new user and returns credentials for the new user", func() {
+				err := redisHandler.Apply(&application, &secret, logger)
+				for _, data := range testInstances {
+					assertHappy(&secret, data, err)
+				}
 			})
 		})
 	})
