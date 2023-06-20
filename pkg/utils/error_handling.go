@@ -28,7 +28,7 @@ func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication,
 }
 
 func UnwrapAivenError(errorMessage error, logger logrus.FieldLogger, notFoundIsRecoverable bool) error {
-	var aivenErr *aiven.Error
+	aivenErr := &aiven.Error{}
 	if ok := errors.As(errorMessage, aivenErr); ok {
 		apiMessage := struct {
 			Message string `json:"message"`
