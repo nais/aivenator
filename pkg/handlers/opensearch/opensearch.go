@@ -58,14 +58,14 @@ func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication,
 
 	addresses, err := h.service.GetServiceAddresses(h.projectName, serviceName)
 	if err != nil {
-		return utils.AivenFail("GetService", application, err, logger)
+		return utils.AivenFail("GetService", application, err, false, logger)
 	}
 
 	serviceUserName := fmt.Sprintf("%s%s", application.GetNamespace(), utils.SelectSuffix(spec.Access))
 
 	aivenUser, err := h.serviceuser.Get(serviceUserName, h.projectName, serviceName, logger)
 	if err != nil {
-		return utils.AivenFail("GetServiceUser", application, err, logger)
+		return utils.AivenFail("GetServiceUser", application, err, false, logger)
 	}
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{

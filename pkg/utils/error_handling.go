@@ -12,9 +12,10 @@ import (
 )
 
 var UnrecoverableError = errors.New("UnrecoverableError")
+var NotFoundError = errors.New("NotFoundError")
 
-func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, logger logrus.FieldLogger) error {
-	errorMessage := UnwrapAivenError(err, logger)
+func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, notFoundIsRecoverable bool, logger logrus.FieldLogger) error {
+	errorMessage := UnwrapAivenError(err, logger, notFoundIsRecoverable)
 	message := fmt.Errorf("operation %s failed in Aiven: %w", operation, errorMessage)
 	logger.Error(message)
 	application.Status.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
@@ -26,8 +27,9 @@ func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication,
 	return message
 }
 
-func UnwrapAivenError(errorMessage error, logger logrus.FieldLogger) error {
-	if aivenErr, ok := errorMessage.(aiven.Error); ok {
+func UnwrapAivenError(errorMessage error, logger logrus.FieldLogger, notFoundIsRecoverable bool) error {
+	var aivenErr *aiven.Error
+	if ok := errors.As(errorMessage, aivenErr); ok {
 		apiMessage := struct {
 			Message string `json:"message"`
 		}{}
@@ -38,6 +40,9 @@ func UnwrapAivenError(errorMessage error, logger logrus.FieldLogger) error {
 			message = aivenErr.Error()
 		} else {
 			message = apiMessage.Message
+		}
+		if aiven.IsNotFound(aivenErr) && notFoundIsRecoverable {
+			return fmt.Errorf("%s: %w", message, NotFoundError)
 		}
 		if 400 <= aivenErr.Status && aivenErr.Status < 500 {
 			return fmt.Errorf("%s: %w", message, UnrecoverableError)

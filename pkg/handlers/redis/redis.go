@@ -59,7 +59,7 @@ func (h RedisHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 
 		addresses, err := h.service.GetServiceAddresses(h.projectName, serviceName)
 		if err != nil {
-			return utils.AivenFail("GetService", application, err, logger)
+			return utils.AivenFail("GetService", application, err, true, logger)
 		}
 
 		serviceUserName := fmt.Sprintf("%s%s", application.GetName(), utils.SelectSuffix(spec.Access))
@@ -74,10 +74,10 @@ func (h RedisHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 				}
 				aivenUser, err = h.serviceuser.Create(serviceUserName, h.projectName, serviceName, accessControl, logger)
 				if err != nil {
-					return utils.AivenFail("CreateServiceUser", application, err, logger)
+					return utils.AivenFail("CreateServiceUser", application, err, false, logger)
 				}
 			} else {
-				return utils.AivenFail("GetServiceUser", application, err, logger)
+				return utils.AivenFail("GetServiceUser", application, err, false, logger)
 			}
 		}
 

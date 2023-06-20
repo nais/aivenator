@@ -193,7 +193,7 @@ func newAivenClient(logger log.FieldLogger) (*aiven.Client, error) {
 
 	_, err = aivenClient.Projects.List()
 	if err != nil {
-		return nil, fmt.Errorf("error verifying Aiven connection: %w", utils.UnwrapAivenError(err, logger))
+		return nil, fmt.Errorf("error verifying Aiven connection: %w", utils.UnwrapAivenError(err, logger, false))
 	}
 	return aivenClient, err
 }

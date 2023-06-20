@@ -75,7 +75,9 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		application.Status.SynchronizationState = rolloutFailed
 		cr := ctrl.Result{}
 
-		if !errors.Is(err, utils.UnrecoverableError) {
+		if errors.Is(err, utils.NotFoundError) {
+			cr.RequeueAfter = requeueInterval * 10
+		} else if !errors.Is(err, utils.UnrecoverableError) {
 			cr.RequeueAfter = requeueInterval
 		}
 

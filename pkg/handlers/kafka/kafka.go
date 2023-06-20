@@ -85,7 +85,7 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 
 	serviceName, err := h.nameResolver.ResolveKafkaServiceName(application.Spec.Kafka.Pool)
 	if err != nil {
-		return utils.AivenFail("ResolveServiceName", application, err, logger)
+		return utils.AivenFail("ResolveServiceName", application, err, false, logger)
 	}
 
 	logger = logger.WithFields(log.Fields{
@@ -101,12 +101,12 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 
 	addresses, err := h.service.GetServiceAddresses(projectName, serviceName)
 	if err != nil {
-		return utils.AivenFail("GetService", application, err, logger)
+		return utils.AivenFail("GetService", application, err, false, logger)
 	}
 
 	ca, err := h.project.GetCA(projectName)
 	if err != nil {
-		return utils.AivenFail("GetCA", application, err, logger)
+		return utils.AivenFail("GetCA", application, err, false, logger)
 	}
 
 	aivenUser, err := h.provideServiceUser(application, projectName, serviceName, secret, logger)
@@ -177,12 +177,12 @@ func (h KafkaHandler) provideServiceUser(application *aiven_nais_io_v1.AivenAppl
 		return aivenUser, nil
 	}
 	if !aiven.IsNotFound(err) {
-		return nil, utils.AivenFail("GetServiceUser", application, err, logger)
+		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
 	}
 
 	aivenUser, err = h.serviceuser.Create(serviceUserName, projectName, serviceName, nil, logger)
 	if err != nil {
-		return nil, utils.AivenFail("CreateServiceUser", application, err, logger)
+		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 	}
 	return aivenUser, nil
 }
