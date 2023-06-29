@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.3.1
-	github.com/aiven/aiven-go-client v1.20.0
+	github.com/aiven/aiven-go-client v1.21.0
 	github.com/nais/liberator v0.0.0-20230612133405-135b997d7e56
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.8
