@@ -27,6 +27,7 @@ type ServiceAddresses struct {
 	SchemaRegistry string
 	OpenSearch     string
 	Redis          string
+	InfluxDB       string
 }
 
 func NewManager(service *aiven.ServicesHandler) ServiceManager {
@@ -53,6 +54,7 @@ func (r *Manager) GetServiceAddresses(projectName, serviceName string) (*Service
 			SchemaRegistry: getServiceAddress(aivenService, "schema_registry", "https"),
 			OpenSearch:     getServiceAddress(aivenService, "opensearch", "https"),
 			Redis:          getServiceAddress(aivenService, "redis", "rediss"),
+			InfluxDB:       getServiceAddress(aivenService, "influxdb", "https+influxdb"),
 		}
 		r.addressCache[key] = addresses
 	}
