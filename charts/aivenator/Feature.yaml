@@ -1,0 +1,85 @@
+dependencies:
+  - allOf:
+      - replicator
+environmentKinds:
+  - tenant
+  - onprem
+  - legacy
+values:
+  aiven.cidrs:
+    description: List of additional CIDRs for other Aiven project VPCs
+    displayName: Additional Aiven VPC CIDRs
+    config:
+      type: string_array
+    ignoreKind:
+      - onprem
+  aiven.mainCidr:
+    displayName: CIDR for main Aiven project VPC
+    computed:
+      template: '"{{.Env.aiven_vpc_cidr}}"'
+    ignoreKind:
+      - onprem
+  aiven.mainProject:
+    description: Main Aiven project for services that only support one
+    computed:
+      template: '"{{.Env.aiven_project}}"'
+    config:
+      type: string
+  aiven.projects:
+    description: Aiven projects (space separated) with Kafka enabled for this instance of aivenator
+    computed:
+      template: '"{{.Env.aiven_project}}"'
+    config:
+      type: string
+  aiven.serviceUserLimit:
+    description: The limit on the number of Service Users in the main project (set by Aiven)
+    displayName: Service User limit
+    config:
+      type: int
+  aiven.token:
+    description: An API-token with full access to the relevant projects
+    displayName: Aiven API-token
+    config:
+      type: string
+      secret: true
+  caBundle:
+    description: Enable CA bundle for Aiven API
+    displayName: Enable CA bundle
+    computed:
+      template: "true"
+    ignoreKind:
+      - tenant
+  clusterName:
+    computed:
+      template: '"{{.Env.name}}"'
+  extraEnv.HTTPS_PROXY:
+    displayName: HTTPS proxy
+    config:
+      type: string
+    ignoreKind:
+      - tenant
+  extraEnv.NO_PROXY:
+    displayName: NO_PROXY
+    config:
+      type: string
+    ignoreKind:
+      - tenant
+  image.pullPolicy:
+    config:
+      type: string
+  image.repository:
+    config:
+      type: string
+  image.tag:
+    config:
+      type: string
+  replicationConfig:
+    description: Replicate common resources (e.g. NetworkPolicies) to all namespaces
+    displayName: Enable ReplicationConfig
+    computed:
+      template: "true"
+    ignoreKind:
+      - onprem
+  tenant:
+    computed:
+      template: '"{{.Tenant.Name}}"'

@@ -2,6 +2,7 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# Github workflow will set .image.tag to the built version before packaging
 image:
   repository: europe-north1-docker.pkg.dev/nais-io/nais/images/aivenator
   pullPolicy: Always
