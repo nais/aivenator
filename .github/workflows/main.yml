@@ -94,5 +94,5 @@ jobs:
       - uses: nais/fasit-deploy@v2
         with:
           chart: oci://${{ env.GOOGLE_REGISTRY }}/nais-io/nais/feature/aivenator
-          version: ${{ steps.build.outputs.version }}
+          version: ${{ needs.build.outputs.version }}
           feature_name: aivenator
