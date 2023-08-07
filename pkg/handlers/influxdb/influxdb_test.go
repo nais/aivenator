@@ -34,7 +34,7 @@ type testData struct {
 var testInstance = testData{
 	instanceName:             "influx-team-a",
 	serviceURI:               "https+influxdb://influx-team-a.example.com:23456",
-	username:                 "team-a",
+	username:                 "avnadmin",
 	serviceUserAnnotationKey: "influxdb.aiven.nais.io/serviceUser",
 	usernameKey:              "INFLUXDB_USERNAME",
 	passwordKey:              "INFLUXDB_PASSWORD",

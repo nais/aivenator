@@ -15,6 +15,7 @@ import (
 const (
 	ServiceUserAnnotation = "influxdb.aiven.nais.io/serviceUser"
 	ProjectAnnotation     = "influxdb.aiven.nais.io/project"
+	ServiceUserName       = "avnadmin"
 )
 
 // Environment variables
@@ -46,7 +47,6 @@ func (h InfluxDBHandler) Apply(application *aiven_nais_io_v1.AivenApplication, s
 
 	spec := application.Spec.InfluxDB
 	serviceName := spec.Instance
-	serviceUserName := application.GetNamespace()
 
 	logger = logger.WithFields(log.Fields{
 		"project": h.projectName,
@@ -58,10 +58,10 @@ func (h InfluxDBHandler) Apply(application *aiven_nais_io_v1.AivenApplication, s
 		return utils.AivenFail("GetService", application, err, true, logger)
 	}
 
-	aivenUser, err := h.serviceuser.Get(serviceUserName, h.projectName, serviceName, logger)
+	aivenUser, err := h.serviceuser.Get(ServiceUserName, h.projectName, serviceName, logger)
 	if err != nil {
 		if aiven.IsNotFound(err) {
-			aivenUser, err = h.serviceuser.Create(serviceUserName, h.projectName, serviceName, nil, logger)
+			aivenUser, err = h.serviceuser.Create(ServiceUserName, h.projectName, serviceName, nil, logger)
 			if err != nil {
 				return utils.AivenFail("CreateServiceUser", application, err, false, logger)
 			}

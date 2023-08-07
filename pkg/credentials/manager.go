@@ -3,6 +3,7 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"github.com/nais/aivenator/pkg/handlers/influxdb"
 	"github.com/nais/aivenator/pkg/handlers/redis"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,6 +35,7 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
 			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
 			redis.NewRedisHandler(ctx, aiven, mainProjectName),
+			influxdb.NewInfluxDBHandler(ctx, aiven, mainProjectName),
 		},
 	}
 }
