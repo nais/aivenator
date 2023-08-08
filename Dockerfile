@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM --platform=$BUILDPLATFORM cgr.dev/chainguard/go:1.20 as builder
+FROM --platform=$BUILDPLATFORM golang:1.20 as builder
 
 # download kubebuilder and extract it to tmp
 ARG BUILDOS BUILDARCH
@@ -35,7 +35,7 @@ RUN make test
 # Build
 RUN CGO_ENABLED=0 go build -a -installsuffix cgo -o aivenator cmd/aivenator/main.go
 
-FROM cgr.dev/chainguard/static
+FROM gcr.io/distroless/static-debian11
 WORKDIR /
 COPY --from=builder /workspace/aivenator /aivenator
 
