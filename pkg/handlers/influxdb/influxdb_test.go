@@ -10,40 +10,27 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/mock"
 	v1 "k8s.io/api/core/v1"
 )
 
 const (
-	appName         = "test-app"
-	namespace       = "team-a"
-	servicePassword = "service-password"
-	projectName     = "my-project"
+	appName                  = "test-app"
+	namespace                = "team-a"
+	projectName              = "my-project"
+	instanceName             = "influx-team-a"
+	serviceURI               = "https+influxdb://influx-team-a.example.com:23456"
+	servicePassword          = "service-password"
+	serviceUserName          = "avnadmin"
+	serviceDbName            = "defaultdb"
+	serviceUserAnnotationKey = "influxdb.aiven.nais.io/serviceUser"
+	usernameKey              = "INFLUXDB_USERNAME"
+	passwordKey              = "INFLUXDB_PASSWORD"
+	uriKey                   = "INFLUXDB_URI"
+	dbnameKey                = "INFLUXDB_NAME"
 )
 
-type testData struct {
-	instanceName             string
-	serviceURI               string
-	username                 string
-	serviceUserAnnotationKey string
-	usernameKey              string
-	passwordKey              string
-	uriKey                   string
-}
-
-var testInstance = testData{
-	instanceName:             "influx-team-a",
-	serviceURI:               "https+influxdb://influx-team-a.example.com:23456",
-	username:                 "avnadmin",
-	serviceUserAnnotationKey: "influxdb.aiven.nais.io/serviceUser",
-	usernameKey:              "INFLUXDB_USERNAME",
-	passwordKey:              "INFLUXDB_PASSWORD",
-	uriKey:                   "INFLUXDB_URI",
-}
-
 type mockContainer struct {
-	serviceUserManager *aivenator_mocks.ServiceUserManager
-	serviceManager     *aivenator_mocks.ServiceManager
+	serviceManager *aivenator_mocks.ServiceManager
 }
 
 func TestInfluxDB(t *testing.T) {
@@ -59,13 +46,6 @@ var _ = Describe("influxdb.Handler", func() {
 	var influxdbHandler InfluxDBHandler
 	var mocks mockContainer
 
-	defaultServiceManagerMock := func(data testData) {
-		mocks.serviceManager.On("GetServiceAddresses", projectName, data.instanceName).
-			Return(&service.ServiceAddresses{
-				InfluxDB: data.serviceURI,
-			}, nil)
-	}
-
 	BeforeEach(func() {
 		root := log.New()
 		root.Out = GinkgoWriter
@@ -73,11 +53,9 @@ var _ = Describe("influxdb.Handler", func() {
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
 		secret = v1.Secret{}
 		mocks = mockContainer{
-			serviceUserManager: aivenator_mocks.NewServiceUserManager(GinkgoT()),
-			serviceManager:     aivenator_mocks.NewServiceManager(GinkgoT()),
+			serviceManager: aivenator_mocks.NewServiceManager(GinkgoT()),
 		}
 		influxdbHandler = InfluxDBHandler{
-			serviceuser: mocks.serviceUserManager,
 			service:     mocks.serviceManager,
 			projectName: projectName,
 		}
@@ -100,14 +78,14 @@ var _ = Describe("influxdb.Handler", func() {
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					InfluxDB: &aiven_nais_io_v1.InfluxDBSpec{
-						Instance: testInstance.instanceName,
+						Instance: instanceName,
 					}}).
 				Build()
 		})
 
-		Context("and the service is unavailable", func() {
+		Context("and the service is unavailable when fetching addresses", func() {
 			BeforeEach(func() {
-				mocks.serviceManager.On("GetServiceAddresses", projectName, testInstance.instanceName).
+				mocks.serviceManager.On("GetServiceAddresses", projectName, instanceName).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
 						MoreInfo: "aiven-more-info",
@@ -123,10 +101,14 @@ var _ = Describe("influxdb.Handler", func() {
 			})
 		})
 
-		Context("and service users are unavailable", func() {
+		Context("and the service is unavailable when fetching the service", func() {
 			BeforeEach(func() {
-				defaultServiceManagerMock(testInstance)
-				mocks.serviceUserManager.On("Get", testInstance.username, projectName, testInstance.instanceName, mock.Anything).
+				mocks.serviceManager.On("GetServiceAddresses", projectName, instanceName).
+					Return(&service.ServiceAddresses{
+						InfluxDB: serviceURI,
+					}, nil)
+
+				mocks.serviceManager.On("Get", projectName, instanceName).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
 						MoreInfo: "aiven-more-info",
@@ -137,7 +119,7 @@ var _ = Describe("influxdb.Handler", func() {
 			It("sets the correct aiven fail condition", func() {
 				err := influxdbHandler.Apply(&application, &secret, logger)
 				Expect(err).ToNot(Succeed())
-				Expect(err).To(MatchError("operation GetServiceUser failed in Aiven: 500: aiven-error - aiven-more-info"))
+				Expect(err).To(MatchError("operation GetService failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 			})
 		})
@@ -148,57 +130,35 @@ var _ = Describe("influxdb.Handler", func() {
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					InfluxDB: &aiven_nais_io_v1.InfluxDBSpec{
-						Instance: testInstance.instanceName,
+						Instance: instanceName,
 					}}).
 				Build()
+
+			mocks.serviceManager.On("Get", projectName, instanceName).
+				Return(&aiven.Service{
+					ConnectionInfo: aiven.ConnectionInfo{
+						InfluxDBDatabaseName: serviceDbName,
+						InfluxDBUsername:     serviceUserName,
+						InfluxDBPassword:     servicePassword,
+					},
+				}, nil)
+
+			mocks.serviceManager.On("GetServiceAddresses", projectName, instanceName).
+				Return(&service.ServiceAddresses{
+					InfluxDB: serviceURI,
+				}, nil)
 		})
 
-		assertHappy := func(secret *v1.Secret, err error) {
-			GinkgoHelper()
+		It("uses the avnadmin user", func() {
+			err := influxdbHandler.Apply(&application, &secret, logger)
+
 			Expect(err).To(Succeed())
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(testInstance.serviceUserAnnotationKey, testInstance.username))
-			Expect(secret.StringData).To(HaveKeyWithValue(testInstance.usernameKey, testInstance.username))
-			Expect(secret.StringData).To(HaveKeyWithValue(testInstance.passwordKey, servicePassword))
-			Expect(secret.StringData).To(HaveKeyWithValue(testInstance.uriKey, testInstance.serviceURI))
-		}
-
-		Context("and the service user already exists", func() {
-			BeforeEach(func() {
-				defaultServiceManagerMock(testInstance)
-				mocks.serviceUserManager.On("Get", testInstance.username, projectName, testInstance.instanceName, mock.Anything).
-					Return(&aiven.ServiceUser{
-						Username: testInstance.username,
-						Password: servicePassword,
-					}, nil)
-			})
-
-			It("uses the existing user", func() {
-				err := influxdbHandler.Apply(&application, &secret, logger)
-				assertHappy(&secret, err)
-			})
-		})
-
-		Context("and the service user doesn't exist", func() {
-			BeforeEach(func() {
-				defaultServiceManagerMock(testInstance)
-				mocks.serviceUserManager.On("Get", testInstance.username, projectName, testInstance.instanceName, mock.Anything).
-					Return(nil, aiven.Error{
-						Message: "Service user does not exist",
-						Status:  404,
-					})
-				var accessControl *aiven.AccessControl
-				mocks.serviceUserManager.On("Create", testInstance.username, projectName, testInstance.instanceName, accessControl, mock.Anything).
-					Return(&aiven.ServiceUser{
-						Username: testInstance.username,
-						Password: servicePassword,
-					}, nil)
-			})
-
-			It("creates the new user and returns credentials for the new user", func() {
-				err := influxdbHandler.Apply(&application, &secret, logger)
-				assertHappy(&secret, err)
-			})
+			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(serviceUserAnnotationKey, serviceUserName))
+			Expect(secret.StringData).To(HaveKeyWithValue(usernameKey, serviceUserName))
+			Expect(secret.StringData).To(HaveKeyWithValue(passwordKey, servicePassword))
+			Expect(secret.StringData).To(HaveKeyWithValue(uriKey, serviceURI))
+			Expect(secret.StringData).To(HaveKeyWithValue(dbnameKey, serviceDbName))
 		})
 	})
 })
