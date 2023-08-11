@@ -1,9 +1,9 @@
-package secret_test
+package secret
 
 import (
 	"errors"
 	"github.com/nais/aivenator/constants"
-	"github.com/nais/aivenator/pkg/handlers/secret"
+	"github.com/nais/aivenator/pkg/mocks"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
@@ -19,7 +19,9 @@ const (
 	namespace       = "ns"
 	applicationName = "app"
 	secretName      = "my-secret"
+	projectName     = "test-project"
 	correlationId   = "correlation-id"
+	projectCA       = "==== PROJECT CA ===="
 )
 
 func TestSecret(t *testing.T) {
@@ -31,7 +33,8 @@ var _ = Describe("secret.Handler", func() {
 	exampleAivenApplication := aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 		Build()
-	var handler secret.Handler
+	var handler Handler
+	var mockProjects *mocks.ProjectManager
 
 	type args struct {
 		application aiven_nais_io_v1.AivenApplication
@@ -40,7 +43,12 @@ var _ = Describe("secret.Handler", func() {
 	}
 
 	BeforeEach(func() {
-		handler = secret.Handler{}
+		mockProjects = mocks.NewProjectManager(GinkgoT())
+		mockProjects.On("GetCA", projectName).Return(projectCA, nil).Maybe()
+		handler = Handler{
+			mockProjects,
+			projectName,
+		}
 	})
 
 	DescribeTable("correctly handles", func(args args) {
@@ -113,11 +121,20 @@ var _ = Describe("secret.Handler", func() {
 		s := corev1.Secret{}
 		err := handler.Apply(&exampleAivenApplication, &s, nil)
 		Expect(err).To(Succeed())
-		value := s.StringData[secret.AivenSecretUpdatedKey]
+		value := s.StringData[AivenSecretUpdatedKey]
 		timestamp, err := time.Parse(time.RFC3339, value)
 		Expect(err).To(Succeed())
 
 		Expect(timestamp).To(BeTemporally("~", time.Now(), 10*time.Second))
+	})
+
+	It("adds project CA to secret data", func() {
+		s := corev1.Secret{}
+		err := handler.Apply(&exampleAivenApplication, &s, nil)
+		Expect(err).To(Succeed())
+		value := s.StringData[AivenCAKey]
+
+		Expect(value).To(Equal(projectCA))
 	})
 
 	DescribeTable("returns unrecoverable errors for invalid secret name:", func(secretName string) {

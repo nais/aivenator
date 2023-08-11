@@ -2,6 +2,8 @@ package secret
 
 import (
 	"fmt"
+	"github.com/aiven/aiven-go-client"
+	"github.com/nais/aivenator/pkg/aiven/project"
 	"strconv"
 	"time"
 
@@ -18,9 +20,19 @@ import (
 
 const (
 	AivenSecretUpdatedKey = "AIVEN_SECRET_UPDATED"
+	AivenCAKey            = "AIVEN_CA"
 )
 
 type Handler struct {
+	project     project.ProjectManager
+	projectName string
+}
+
+func NewHandler(aiven *aiven.Client, projectName string) Handler {
+	return Handler{
+		project:     project.NewManager(aiven.CA),
+		projectName: projectName,
+	}
 }
 
 func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error {
@@ -35,8 +47,14 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *c
 
 	updateObjectMeta(application, &secret.ObjectMeta)
 
+	projectCa, err := s.project.GetCA(s.projectName)
+	if err != nil {
+		return fmt.Errorf("unable to get project CA: %w", err)
+	}
+
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
+		AivenCAKey:            projectCa,
 	})
 
 	return nil

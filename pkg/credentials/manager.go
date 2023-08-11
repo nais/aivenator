@@ -31,7 +31,7 @@ type Manager struct {
 func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger *log.Entry) Manager {
 	return Manager{
 		handlers: []Handler{
-			secret.Handler{},
+			secret.NewHandler(aiven, mainProjectName),
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
 			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
 			redis.NewRedisHandler(ctx, aiven, mainProjectName),
