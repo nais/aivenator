@@ -15,7 +15,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/vektra/mockery/v2 v2.32.4
 	golang.org/x/vuln v1.0.0
-	honnef.co/go/tools v0.4.3
+	honnef.co/go/tools v0.4.5
 	k8s.io/api v0.27.2
 	k8s.io/apimachinery v0.27.2
 	k8s.io/client-go v0.27.2
@@ -91,7 +91,7 @@ require (
 	golang.org/x/term v0.10.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.9.3 // indirect
+	golang.org/x/tools v0.9.4-0.20230601214343-86c93e8732cc // indirect
 	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
