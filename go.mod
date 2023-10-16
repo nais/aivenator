@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.3.1
-	github.com/aiven/aiven-go-client v1.36.0
+	github.com/aiven/aiven-go-client/v2 v2.1.0
 	github.com/nais/liberator v0.0.0-20230803132608-99794719bc65
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.28.0
@@ -26,6 +26,7 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
+	github.com/aiven/aiven-go-client v1.36.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chigopher/pathlib v1.0.0 // indirect

@@ -1,6 +1,7 @@
 package secret
 
 import (
+	"context"
 	"errors"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/mocks"
@@ -9,6 +10,7 @@ import (
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
@@ -35,6 +37,8 @@ var _ = Describe("secret.Handler", func() {
 		Build()
 	var handler Handler
 	var mockProjects *mocks.ProjectManager
+	var ctx context.Context
+	var cancel context.CancelFunc
 
 	type args struct {
 		application aiven_nais_io_v1.AivenApplication
@@ -44,15 +48,20 @@ var _ = Describe("secret.Handler", func() {
 
 	BeforeEach(func() {
 		mockProjects = mocks.NewProjectManager(GinkgoT())
-		mockProjects.On("GetCA", projectName).Return(projectCA, nil).Maybe()
+		mockProjects.On("GetCA", mock.Anything, projectName).Return(projectCA, nil).Maybe()
 		handler = Handler{
 			mockProjects,
 			projectName,
 		}
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	})
+
+	AfterEach(func() {
+		cancel()
 	})
 
 	DescribeTable("correctly handles", func(args args) {
-		err := handler.Apply(&args.application, &args.secret, nil)
+		err := handler.Apply(ctx, &args.application, &args.secret, nil)
 		Expect(err).To(Succeed())
 
 		args.assert(args)
@@ -119,7 +128,7 @@ var _ = Describe("secret.Handler", func() {
 
 	It("adds correct timestamp to secret data", func() {
 		s := corev1.Secret{}
-		err := handler.Apply(&exampleAivenApplication, &s, nil)
+		err := handler.Apply(ctx, &exampleAivenApplication, &s, nil)
 		Expect(err).To(Succeed())
 		value := s.StringData[AivenSecretUpdatedKey]
 		timestamp, err := time.Parse(time.RFC3339, value)
@@ -130,7 +139,7 @@ var _ = Describe("secret.Handler", func() {
 
 	It("adds project CA to secret data", func() {
 		s := corev1.Secret{}
-		err := handler.Apply(&exampleAivenApplication, &s, nil)
+		err := handler.Apply(ctx, &exampleAivenApplication, &s, nil)
 		Expect(err).To(Succeed())
 		value := s.StringData[AivenCAKey]
 
@@ -141,7 +150,7 @@ var _ = Describe("secret.Handler", func() {
 		application := aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 			WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 			Build()
-		err := handler.Apply(&application, &corev1.Secret{}, nil)
+		err := handler.Apply(ctx, &application, &corev1.Secret{}, nil)
 		Expect(err).ToNot(Succeed())
 		Expect(errors.Is(err, utils.UnrecoverableError)).To(BeTrue())
 	},

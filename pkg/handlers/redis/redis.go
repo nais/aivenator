@@ -3,7 +3,7 @@ package redis
 import (
 	"context"
 	"fmt"
-	"github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
@@ -43,7 +43,7 @@ type RedisHandler struct {
 	projectName string
 }
 
-func (h RedisHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
+func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
 	logger = logger.WithFields(log.Fields{"handler": "redis"})
 	if len(application.Spec.Redis) == 0 {
 		return nil
@@ -57,14 +57,14 @@ func (h RedisHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 			"service": serviceName,
 		})
 
-		addresses, err := h.service.GetServiceAddresses(h.projectName, serviceName)
+		addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 		if err != nil {
 			return utils.AivenFail("GetService", application, err, true, logger)
 		}
 
 		serviceUserName := fmt.Sprintf("%s%s", application.GetName(), utils.SelectSuffix(spec.Access))
 
-		aivenUser, err := h.serviceuser.Get(serviceUserName, h.projectName, serviceName, logger)
+		aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
 		if err != nil {
 			if aiven.IsNotFound(err) {
 				accessControl := &aiven.AccessControl{
@@ -72,7 +72,7 @@ func (h RedisHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 					RedisACLKeys:       []string{"*"},
 					RedisACLChannels:   []string{"*"},
 				}
-				aivenUser, err = h.serviceuser.Create(serviceUserName, h.projectName, serviceName, accessControl, logger)
+				aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, accessControl, logger)
 				if err != nil {
 					return utils.AivenFail("CreateServiceUser", application, err, false, logger)
 				}
@@ -125,6 +125,6 @@ func getRedisACLCategories(access string) []string {
 	return categories
 }
 
-func (h RedisHandler) Cleanup(_ *v1.Secret, _ *log.Entry) error {
+func (h RedisHandler) Cleanup(_ context.Context, _ *v1.Secret, _ *log.Entry) error {
 	return nil
 }

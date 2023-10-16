@@ -1,15 +1,16 @@
 package service
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/metrics"
 )
 
 type ServiceManager interface {
-	Get(projectName, serviceName string) (*aiven.Service, error)
-	GetServiceAddresses(projectName, serviceName string) (*ServiceAddresses, error)
+	Get(ctx context.Context, projectName, serviceName string) (*aiven.Service, error)
+	GetServiceAddresses(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error)
 }
 
 type Manager struct {
@@ -37,7 +38,7 @@ func NewManager(service *aiven.ServicesHandler) ServiceManager {
 	}
 }
 
-func (r *Manager) GetServiceAddresses(projectName, serviceName string) (*ServiceAddresses, error) {
+func (r *Manager) GetServiceAddresses(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error) {
 	var addresses *ServiceAddresses
 	var ok bool
 	key := cacheKey{
@@ -45,7 +46,7 @@ func (r *Manager) GetServiceAddresses(projectName, serviceName string) (*Service
 		serviceName: serviceName,
 	}
 	if addresses, ok = r.addressCache[key]; !ok {
-		aivenService, err := r.Get(projectName, serviceName)
+		aivenService, err := r.Get(ctx, projectName, serviceName)
 		if err != nil {
 			return nil, err
 		}
@@ -61,11 +62,11 @@ func (r *Manager) GetServiceAddresses(projectName, serviceName string) (*Service
 	return addresses, nil
 }
 
-func (r *Manager) Get(projectName, serviceName string) (*aiven.Service, error) {
+func (r *Manager) Get(ctx context.Context, projectName, serviceName string) (*aiven.Service, error) {
 	var service *aiven.Service
 	err := metrics.ObserveAivenLatency("Service_Get", projectName, func() error {
 		var err error
-		service, err = r.service.Get(projectName, serviceName)
+		service, err = r.service.Get(ctx, projectName, serviceName)
 		return err
 	})
 	return service, err

@@ -53,7 +53,7 @@ func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	logger.Info("Secret will be deleted, cleaning up external resources")
-	err = s.Manager.Cleanup(&secret, logger)
+	err = s.Manager.Cleanup(ctx, &secret, logger)
 	if err != nil {
 		return failRetry(fmt.Errorf("unable to clean up external resources: %s", err))
 	}

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"

@@ -1,8 +1,9 @@
 package secret
 
 import (
+	"context"
 	"fmt"
-	"github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"strconv"
 	"time"
@@ -35,7 +36,7 @@ func NewHandler(aiven *aiven.Client, projectName string) Handler {
 	}
 }
 
-func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error {
+func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error {
 	secretName := application.Spec.SecretName
 
 	errors := validation.IsDNS1123Label(secretName)
@@ -47,7 +48,7 @@ func (s Handler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *c
 
 	updateObjectMeta(application, &secret.ObjectMeta)
 
-	projectCa, err := s.project.GetCA(s.projectName)
+	projectCa, err := s.project.GetCA(ctx, s.projectName)
 	if err != nil {
 		return fmt.Errorf("unable to get project CA: %w", err)
 	}
@@ -84,6 +85,6 @@ func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[strin
 	return annotations
 }
 
-func (s Handler) Cleanup(_ *corev1.Secret, _ *log.Entry) error {
+func (s Handler) Cleanup(ctx context.Context, secret *corev1.Secret, logger *log.Entry) error {
 	return nil
 }

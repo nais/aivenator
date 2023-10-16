@@ -3,7 +3,7 @@ package opensearch
 import (
 	"context"
 	"fmt"
-	"github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -42,7 +42,7 @@ type OpenSearchHandler struct {
 	projectName string
 }
 
-func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
+func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
 	logger = logger.WithFields(log.Fields{"handler": "opensearch"})
 	spec := application.Spec.OpenSearch
 	if spec == nil {
@@ -56,14 +56,14 @@ func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication,
 		"service": serviceName,
 	})
 
-	addresses, err := h.service.GetServiceAddresses(h.projectName, serviceName)
+	addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 	if err != nil {
 		return utils.AivenFail("GetService", application, err, false, logger)
 	}
 
 	serviceUserName := fmt.Sprintf("%s%s", application.GetNamespace(), utils.SelectSuffix(spec.Access))
 
-	aivenUser, err := h.serviceuser.Get(serviceUserName, h.projectName, serviceName, logger)
+	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
 	if err != nil {
 		return utils.AivenFail("GetServiceUser", application, err, false, logger)
 	}
@@ -83,6 +83,6 @@ func (h OpenSearchHandler) Apply(application *aiven_nais_io_v1.AivenApplication,
 	return nil
 }
 
-func (h OpenSearchHandler) Cleanup(_ *v1.Secret, _ *log.Entry) error {
+func (h OpenSearchHandler) Cleanup(_ context.Context, _ *v1.Secret, _ *log.Entry) error {
 	return nil
 }
