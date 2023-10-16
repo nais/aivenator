@@ -2,7 +2,7 @@ package influxdb
 
 import (
 	"context"
-	"github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -35,7 +35,7 @@ type InfluxDBHandler struct {
 	projectName string
 }
 
-func (h InfluxDBHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
+func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
 	logger = logger.WithFields(log.Fields{"handler": "influxdb"})
 	if application.Spec.InfluxDB == nil {
 		return nil
@@ -49,12 +49,12 @@ func (h InfluxDBHandler) Apply(application *aiven_nais_io_v1.AivenApplication, s
 		"service": serviceName,
 	})
 
-	addresses, err := h.service.GetServiceAddresses(h.projectName, serviceName)
+	addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 	if err != nil {
 		return utils.AivenFail("GetService", application, err, true, logger)
 	}
 
-	aivenService, err := h.service.Get(h.projectName, serviceName)
+	aivenService, err := h.service.Get(ctx, h.projectName, serviceName)
 	if err != nil {
 		return utils.AivenFail("GetService", application, err, true, logger)
 	}
@@ -74,6 +74,6 @@ func (h InfluxDBHandler) Apply(application *aiven_nais_io_v1.AivenApplication, s
 	return nil
 }
 
-func (h InfluxDBHandler) Cleanup(_ *v1.Secret, _ *log.Entry) error {
+func (h InfluxDBHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
 	return nil
 }

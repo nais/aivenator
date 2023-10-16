@@ -1,13 +1,15 @@
 package opensearch
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/nais/aivenator/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/mocks"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -48,6 +50,8 @@ type OpenSearchHandlerTestSuite struct {
 	opensearchHandler  OpenSearchHandler
 	applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	mockProjects       *mocks.ProjectManager
+	ctx                context.Context
+	cancel             context.CancelFunc
 }
 
 func (suite *OpenSearchHandlerTestSuite) SetupSuite() {
@@ -56,14 +60,14 @@ func (suite *OpenSearchHandlerTestSuite) SetupSuite() {
 
 func (suite *OpenSearchHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 	if _, ok := enabled[ServicesGetAddresses]; ok {
-		suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything).
+		suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 			Return(&service.ServiceAddresses{
 				ServiceURI:     serviceURI,
 				SchemaRegistry: "",
 			}, nil)
 	}
 	if _, ok := enabled[ServiceUsersGet]; ok {
-		suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			Return(&aiven.ServiceUser{
 				Username: serviceUserName,
 				Password: servicePassword,
@@ -81,13 +85,18 @@ func (suite *OpenSearchHandlerTestSuite) SetupTest() {
 		projectName: projectName,
 	}
 	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", namespace)
+	suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
+}
+
+func (suite *OpenSearchHandlerTestSuite) TearDownTest() {
+	suite.cancel()
 }
 
 func (suite *OpenSearchHandlerTestSuite) TestNoOpenSearch() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	application := suite.applicationBuilder.Build()
 	secret := &v1.Secret{}
-	err := suite.opensearchHandler.Apply(&application, secret, suite.logger)
+	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.NoError(err)
 	suite.Equal(&v1.Secret{}, secret)
@@ -104,7 +113,7 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	err := suite.opensearchHandler.Apply(&application, secret, suite.logger)
+	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.NoError(err)
 	expected := &v1.Secret{
@@ -135,14 +144,14 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceGetFailed() {
 		Build()
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServiceUsersGet))
-	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything).
+	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, &aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
 			Status:   500,
 		})
 
-	err := suite.opensearchHandler.Apply(&application, secret, suite.logger)
+	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
@@ -159,14 +168,14 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailed() {
 		Build()
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
-	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, &aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
 			Status:   500,
 		})
 
-	err := suite.opensearchHandler.Apply(&application, secret, suite.logger)
+	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
@@ -198,7 +207,7 @@ func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelected() {
 	for _, t := range testData {
 		suite.Run(t.access, func() {
 			suite.addDefaultMocks(enabled(ServicesGetAddresses))
-			suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(&aiven.ServiceUser{
 					Username: t.username,
 					Password: servicePassword,
@@ -212,7 +221,7 @@ func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelected() {
 				}).
 				Build()
 			secret := &v1.Secret{}
-			err := suite.opensearchHandler.Apply(&application, secret, suite.logger)
+			err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 			suite.NoError(err)
 			suite.Equal(t.username, secret.StringData[OpenSearchUser])

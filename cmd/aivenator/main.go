@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/aiven/aiven-go-client"
+	aivenv1 "github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/controllers/aiven_application"
 	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/credentials"
@@ -130,7 +131,9 @@ func main() {
 	}
 	logger.SetLevel(level)
 
-	aivenClient, err := newAivenClient(logger)
+	ctx := context.Background()
+
+	aivenClient, aivenv1Client, err := newAivenClient(ctx, logger)
 	if err != nil {
 		logger.Errorf("unable to set up aiven client: %s", err)
 		os.Exit(ExitConfig)
@@ -157,9 +160,8 @@ func main() {
 	}
 
 	logger.Info("Aivenator running")
-	terminator := context.Background()
 
-	if err := manageCredentials(terminator, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject)); err != nil {
+	if err := manageCredentials(ctx, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject), aivenv1Client); err != nil {
 		logger.Errorln(err)
 		os.Exit(ExitCredentialsManager)
 	}
@@ -177,7 +179,7 @@ func main() {
 		}
 	}()
 
-	if err := mgr.Start(terminator); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		logger.Errorln(fmt.Errorf("manager stopped unexpectedly: %s", err))
 		os.Exit(ExitRuntime)
 	}
@@ -185,23 +187,29 @@ func main() {
 	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
-func newAivenClient(logger log.FieldLogger) (*aiven.Client, error) {
+func newAivenClient(ctx context.Context, logger log.FieldLogger) (*aiven.Client, *aivenv1.Client, error) {
 	aivenClient, err := aiven.NewTokenClient(viper.GetString(AivenToken), "")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	_, err = aivenClient.Projects.List()
+	// TODO: Remove when liberator is upgraded to aiven-go-client v2
+	aivenV1Client, err := aivenv1.NewTokenClient(viper.GetString(AivenToken), "")
 	if err != nil {
-		return nil, fmt.Errorf("error verifying Aiven connection: %w", utils.UnwrapAivenError(err, logger, false))
+		return nil, nil, err
 	}
-	return aivenClient, err
+
+	_, err = aivenClient.Projects.List(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error verifying Aiven connection: %w", utils.UnwrapAivenError(err, logger, false))
+	}
+	return aivenClient, aivenV1Client, err
 }
 
-func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string) error {
+func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string, aivenv1 *aivenv1.Client) error {
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
 
-	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}))
+	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}), aivenv1)
 	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges)
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {

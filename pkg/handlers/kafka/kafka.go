@@ -8,7 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/aiven/aiven-go-client"
+	aivenv1 "github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
 	"github.com/nais/liberator/pkg/strings"
@@ -48,14 +49,14 @@ const (
 
 var clusterName = ""
 
-func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry) KafkaHandler {
+func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry, aivenv1 *aivenv1.Client) KafkaHandler {
 	generator := certificate.NewNativeGenerator()
 	handler := KafkaHandler{
 		project:      project.NewManager(aiven.CA),
 		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:      service.NewManager(aiven.Services),
 		generator:    generator,
-		nameResolver: liberator_service.NewCachedNameResolver(aiven.Services),
+		nameResolver: liberator_service.NewCachedNameResolver(aivenv1.Services),
 		projects:     projects,
 	}
 	handler.StartUserCounter(ctx, logger)
@@ -71,7 +72,7 @@ type KafkaHandler struct {
 	projects     []string
 }
 
-func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
+func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
 	logger = logger.WithFields(log.Fields{"handler": "kafka"})
 	if application.Spec.Kafka == nil {
 		return nil
@@ -99,17 +100,17 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 		return err
 	}
 
-	addresses, err := h.service.GetServiceAddresses(projectName, serviceName)
+	addresses, err := h.service.GetServiceAddresses(ctx, projectName, serviceName)
 	if err != nil {
 		return utils.AivenFail("GetService", application, err, false, logger)
 	}
 
-	ca, err := h.project.GetCA(projectName)
+	ca, err := h.project.GetCA(ctx, projectName)
 	if err != nil {
 		return utils.AivenFail("GetCA", application, err, false, logger)
 	}
 
-	aivenUser, err := h.provideServiceUser(application, projectName, serviceName, secret, logger)
+	aivenUser, err := h.provideServiceUser(ctx, application, projectName, serviceName, secret, logger)
 	if err != nil {
 		return err
 	}
@@ -148,7 +149,7 @@ func (h KafkaHandler) Apply(application *aiven_nais_io_v1.AivenApplication, secr
 	return nil
 }
 
-func (h KafkaHandler) provideServiceUser(application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	var aivenUser *aiven.ServiceUser
 	var err error
 
@@ -172,7 +173,7 @@ func (h KafkaHandler) provideServiceUser(application *aiven_nais_io_v1.AivenAppl
 		}
 	}
 
-	aivenUser, err = h.serviceuser.Get(serviceUserName, projectName, serviceName, logger)
+	aivenUser, err = h.serviceuser.Get(ctx, serviceUserName, projectName, serviceName, logger)
 	if err == nil {
 		return aivenUser, nil
 	}
@@ -180,7 +181,7 @@ func (h KafkaHandler) provideServiceUser(application *aiven_nais_io_v1.AivenAppl
 		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
 	}
 
-	aivenUser, err = h.serviceuser.Create(serviceUserName, projectName, serviceName, nil, logger)
+	aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, projectName, serviceName, nil, logger)
 	if err != nil {
 		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 	}
@@ -199,7 +200,7 @@ func createSuffix(application *aiven_nais_io_v1.AivenApplication) (string, error
 	return suffix[:3], nil
 }
 
-func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
+func (h KafkaHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
 	annotations := secret.GetAnnotations()
 	if serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]; okServiceUser {
 		if projectName, okPool := annotations[PoolAnnotation]; okPool {
@@ -211,7 +212,7 @@ func (h KafkaHandler) Cleanup(secret *v1.Secret, logger *log.Entry) error {
 				"pool":    projectName,
 				"service": serviceName,
 			})
-			err = h.serviceuser.Delete(serviceUserName, projectName, serviceName, logger)
+			err = h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger)
 			if err != nil {
 				if aiven.IsNotFound(err) {
 					logger.Infof("Service user %s does not exist", serviceUserName)
@@ -247,7 +248,7 @@ func (h *KafkaHandler) countUsers(ctx context.Context, logger *log.Entry) {
 					logger.Warnf("unable to count service users for pool %s: %v", prj, err)
 					continue
 				}
-				h.serviceuser.ObserveServiceUsersCount(prj, serviceName, logger)
+				h.serviceuser.ObserveServiceUsersCount(ctx, prj, serviceName, logger)
 			}
 		}
 	}

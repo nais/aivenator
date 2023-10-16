@@ -5,7 +5,8 @@ package controllers_test
 import (
 	"context"
 	"fmt"
-	"github.com/aiven/aiven-go-client"
+	aivenv1 "github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/controllers/aiven_application"
 	"github.com/nais/aivenator/controllers/secrets"
@@ -118,8 +119,12 @@ func newTestRig(ctx context.Context, t *testing.T, logger *log.Logger) (*testRig
 	if err != nil {
 		return nil, fmt.Errorf("unable to set up aiven client: %s", err)
 	}
+	aivenv1Client, err := aivenv1.NewTokenClient(token, "")
+	if err != nil {
+		return nil, fmt.Errorf("unable to set up aivenv1 client: %s", err)
+	}
 
-	credentialsManager := credentials.NewManager(ctx, aivenClient, []string{testProject}, testProject, logger.WithField("component", "CredentialsManager"))
+	credentialsManager := credentials.NewManager(ctx, aivenClient, []string{testProject}, testProject, logger.WithField("component", "CredentialsManager"), aivenv1Client)
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
 	reconciler := aiven_application.NewReconciler(rig.manager, logger, credentialsManager, appChanges)
 

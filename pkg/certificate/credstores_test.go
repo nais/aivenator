@@ -3,13 +3,15 @@
 package certificate
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"path"
 	"testing"
+	"time"
 )
 
 const (
@@ -19,6 +21,9 @@ const (
 )
 
 func TestCredStoreGenerator(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	log.Error("Starting test")
 	client, err := aiven.NewTokenClient(os.Getenv("AIVEN_TOKEN"), "")
 	if err != nil {
@@ -26,18 +31,18 @@ func TestCredStoreGenerator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test_user, err := client.ServiceUsers.Get(project, service, username)
+	test_user, err := client.ServiceUsers.Get(ctx, project, service, username)
 	if err != nil {
 		log.Errorf("failed to get service user: %v", err)
 		req := aiven.CreateServiceUserRequest{Username: username}
-		test_user, err = client.ServiceUsers.Create(project, service, req)
+		test_user, err = client.ServiceUsers.Create(ctx, project, service, req)
 		if err != nil {
 			log.Errorf("failed to create service user: %v", err)
 			t.Fatal(err)
 		}
 	}
 
-	caCert, err := client.CA.Get(project)
+	caCert, err := client.CA.Get(ctx, project)
 	if err != nil {
 		log.Errorf("failed to get CA cert: %v", err)
 		t.Fatal(err)

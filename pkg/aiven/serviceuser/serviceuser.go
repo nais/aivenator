@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	cache "github.com/Code-Hex/go-generics-cache"
-	"github.com/aiven/aiven-go-client"
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -34,10 +34,10 @@ func NewManager(ctx context.Context, serviceUsers *aiven.ServiceUsersHandler) Se
 }
 
 type ServiceUserManager interface {
-	Create(serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error)
-	Get(serviceUserName, projectName, serviceName string, logger log.FieldLogger) (*aiven.ServiceUser, error)
-	Delete(serviceUserName, projectName, serviceName string, logger log.FieldLogger) error
-	ObserveServiceUsersCount(projectName, serviceName string, logger log.FieldLogger)
+	Create(ctx context.Context, serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error)
+	Get(ctx context.Context, serviceUserName, projectName, serviceName string, logger log.FieldLogger) (*aiven.ServiceUser, error)
+	Delete(ctx context.Context, serviceUserName, projectName, serviceName string, logger log.FieldLogger) error
+	ObserveServiceUsersCount(ctx context.Context, projectName, serviceName string, logger log.FieldLogger)
 	GetCacheExpiration() time.Duration
 }
 
@@ -56,11 +56,11 @@ func (m *Manager) GetCacheExpiration() time.Duration {
 	return cacheExpiration
 }
 
-func (m *Manager) ObserveServiceUsersCount(projectName, serviceName string, logger log.FieldLogger) {
+func (m *Manager) ObserveServiceUsersCount(ctx context.Context, projectName, serviceName string, logger log.FieldLogger) {
 	var users []*aiven.ServiceUser
 	err := metrics.ObserveAivenLatency("ServiceUser_List", projectName, func() error {
 		var err error
-		users, err = m.serviceUsers.List(projectName, serviceName)
+		users, err = m.serviceUsers.List(ctx, projectName, serviceName)
 		return err
 	})
 	if err != nil {
@@ -88,7 +88,7 @@ func (m *Manager) countUsersAndUpdateCache(projectName, serviceName string, user
 	return counts
 }
 
-func (m *Manager) Get(serviceUserName, projectName, serviceName string, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (m *Manager) Get(ctx context.Context, serviceUserName, projectName, serviceName string, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	key := cacheKey{projectName, serviceName, serviceUserName}
 	if val, found := m.serviceUserCache.Get(key); found {
 		logger.Debugf("serviceUserCache hit for %v", key)
@@ -102,7 +102,7 @@ func (m *Manager) Get(serviceUserName, projectName, serviceName string, logger l
 	var aivenUsers []*aiven.ServiceUser
 	err := metrics.ObserveAivenLatency("ServiceUser_List", projectName, func() error {
 		var err error
-		aivenUsers, err = m.serviceUsers.List(projectName, serviceName)
+		aivenUsers, err = m.serviceUsers.List(ctx, projectName, serviceName)
 		return err
 	})
 	if err != nil {
@@ -126,21 +126,21 @@ func (m *Manager) Get(serviceUserName, projectName, serviceName string, logger l
 	return aivenUser, nil
 }
 
-func (m *Manager) Delete(serviceUserName, projectName, serviceName string, logger log.FieldLogger) error {
+func (m *Manager) Delete(ctx context.Context, serviceUserName, projectName, serviceName string, logger log.FieldLogger) error {
 	err := metrics.ObserveAivenLatency("ServiceUser_Delete", projectName, func() error {
 		var err error
-		err = m.serviceUsers.Delete(projectName, serviceName, serviceUserName)
+		err = m.serviceUsers.Delete(ctx, projectName, serviceName, serviceUserName)
 		return err
 	})
 	if err != nil {
 		return err
 	}
 	metrics.ServiceUsersDeleted.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
-	m.ObserveServiceUsersCount(projectName, serviceName, logger)
+	m.ObserveServiceUsersCount(ctx, projectName, serviceName, logger)
 	return nil
 }
 
-func (m *Manager) Create(serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (m *Manager) Create(ctx context.Context, serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	req := aiven.CreateServiceUserRequest{
 		Username:      serviceUserName,
 		AccessControl: accessControl,
@@ -149,13 +149,13 @@ func (m *Manager) Create(serviceUserName, projectName, serviceName string, acces
 	var aivenUser *aiven.ServiceUser
 	err := metrics.ObserveAivenLatency("ServiceUser_Create", projectName, func() error {
 		var err error
-		aivenUser, err = m.serviceUsers.Create(projectName, serviceName, req)
+		aivenUser, err = m.serviceUsers.Create(ctx, projectName, serviceName, req)
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 	metrics.ServiceUsersCreated.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
-	m.ObserveServiceUsersCount(projectName, serviceName, logger)
+	m.ObserveServiceUsersCount(ctx, projectName, serviceName, logger)
 	return aivenUser, nil
 }
