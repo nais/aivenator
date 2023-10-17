@@ -12,7 +12,9 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"testing"
 	"time"
 )
@@ -85,6 +87,7 @@ var _ = Describe("secret.Handler", func() {
 					Build(),
 				secret: corev1.Secret{},
 				assert: func(a args) {
+					Expect(validation.ValidateAnnotations(a.secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
 					Expect(a.secret.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]).To(Equal(correlationId))
 					Expect(a.secret.GetName()).To(Equal(a.application.Spec.SecretName))
 				},
@@ -121,6 +124,7 @@ var _ = Describe("secret.Handler", func() {
 					Build(),
 				secret: corev1.Secret{},
 				assert: func(a args) {
+					Expect(validation.ValidateAnnotations(a.secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
 					Expect(a.secret.GetAnnotations()[constants.AivenatorProtectedAnnotation]).To(Equal("true"))
 				},
 			}),

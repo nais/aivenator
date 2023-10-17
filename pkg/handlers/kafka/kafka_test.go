@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"testing"
 	"time"
 
@@ -236,6 +238,7 @@ func (suite *KafkaHandlerTestSuite) TestSecretExists() {
 	err := suite.kafkaHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.NoError(err)
+	suite.Empty(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations")))
 	suite.Equal(secret.GetAnnotations()[ServiceUserAnnotation], serviceUserName)
 }
 
