@@ -25,16 +25,39 @@ spec:
               * Check aivenator logs: `kubectl logs --namespace nais-system deploy/aivenator -c aivenator`
               * Check for other Aiven problems:
                 https://monitoring.nais.io/d/aiven-kafka-overview/aiven-kafka-overview?orgId=1&refresh=1m&var-tenant={{ .Values.tenant }}&var-ds={{ .Values.tenant }}-{{ .Values.clusterName }}
-        - alert: AivenatorIsFailing
+        - alert: AivenatorIsFailingSomeRollouts
           expr: 'sum(rate(aivenator_aiven_applications_processed{synchronization_state="RolloutFailed"}[5m])) > 0'
           for: 10m
+          labels:
+            severity: warning
+            feature: aivenator
+            cluster: "{{ .Values.clusterName }}"
+            namespace: nais-system
+          annotations:
+            summary: Some rollouts in Aivenator is failing
+            description: |
+              If only a few rollouts are failing, there is a chance that the problem is user errors.
+              In that case, the developers will (eventually) figure out their mistake and fix it.
+              On the other hand, it could be the start of a larger incident, in which case the `AivenatorIsFailing` alert will soon trigger.
+            consequence: This will prevent applications from starting up, as the Pod will be stuck waiting on a secret to mount.
+            action: |
+              * Check Aiveantor dashboard for issues: https://monitoring.nais.io/d/aivenator/aivenator?orgId=1&refresh=1m&var-tenant={{ .Values.tenant }}&var-ds={{ .Values.tenant }}-{{ .Values.clusterName }}
+              * Check aivenator logs: `kubectl logs --namespace nais-system deploy/aivenator -c aivenator`
+              * Check for other Aiven problems:
+                https://monitoring.nais.io/d/aiven-kafka-overview/aiven-kafka-overview?orgId=1&refresh=1m&var-tenant={{ .Values.tenant }}&var-ds={{ .Values.tenant }}-{{ .Values.clusterName }}
+        - alert: AivenatorIsFailing
+          expr: 'sum(rate(aivenator_aiven_applications_processed{synchronization_state="RolloutFailed"}[30m])) / sum(rate(aivenator_aiven_applications_processed[30m])) > 0.5'
+          for: 30m
           labels:
             severity: critical
             feature: aivenator
             cluster: "{{ .Values.clusterName }}"
             namespace: nais-system
           annotations:
-            summary: Aivenator has a higher than usual count of failed rollouts.
+            summary: More than 50% of Aivenator rollouts have failed in the last half hour
+            description: |
+              A significant number of rollouts have failed over the last half hour.
+              This might be caused by an unlucky rollouts failing while there have been few rollouts in total, so inspect the actual numbers.
             consequence: This will prevent applications from starting up, as the Pod will be stuck waiting on a secret to mount.
             action: |
               * Check Aiveantor dashboard for issues: https://monitoring.nais.io/d/aivenator/aivenator?orgId=1&refresh=1m&var-tenant={{ .Values.tenant }}&var-ds={{ .Values.tenant }}-{{ .Values.clusterName }}
