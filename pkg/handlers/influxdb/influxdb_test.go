@@ -4,6 +4,8 @@ import (
 	"context"
 	aivenator_mocks "github.com/nais/aivenator/pkg/mocks"
 	"github.com/stretchr/testify/mock"
+	"k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"testing"
 	"time"
 
@@ -163,6 +165,7 @@ var _ = Describe("influxdb.Handler", func() {
 			err := influxdbHandler.Apply(ctx, &application, &secret, logger)
 
 			Expect(err).To(Succeed())
+			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(serviceUserAnnotationKey, serviceUserName))
 			Expect(secret.StringData).To(HaveKeyWithValue(usernameKey, serviceUserName))

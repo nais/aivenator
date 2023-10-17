@@ -3,6 +3,8 @@ package redis
 import (
 	"context"
 	aivenator_mocks "github.com/nais/aivenator/pkg/mocks"
+	"k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"testing"
 	"time"
 
@@ -42,7 +44,7 @@ var testInstances = []testData{
 		serviceURI:               "rediss://my-instance1.example.com:23456",
 		access:                   "read",
 		username:                 "test-app-r",
-		serviceUserAnnotationKey: "my_instance1.redis.aiven.nais.io/serviceUser",
+		serviceUserAnnotationKey: "my-instance1.redis.aiven.nais.io/serviceUser",
 		usernameKey:              "REDIS_USERNAME_MY_INSTANCE1",
 		passwordKey:              "REDIS_PASSWORD_MY_INSTANCE1",
 		uriKey:                   "REDIS_URI_MY_INSTANCE1",
@@ -53,7 +55,7 @@ var testInstances = []testData{
 		serviceURI:               "rediss://session-store.example.com:23456",
 		access:                   "readwrite",
 		username:                 "test-app-rw",
-		serviceUserAnnotationKey: "session_store.redis.aiven.nais.io/serviceUser",
+		serviceUserAnnotationKey: "session-store.redis.aiven.nais.io/serviceUser",
 		usernameKey:              "REDIS_USERNAME_SESSION_STORE",
 		passwordKey:              "REDIS_PASSWORD_SESSION_STORE",
 		uriKey:                   "REDIS_URI_SESSION_STORE",
@@ -192,6 +194,7 @@ var _ = Describe("redis.Handler", func() {
 		assertHappy := func(secret *v1.Secret, err error) {
 			GinkgoHelper()
 			Expect(err).To(Succeed())
+			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
@@ -261,6 +264,7 @@ var _ = Describe("redis.Handler", func() {
 		assertHappy := func(secret *v1.Secret, data testData, err error) {
 			GinkgoHelper()
 			Expect(err).To(Succeed())
+			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
