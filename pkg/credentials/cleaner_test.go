@@ -3,7 +3,6 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"github.com/nais/aivenator/pkg/mocks"
 	"github.com/nais/liberator/pkg/scheme"
 	"k8s.io/apimachinery/pkg/runtime"
 	"strconv"
@@ -334,7 +333,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 
 	for _, tt := range tests {
 		suite.Run(tt.name, func() {
-			mockClient := &mocks.Client{}
+			mockClient := &MockClient{}
 			for _, i := range tt.interactions {
 				call := mockClient.On(i.method, i.arguments...).Return(i.returnArgs...)
 				if i.runFunc != nil {

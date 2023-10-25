@@ -3,7 +3,6 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"github.com/nais/aivenator/pkg/mocks"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -13,7 +12,7 @@ import (
 
 func TestManager_Apply(t *testing.T) {
 	// given
-	mockHandler := mocks.Handler{}
+	mockHandler := MockHandler{}
 	expectedAnnotations := make(map[string]string)
 	expectedAnnotations["one"] = "1"
 	mockHandler.
@@ -44,8 +43,8 @@ func TestManager_Apply(t *testing.T) {
 
 func TestManager_ApplyFailed(t *testing.T) {
 	// given
-	mockHandler := mocks.Handler{}
-	failingHandler := mocks.Handler{}
+	mockHandler := MockHandler{}
+	failingHandler := MockHandler{}
 	expectedAnnotations := make(map[string]string)
 	expectedAnnotations["one"] = "1"
 	mockHandler.
@@ -100,7 +99,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 
 func TestManager_Cleanup(t *testing.T) {
 	// given
-	mockHandler := mocks.Handler{}
+	mockHandler := MockHandler{}
 	mockHandler.
 		On("Cleanup",
 			mock.Anything,

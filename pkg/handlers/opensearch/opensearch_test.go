@@ -2,6 +2,8 @@ package opensearch
 
 import (
 	"context"
+	"github.com/nais/aivenator/pkg/aiven/project"
+	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"testing"
 	"time"
 
@@ -11,7 +13,6 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
-	"github.com/nais/aivenator/pkg/mocks"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
@@ -45,11 +46,11 @@ type OpenSearchHandlerTestSuite struct {
 	suite.Suite
 
 	logger             *log.Entry
-	mockServiceUsers   *mocks.ServiceUserManager
-	mockServices       *mocks.ServiceManager
+	mockServiceUsers   *serviceuser.MockServiceUserManager
+	mockServices       *service.MockServiceManager
 	opensearchHandler  OpenSearchHandler
 	applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
-	mockProjects       *mocks.ProjectManager
+	mockProjects       *project.MockProjectManager
 	ctx                context.Context
 	cancel             context.CancelFunc
 }
@@ -76,8 +77,8 @@ func (suite *OpenSearchHandlerTestSuite) addDefaultMocks(enabled map[int]struct{
 }
 
 func (suite *OpenSearchHandlerTestSuite) SetupTest() {
-	suite.mockServiceUsers = &mocks.ServiceUserManager{}
-	suite.mockServices = &mocks.ServiceManager{}
+	suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
+	suite.mockServices = &service.MockServiceManager{}
 	suite.opensearchHandler = OpenSearchHandler{
 		project:     suite.mockProjects,
 		serviceuser: suite.mockServiceUsers,

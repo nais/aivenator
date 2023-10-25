@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/nais/aivenator/pkg/aiven/project"
+	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"testing"
@@ -20,7 +22,6 @@ import (
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/certificate"
-	"github.com/nais/aivenator/pkg/mocks"
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 )
@@ -55,10 +56,10 @@ type KafkaHandlerTestSuite struct {
 	suite.Suite
 
 	logger             *log.Entry
-	mockProjects       *mocks.ProjectManager
-	mockServiceUsers   *mocks.ServiceUserManager
-	mockServices       *mocks.ServiceManager
-	mockGenerator      *mocks.Generator
+	mockProjects       *project.MockProjectManager
+	mockServiceUsers   *serviceuser.MockServiceUserManager
+	mockServices       *service.MockServiceManager
+	mockGenerator      *certificate.MockGenerator
 	mockNameResolver   *liberator_service.MockNameResolver
 	kafkaHandler       KafkaHandler
 	applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
@@ -113,10 +114,10 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 }
 
 func (suite *KafkaHandlerTestSuite) SetupTest() {
-	suite.mockServiceUsers = &mocks.ServiceUserManager{}
-	suite.mockServices = &mocks.ServiceManager{}
-	suite.mockProjects = &mocks.ProjectManager{}
-	suite.mockGenerator = &mocks.Generator{}
+	suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
+	suite.mockServices = &service.MockServiceManager{}
+	suite.mockProjects = &project.MockProjectManager{}
+	suite.mockGenerator = &certificate.MockGenerator{}
 	suite.mockNameResolver = liberator_service.NewMockNameResolver(suite.T())
 	suite.mockNameResolver.On("ResolveKafkaServiceName", mock.Anything).Maybe().Return("kafka", nil)
 	suite.kafkaHandler = KafkaHandler{
