@@ -65,7 +65,14 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
 	if err != nil {
-		return utils.AivenFail("GetServiceUser", application, err, false, logger)
+		if aiven.IsNotFound(err) {
+			aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, nil, logger)
+			if err != nil {
+				return utils.AivenFail("CreateServiceUser", application, err, false, logger)
+			}
+		} else {
+			return utils.AivenFail("GetServiceUser", application, err, false, logger)
+		}
 	}
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{

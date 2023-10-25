@@ -145,7 +145,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceGetFailed() {
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServiceUsersGet))
 	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, &aiven.Error{
+		Return(nil, aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
 			Status:   500,
@@ -169,7 +169,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailed() {
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, &aiven.Error{
+		Return(nil, aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
 			Status:   500,
@@ -179,6 +179,67 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailed() {
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
+}
+
+func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreateFailed() {
+	application := suite.applicationBuilder.
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+				Instance: instance,
+				Access:   access,
+			},
+		}).
+		Build()
+	username := serviceUserName + "-r"
+
+	suite.addDefaultMocks(enabled(ServicesGetAddresses))
+	suite.mockServiceUsers.On("Get", mock.Anything, username, projectName, mock.Anything, mock.Anything).
+		Return(nil, aiven.Error{
+			Message: "Service user does not exist",
+			Status:  404,
+		})
+	suite.mockServiceUsers.On("Create", mock.Anything, username, projectName, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, aiven.Error{
+			Message:  "aiven-error",
+			MoreInfo: "aiven-more-info",
+			Status:   500,
+		}).Once()
+
+	secret := &v1.Secret{}
+	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+
+	suite.Error(err)
+	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
+}
+
+func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreatedIfNeeded() {
+	application := suite.applicationBuilder.
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+				Instance: instance,
+				Access:   access,
+			},
+		}).
+		Build()
+	username := serviceUserName + "-r"
+
+	suite.addDefaultMocks(enabled(ServicesGetAddresses))
+	suite.mockServiceUsers.On("Get", mock.Anything, username, projectName, mock.Anything, mock.Anything).
+		Return(nil, aiven.Error{
+			Message: "Service user does not exist",
+			Status:  404,
+		})
+	suite.mockServiceUsers.On("Create", mock.Anything, username, projectName, mock.Anything, mock.Anything, mock.Anything).
+		Return(&aiven.ServiceUser{
+			Username: username,
+			Password: servicePassword,
+		}, nil).Once()
+
+	secret := &v1.Secret{}
+	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+
+	suite.NoError(err)
+	suite.Equal(username, secret.StringData[OpenSearchUser])
 }
 
 func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelected() {
