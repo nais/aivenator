@@ -1,0 +1,11 @@
+with-expecter: True
+inpackage: True
+dir: "{{.InterfaceDir}}"
+mockname: "{{.Mock}}{{.InterfaceName}}"
+outpkg: "{{.PackageName}}"
+filename: "mock_{{.InterfaceName | snakecase}}.go"
+all: True
+packages:
+  github.com/nais/aivenator:
+    config:
+      recursive: True

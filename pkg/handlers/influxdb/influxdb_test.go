@@ -2,7 +2,6 @@ package influxdb
 
 import (
 	"context"
-	aivenator_mocks "github.com/nais/aivenator/pkg/mocks"
 	"github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -35,7 +34,7 @@ const (
 )
 
 type mockContainer struct {
-	serviceManager *aivenator_mocks.ServiceManager
+	serviceManager *service.MockServiceManager
 }
 
 func TestInfluxDB(t *testing.T) {
@@ -60,7 +59,7 @@ var _ = Describe("influxdb.Handler", func() {
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
 		secret = v1.Secret{}
 		mocks = mockContainer{
-			serviceManager: aivenator_mocks.NewServiceManager(GinkgoT()),
+			serviceManager: service.NewMockServiceManager(GinkgoT()),
 		}
 		influxdbHandler = InfluxDBHandler{
 			service:     mocks.serviceManager,

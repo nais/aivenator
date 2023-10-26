@@ -2,7 +2,7 @@ package redis
 
 import (
 	"context"
-	aivenator_mocks "github.com/nais/aivenator/pkg/mocks"
+	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"testing"
@@ -63,8 +63,8 @@ var testInstances = []testData{
 }
 
 type mockContainer struct {
-	serviceUserManager *aivenator_mocks.ServiceUserManager
-	serviceManager     *aivenator_mocks.ServiceManager
+	serviceUserManager *serviceuser.MockServiceUserManager
+	serviceManager     *service.MockServiceManager
 }
 
 func TestRedis(t *testing.T) {
@@ -96,8 +96,8 @@ var _ = Describe("redis.Handler", func() {
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
 		secret = v1.Secret{}
 		mocks = mockContainer{
-			serviceUserManager: aivenator_mocks.NewServiceUserManager(GinkgoT()),
-			serviceManager:     aivenator_mocks.NewServiceManager(GinkgoT()),
+			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
+			serviceManager:     service.NewMockServiceManager(GinkgoT()),
 		}
 		redisHandler = RedisHandler{
 			serviceuser: mocks.serviceUserManager,

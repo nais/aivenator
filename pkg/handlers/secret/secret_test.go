@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/nais/aivenator/constants"
-	"github.com/nais/aivenator/pkg/mocks"
+	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
@@ -38,7 +38,7 @@ var _ = Describe("secret.Handler", func() {
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 		Build()
 	var handler Handler
-	var mockProjects *mocks.ProjectManager
+	var mockProjects *project.MockProjectManager
 	var ctx context.Context
 	var cancel context.CancelFunc
 
@@ -49,7 +49,7 @@ var _ = Describe("secret.Handler", func() {
 	}
 
 	BeforeEach(func() {
-		mockProjects = mocks.NewProjectManager(GinkgoT())
+		mockProjects = project.NewMockProjectManager(GinkgoT())
 		mockProjects.On("GetCA", mock.Anything, projectName).Return(projectCA, nil).Maybe()
 		handler = Handler{
 			mockProjects,

@@ -2,6 +2,9 @@ package opensearch
 
 import (
 	"context"
+	"github.com/nais/aivenator/pkg/aiven/opensearch"
+	"github.com/nais/aivenator/pkg/aiven/project"
+	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"testing"
 	"time"
 
@@ -11,7 +14,6 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
-	"github.com/nais/aivenator/pkg/mocks"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
@@ -31,6 +33,9 @@ const (
 const (
 	ServicesGetAddresses = iota
 	ServiceUsersGet
+	ServiceUsersCreate
+	OpenSearchACLGet
+	OpenSearchACLUpdate
 )
 
 func enabled(elements ...int) map[int]struct{} {
@@ -45,11 +50,12 @@ type OpenSearchHandlerTestSuite struct {
 	suite.Suite
 
 	logger             *log.Entry
-	mockServiceUsers   *mocks.ServiceUserManager
-	mockServices       *mocks.ServiceManager
+	mockServiceUsers   *serviceuser.MockServiceUserManager
+	mockServices       *service.MockServiceManager
+	mockOpenSearchACL  *opensearch.MockACLManager
 	opensearchHandler  OpenSearchHandler
 	applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
-	mockProjects       *mocks.ProjectManager
+	mockProjects       *project.MockProjectManager
 	ctx                context.Context
 	cancel             context.CancelFunc
 }
@@ -73,16 +79,58 @@ func (suite *OpenSearchHandlerTestSuite) addDefaultMocks(enabled map[int]struct{
 				Password: servicePassword,
 			}, nil)
 	}
+	if _, ok := enabled[ServiceUsersCreate]; ok {
+		suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&aiven.ServiceUser{
+				Username: serviceUserName,
+				Password: servicePassword,
+			}, nil)
+	}
+	if _, ok := enabled[OpenSearchACLGet]; ok {
+		suite.mockOpenSearchACL.On("Get", mock.Anything, mock.Anything, mock.Anything).
+			Return(&aiven.OpenSearchACLResponse{
+				OpenSearchACLConfig: aiven.OpenSearchACLConfig{
+					ACLs: []aiven.OpenSearchACL{
+						{
+							Rules:    nil,
+							Username: serviceUserName,
+						},
+					},
+					Enabled:     true,
+					ExtendedAcl: false,
+				},
+			}, nil).Once()
+	}
+	if _, ok := enabled[OpenSearchACLUpdate]; ok {
+		suite.mockOpenSearchACL.On("Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&aiven.OpenSearchACLResponse{
+				OpenSearchACLConfig: aiven.OpenSearchACLConfig{
+					ACLs: []aiven.OpenSearchACL{
+						{
+							Rules: []aiven.OpenSearchACLRule{
+								{Index: "*", Permission: access},
+								{Index: "_*", Permission: access},
+							},
+							Username: serviceUserName,
+						},
+					},
+					Enabled:     true,
+					ExtendedAcl: false,
+				},
+			}, nil).Once()
+	}
 }
 
 func (suite *OpenSearchHandlerTestSuite) SetupTest() {
-	suite.mockServiceUsers = &mocks.ServiceUserManager{}
-	suite.mockServices = &mocks.ServiceManager{}
+	suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
+	suite.mockServices = &service.MockServiceManager{}
+	suite.mockOpenSearchACL = &opensearch.MockACLManager{}
 	suite.opensearchHandler = OpenSearchHandler{
-		project:     suite.mockProjects,
-		serviceuser: suite.mockServiceUsers,
-		service:     suite.mockServices,
-		projectName: projectName,
+		project:       suite.mockProjects,
+		serviceuser:   suite.mockServiceUsers,
+		service:       suite.mockServices,
+		openSearchACL: suite.mockOpenSearchACL,
+		projectName:   projectName,
 	}
 	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", namespace)
 	suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -145,7 +193,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceGetFailed() {
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServiceUsersGet))
 	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, &aiven.Error{
+		Return(nil, aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
 			Status:   500,
@@ -169,7 +217,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailed() {
 	secret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, &aiven.Error{
+		Return(nil, aiven.Error{
 			Message:  "aiven-error",
 			MoreInfo: "aiven-more-info",
 			Status:   500,
@@ -179,6 +227,70 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailed() {
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
+}
+
+func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreateFailed() {
+	application := suite.applicationBuilder.
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+				Instance: instance,
+				Access:   access,
+			},
+		}).
+		Build()
+	username := serviceUserName + "-r"
+
+	suite.addDefaultMocks(enabled(ServicesGetAddresses))
+	suite.mockServiceUsers.On("Get", mock.Anything, username, projectName, mock.Anything, mock.Anything).
+		Return(nil, aiven.Error{
+			Message: "Service user does not exist",
+			Status:  404,
+		})
+	suite.mockServiceUsers.On("Create", mock.Anything, username, projectName, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, aiven.Error{
+			Message:  "aiven-error",
+			MoreInfo: "aiven-more-info",
+			Status:   500,
+		}).Once()
+
+	secret := &v1.Secret{}
+	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+
+	suite.Error(err)
+	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
+}
+
+func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreatedIfNeeded() {
+	application := suite.applicationBuilder.
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+				Instance: instance,
+				Access:   access,
+			},
+		}).
+		Build()
+	username := serviceUserName + "-r"
+
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, OpenSearchACLGet, OpenSearchACLUpdate))
+	suite.mockServiceUsers.On("Get", mock.Anything, username, projectName, mock.Anything, mock.Anything).
+		Return(nil, aiven.Error{
+			Message: "Service user does not exist",
+			Status:  404,
+		})
+	suite.mockServiceUsers.On("Create", mock.Anything, username, projectName, mock.Anything, mock.Anything, mock.Anything).
+		Return(&aiven.ServiceUser{
+			Username: username,
+			Password: servicePassword,
+		}, nil).Once()
+
+	secret := &v1.Secret{}
+	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+
+	suite.NoError(err)
+	suite.Equal(username, secret.StringData[OpenSearchUser])
+	suite.mockServiceUsers.AssertExpectations(suite.T())
+	suite.mockServices.AssertExpectations(suite.T())
+	suite.mockOpenSearchACL.AssertExpectations(suite.T())
 }
 
 func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelected() {
