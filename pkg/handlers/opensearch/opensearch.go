@@ -107,6 +107,7 @@ func (h OpenSearchHandler) updateACL(ctx context.Context, serviceUserName string
 		return err
 	}
 	config := resp.OpenSearchACLConfig
+	config.Enabled = true
 	config.Add(aiven.OpenSearchACL{
 		Rules: []aiven.OpenSearchACLRule{
 			{Index: "_*", Permission: access},
