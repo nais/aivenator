@@ -33,7 +33,7 @@ jobs:
         with:
           name: aivenator
           google_service_account: gh-aivenator
-          push: ${{ github.actor != 'dependabot[bot]' && github.ref == 'refs/heads/main' }}
+          push: ${{ github.actor != 'dependabot[bot]' }}
           workload_identity_provider: ${{ secrets.NAIS_IO_WORKLOAD_IDENTITY_PROVIDER }}
           multi-platform: true
           cache_from: type=gha
