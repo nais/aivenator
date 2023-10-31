@@ -41,7 +41,7 @@ func UnwrapAivenError(errorMessage error, logger logrus.FieldLogger, notFoundIsR
 		} else {
 			message = apiMessage.Message
 		}
-		if aiven.IsNotFound(aivenErr) && notFoundIsRecoverable {
+		if aivenErr.Status == 404 && notFoundIsRecoverable {
 			return fmt.Errorf("%s: %w", message, NotFoundError)
 		}
 		if 400 <= aivenErr.Status && aivenErr.Status < 500 {
