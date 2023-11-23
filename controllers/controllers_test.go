@@ -94,8 +94,7 @@ func newTestRig(ctx context.Context, t *testing.T, logger *log.Logger) (*testRig
 	}
 
 	rig.manager, err = ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:             rig.scheme,
-		MetricsBindAddress: "0",
+		Scheme: rig.scheme,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initialize manager: %w", err)

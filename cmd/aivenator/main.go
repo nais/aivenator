@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"strings"
 	"syscall"
 	"time"
@@ -149,9 +151,13 @@ func main() {
 
 	syncPeriod := viper.GetDuration(SyncPeriod)
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		SyncPeriod:         &syncPeriod,
-		Scheme:             scheme,
-		MetricsBindAddress: viper.GetString(MetricsAddress),
+		Cache: cache.Options{
+			SyncPeriod: &syncPeriod,
+		},
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: viper.GetString(MetricsAddress),
+		},
 	})
 
 	if err != nil {
