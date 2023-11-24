@@ -35,11 +35,11 @@ values:
   aiven.prometheus.username:
     displayName: Aiven prometheus username
     computed:
-      template: '"{{ .Env.aiven_prometheus_username }}"'
+      template: '"{{ if .Env.aiven_prometheus_username}}{{ .Env.aiven_prometheus_username }}{{ end }}"'
   aiven.prometheus.password:
     displayName: Aiven prometheus password
     computed:
-      template: '"{{ .Env.aiven_prometheus_password }}"'
+      template: '"{{ .Env.aiven_prometheus_password }}{{ .Env.aiven_prometheus_password }}{{ end }}"'
   aiven.serviceUserLimit:
     description: The limit on the number of Service Users in the main project (set by Aiven)
     displayName: Service User limit

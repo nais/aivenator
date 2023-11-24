@@ -1,4 +1,4 @@
-{{- if ne .Values.aiven.prometheus.username "" }}
+{{- if .Values.aiven.prometheus.username }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -31,3 +31,4 @@ spec:
     - action: labeldrop
       regex: cloud|service_type|project
 {{- end }}
+
