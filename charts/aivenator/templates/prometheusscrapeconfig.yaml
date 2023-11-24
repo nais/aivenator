@@ -1,4 +1,4 @@
-{{- if .Values.aiven.prometheus.username }}
+{{- if ne .Values.aiven.prometheus.username "" }}
 apiVersion: v1
 kind: Secret
 metadata:
