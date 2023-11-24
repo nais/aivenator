@@ -1,5 +1,6 @@
 dependencies:
   - allOf:
+      - monitoring
       - replicator
 environmentKinds:
   - tenant
@@ -31,6 +32,14 @@ values:
       template: '"{{.Env.aiven_project}}"'
     config:
       type: string
+  aiven.prometheus.username:
+    displayName: Aiven prometheus username
+    computed:
+      template: '"{{ .Env.aiven_prometheus_username }}"'
+  aiven.prometheus.password:
+    displayName: Aiven prometheus password
+    computed:
+      template: '"{{ .Env.aiven_prometheus_password }}"'
   aiven.serviceUserLimit:
     description: The limit on the number of Service Users in the main project (set by Aiven)
     displayName: Service User limit

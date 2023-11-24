@@ -1,0 +1,33 @@
+{{- if .Values.aiven.prometheus.username }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-prometheus
+stringData:
+  username: "{{ .Values.aiven.prometheus.username }}"
+  password: "{{ .Values.aiven.prometheus.password }}"
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  httpSDConfigs:
+    - url: "https://storage.googleapis.com/io-nais-aiven-prometheus-scrapeconfigs/{{ .Values.aiven.mainProject }}.json"
+  scheme: HTTPS
+  tlsConfig:
+    insecureSkipVerify: true
+  basicAuth:
+    username:
+      name: {{ .Release.Name }}-prometheus
+      key: username
+    password:
+      name: {{ .Release.Name }}-prometheus
+      key: password
+  metricRelabelings:
+    - sourceLabels:
+        - host
+      targetLabel: instance
+    - action: labeldrop
+      regex: cloud|service_type|project
+{{- end }}
