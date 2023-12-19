@@ -110,7 +110,7 @@ func envVarName(instanceName string) string {
 
 func getRedisACLCategories(access string) []string {
 	categories := make([]string, 0, 7)
-	categories = append(categories, "-@all", "+@connection", "+@scripting", "+@pubsub")
+	categories = append(categories, "-@all", "+@connection", "+@scripting", "+@pubsub", "+@transaction")
 	switch access {
 	case "admin":
 		categories = append(categories, "+@admin", "+@write", "+@read")
