@@ -3,15 +3,16 @@
 package certificate
 
 import (
-	"context"
 	"encoding/base64"
-	"fmt"
 	"github.com/aiven/aiven-go-client/v2"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"path"
 	"testing"
 	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -21,54 +22,55 @@ const (
 )
 
 func TestCredStoreGenerator(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "CredStoreGenerator Suite")
+}
 
-	log.Error("Starting test")
-	client, err := aiven.NewTokenClient(os.Getenv("AIVEN_TOKEN"), "")
-	if err != nil {
-		log.Errorf("failed to create client: %v", err)
-		t.Fatal(err)
-	}
+var _ = Describe("CredStoreGenerator", func() {
+	var client *aiven.Client
+	var serviceUser *aiven.ServiceUser
+	var caCert string
+	var workdir string
 
-	test_user, err := client.ServiceUsers.Get(ctx, project, service, username)
-	if err != nil {
-		log.Errorf("failed to get service user: %v", err)
+	var err error
+
+	BeforeEach(func(ctx SpecContext) {
+		client, err = aiven.NewTokenClient(os.Getenv("AIVEN_TOKEN"), "")
+		Expect(err).ToNot(HaveOccurred())
+
+		log.Infof("Attempting to get service user %s in project %s, service %s", username, project, service)
+		serviceUser, err = client.ServiceUsers.Get(ctx, project, service, username)
+		Expect(aiven.IsNotFound(err)).To(BeTrueBecause("service user should not exist"))
+
+		log.Infof("Attempting to create service user %s in project %s, service %s", username, project, service)
 		req := aiven.CreateServiceUserRequest{Username: username}
-		test_user, err = client.ServiceUsers.Create(ctx, project, service, req)
-		if err != nil {
-			log.Errorf("failed to create service user: %v", err)
-			t.Fatal(err)
-		}
-	}
+		serviceUser, err = client.ServiceUsers.Create(ctx, project, service, req)
+		Expect(err).ToNot(HaveOccurred())
 
-	caCert, err := client.CA.Get(ctx, project)
-	if err != nil {
-		log.Errorf("failed to get CA cert: %v", err)
-		t.Fatal(err)
-	}
+		caCert, err = client.CA.Get(ctx, project)
 
-	workdir, err := os.MkdirTemp("", "credstores_test-workdir-*")
-	runGenerator := func(t *testing.T, desc string, generator Generator) {
-		stores, err := generator.MakeCredStores(test_user.AccessKey, test_user.AccessCert, caCert)
-		if err != nil {
-			log.Errorf("failed to create cred stores: %v", err)
-			t.Fatal(err)
-		}
+		workdir, err = os.MkdirTemp("", "credstores_test-workdir-*")
+	}, NodeTimeout(10*time.Second))
 
-		log.Infof("Generated CredStores using %s:", desc)
+	AfterEach(func(ctx SpecContext) {
+		err = client.ServiceUsers.Delete(ctx, project, service, username)
+		Expect(err).ToNot(HaveOccurred())
+	}, NodeTimeout(10*time.Second))
+
+	It("should generate a native cred store", func(ctx SpecContext) {
+		generator := NewNativeGenerator()
+		stores, err := generator.MakeCredStores(serviceUser.AccessKey, serviceUser.AccessCert, caCert)
+		Expect(err).ToNot(HaveOccurred())
+
+		log.Infof("Generated CredStores using NativeGenerator")
 		log.Infof("Secret: '%v'", stores.Secret)
-		truststorePath := path.Join(workdir, fmt.Sprintf("%s.client.truststore.jks", desc))
+		truststorePath := path.Join(workdir, "native.client.truststore.jks")
 		_ = os.WriteFile(truststorePath, stores.Truststore, 0644)
 		log.Infof("Truststore (saved to %s):", truststorePath)
 		log.Info(base64.StdEncoding.EncodeToString(stores.Truststore))
-		keystorePath := path.Join(workdir, fmt.Sprintf("%s.client.keystore.p12", desc))
+		keystorePath := path.Join(workdir, "native.client.keystore.p12")
 		_ = os.WriteFile(keystorePath, stores.Keystore, 0644)
 		log.Infof("Keystore (saved to %s):", keystorePath)
 		log.Info(base64.StdEncoding.EncodeToString(stores.Keystore))
-	}
-
-	t.Run("native", func(t *testing.T) {
-		runGenerator(t, "native", NewNativeGenerator())
-	})
-}
+	}, NodeTimeout(10*time.Second))
+})
