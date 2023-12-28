@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/Code-Hex/go-generics-cache v1.3.1
 	github.com/aiven/aiven-go-client v1.36.0
-	github.com/aiven/aiven-go-client/v2 v2.4.0
+	github.com/aiven/aiven-go-client/v2 v2.6.0
 	github.com/nais/liberator v0.0.0-20231116080924-3cb206988740
 	github.com/onsi/ginkgo/v2 v2.13.2
 	github.com/onsi/gomega v1.30.0
