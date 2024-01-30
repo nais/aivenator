@@ -61,6 +61,8 @@ values:
   clusterName:
     computed:
       template: '"{{.Env.name}}"'
+    config:
+      type: string
   extraEnv.HTTPS_PROXY:
     displayName: HTTPS proxy
     config:
