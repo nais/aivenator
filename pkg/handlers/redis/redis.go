@@ -113,13 +113,13 @@ func getRedisACLCategories(access string) []string {
 	categories = append(categories, "-@all", "+@connection", "+@scripting", "+@pubsub", "+@transaction")
 	switch access {
 	case "admin":
-		categories = append(categories, "+@admin", "-@dangerous", "+@write", "+@read")
+		categories = append(categories, "+@admin", "+@write", "+@read")
 	case "readwrite":
-		categories = append(categories, "-@dangerous", "+@write", "+@read")
+		categories = append(categories, "+@write", "+@read")
 	case "write":
-		categories = append(categories, "-@dangerous", "+@write")
+		categories = append(categories, "+@write")
 	default:
-		categories = append(categories, "-@dangerous", "+@read")
+		categories = append(categories, "+@read")
 	}
 	return categories
 }
