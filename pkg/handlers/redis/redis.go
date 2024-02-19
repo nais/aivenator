@@ -121,7 +121,6 @@ func getRedisACLCategories(access string) []string {
 	default:
 		categories = append(categories, "+@read")
 	}
-	categories = append(categories, "-@dangerous")
 	return categories
 }
 
