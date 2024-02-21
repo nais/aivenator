@@ -16,7 +16,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.8.4
-	github.com/vektra/mockery/v2 v2.40.3
+	github.com/vektra/mockery/v2 v2.42.0
 	golang.org/x/vuln v1.0.4
 	honnef.co/go/tools v0.4.6
 	k8s.io/api v0.28.3
