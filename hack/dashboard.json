@@ -370,36 +370,11 @@
           "gridPos": {},
           "id": 6,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "AivenApplications processed - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -408,30 +383,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         },
         {
           "datasource": "$ds",
@@ -440,36 +447,11 @@
           "gridPos": {},
           "id": 7,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "AivenApplications requeued - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -478,30 +460,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         },
         {
           "datasource": "$ds",
@@ -583,36 +597,11 @@
           "gridPos": {},
           "id": 9,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "Memory usage - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -639,30 +628,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         },
         {
           "datasource": "$ds",
@@ -671,36 +692,11 @@
           "gridPos": {},
           "id": 10,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "CPU usage - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -721,30 +717,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         }
       ],
       "repeat": null
@@ -763,36 +791,11 @@
           "gridPos": {},
           "id": 11,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "ServiceUsers created - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -801,30 +804,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         },
         {
           "datasource": "$ds",
@@ -833,36 +868,11 @@
           "gridPos": {},
           "id": 12,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "ServiceUsers deleted - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -871,30 +881,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         },
         {
           "datasource": "$ds",
@@ -903,36 +945,11 @@
           "gridPos": {},
           "id": 13,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "Total ServiceUsers - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -941,30 +958,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         }
       ],
       "repeat": null
@@ -983,36 +1032,11 @@
           "gridPos": {},
           "id": 14,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "Resources written - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -1021,30 +1045,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         },
         {
           "datasource": "$ds",
@@ -1053,36 +1109,11 @@
           "gridPos": {},
           "id": 15,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "Resources deleted - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -1091,30 +1122,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         },
         {
           "datasource": "$ds",
@@ -1123,36 +1186,11 @@
           "gridPos": {},
           "id": 16,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "Protected Secrets - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -1161,30 +1199,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         },
         {
           "datasource": "$ds",
@@ -1193,36 +1263,11 @@
           "gridPos": {},
           "id": 17,
           "isNew": false,
-          "renderer": "flot",
           "repeat": "ds",
           "span": 4,
           "title": "Managed Secrets (in use) - $ds",
           "transparent": true,
-          "type": "graph",
-          "aliasColors": {},
-          "bars": false,
-          "fill": 1,
-          "legend": {
-            "alignAsTable": false,
-            "avg": false,
-            "current": false,
-            "hideEmpty": true,
-            "hideZero": true,
-            "max": false,
-            "min": false,
-            "rightSide": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "nullPointMode": "null as zero",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "stack": false,
-          "steppedLine": false,
+          "type": "timeseries",
           "targets": [
             {
               "refId": "",
@@ -1231,30 +1276,62 @@
               "format": "time_series"
             }
           ],
-          "tooltip": {
-            "shared": true,
-            "value_type": "",
-            "sort": 2
-          },
-          "x-axis": true,
-          "y-axis": true,
-          "xaxis": {
-            "format": "time",
-            "logBase": 1,
-            "show": true
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": true
+          "options": {
+            "legend": {
+              "calcs": [],
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
             },
-            {
-              "format": "short",
-              "logBase": 1,
-              "show": false
+            "tooltip": {
+              "mode": "single"
             }
-          ]
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "",
+              "color": {
+                "mode": "palette-classic",
+                "fixedColor": "green",
+                "seriesBy": "last"
+              },
+              "thresholds": {
+                "mode": "",
+                "steps": null
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 25,
+                "gradientMode": "opacity",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "",
+                "spanNulls": false,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "stacking": {
+                  "group": "",
+                  "mode": ""
+                },
+                "thresholdsStyle": {
+                  "mode": ""
+                }
+              }
+            },
+            "overrides": null
+          }
         }
       ],
       "repeat": null
@@ -1415,6 +1492,11 @@
         "refresh": false,
         "options": [
           {
+            "text": "ssb",
+            "value": "ssb",
+            "selected": false
+          },
+          {
             "text": "nav",
             "value": "nav",
             "selected": false
@@ -1423,16 +1505,6 @@
             "text": "dev-nais",
             "value": "dev-nais",
             "selected": false
-          },
-          {
-            "text": "mtpilot",
-            "value": "mtpilot",
-            "selected": false
-          },
-          {
-            "text": "ssb",
-            "value": "ssb",
-            "selected": false
           }
         ],
         "includeAll": false,
@@ -1440,7 +1512,7 @@
         "allValue": "",
         "multi": false,
         "multiFormat": "",
-        "query": "dev-nais,mtpilot,nav,ssb",
+        "query": "dev-nais,nav,ssb",
         "regex": "",
         "current": {
           "text": [

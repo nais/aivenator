@@ -24,7 +24,6 @@ variables:
       values_map:
         nav: nav
         dev-nais: dev-nais
-        mtpilot: mtpilot
         ssb: ssb
   - datasource:
       name: ds
@@ -135,7 +134,7 @@ rows:
                 instant: true
   - name: Applications
     panels:
-      - graph:
+      - timeseries:
           title: AivenApplications processed - $ds
           datasource: $ds
           repeat: ds
@@ -145,7 +144,7 @@ rows:
             - prometheus:
                 query: sum(aivenator_aiven_applications_processed) by (synchronization_state)
                 legend: "{{ synchronization_state }}"
-      - graph:
+      - timeseries:
           title: AivenApplications requeued - $ds
           datasource: $ds
           repeat: ds
@@ -179,7 +178,7 @@ rows:
   - name: Resource usage
     collapse: true
     panels:
-      - graph:
+      - timeseries:
           title: Memory usage - $ds
           datasource: $ds
           repeat: ds
@@ -198,7 +197,7 @@ rows:
             - prometheus:
                 query: sum(container_memory_usage_bytes{namespace="nais-system",container="aivenator"}) by (pod)
                 legend: "Resident set size {{ pod }}"
-      - graph:
+      - timeseries:
           title: CPU usage - $ds
           datasource: $ds
           repeat: ds
@@ -217,7 +216,7 @@ rows:
   - name: Aiven operations
     collapse: true
     panels:
-      - graph:
+      - timeseries:
           title: ServiceUsers created - $ds
           datasource: $ds
           repeat: ds
@@ -227,7 +226,7 @@ rows:
             - prometheus:
                 query: sum(aivenator_service_users_created) by (pool)
                 legend: "{{ pool }}"
-      - graph:
+      - timeseries:
           title: ServiceUsers deleted - $ds
           datasource: $ds
           repeat: ds
@@ -237,7 +236,7 @@ rows:
             - prometheus:
                 query: sum(aivenator_service_users_deleted) by (pool)
                 legend: "{{ pool }}"
-      - graph:
+      - timeseries:
           title: Total ServiceUsers - $ds
           datasource: $ds
           repeat: ds
@@ -250,7 +249,7 @@ rows:
   - name: Kubernetes operations
     collapse: true
     panels:
-      - graph:
+      - timeseries:
           title: Resources written - $ds
           datasource: $ds
           repeat: ds
@@ -260,7 +259,7 @@ rows:
             - prometheus:
                 query: sum(aivenator_kubernetes_resources_written) by (resource_type)
                 legend: "{{ resource_type }}"
-      - graph:
+      - timeseries:
           title: Resources deleted - $ds
           datasource: $ds
           repeat: ds
@@ -270,7 +269,7 @@ rows:
             - prometheus:
                 query: sum(aivenator_kubernetes_resources_deleted) by (resource_type)
                 legend: "{{ resource_type }}"
-      - graph:
+      - timeseries:
           title: Protected Secrets - $ds
           datasource: $ds
           repeat: ds
@@ -280,7 +279,7 @@ rows:
             - prometheus:
                 query: sum(aivenator_secrets_managed{state="protected"}) by (namespace)
                 legend: "{{ namespace }}"
-      - graph:
+      - timeseries:
           title: Managed Secrets (in use) - $ds
           datasource: $ds
           repeat: ds
