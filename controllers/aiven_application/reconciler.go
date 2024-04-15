@@ -81,6 +81,12 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			cr.RequeueAfter = requeueInterval
 		}
 
+		if cr.RequeueAfter > 0 {
+			metrics.ApplicationsRequeued.With(prometheus.Labels{
+				metrics.LabelSyncState: rolloutFailed,
+			}).Inc()
+		}
+
 		return cr, nil
 	}
 
