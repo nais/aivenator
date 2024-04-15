@@ -2,7 +2,7 @@ apiVersion: v2
 name: aivenator
 description: Install Aivenator for provisioning Aiven credentials
 sources:
-  - github.com/nais/aivenator/tree/main/charts/aivenator
+  - https://github.com/nais/aivenator/tree/main/charts/aivenator
 
 # A chart can be either an 'application' or a 'library' chart.
 #
