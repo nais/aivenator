@@ -7,7 +7,7 @@ toolchain go1.22.0
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
 	github.com/aiven/aiven-go-client v1.36.0
-	github.com/aiven/aiven-go-client/v2 v2.20.0
+	github.com/aiven/aiven-go-client/v2 v2.21.0
 	github.com/nais/liberator v0.0.0-20231116080924-3cb206988740
 	github.com/onsi/ginkgo/v2 v2.17.3
 	github.com/onsi/gomega v1.33.1
@@ -51,7 +51,7 @@ require (
 	github.com/google/pprof v0.0.0-20240424215950-a892ee059fd6 // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.5 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.6 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/iancoleman/strcase v0.2.0 // indirect
@@ -63,7 +63,7 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/hashstructure v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -93,7 +93,7 @@ require (
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/oauth2 v0.16.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/term v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
