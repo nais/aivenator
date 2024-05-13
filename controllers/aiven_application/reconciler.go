@@ -27,6 +27,7 @@ import (
 const (
 	requeueInterval    = time.Second * 10
 	secretWriteTimeout = time.Second * 2
+	reconcileTimeout   = time.Minute * 1
 	rolloutComplete    = "RolloutComplete"
 	rolloutFailed      = "RolloutFailed"
 	AivenVolumeName    = "aiven-credentials"
@@ -50,6 +51,9 @@ type AivenApplicationReconciler struct {
 
 func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var application aiven_nais_io_v1.AivenApplication
+
+	ctx, cancel := context.WithTimeout(ctx, reconcileTimeout)
+	defer cancel()
 
 	logger := r.Logger.WithFields(log.Fields{
 		"aiven_application": req.Name,
