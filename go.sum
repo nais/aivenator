@@ -4,8 +4,8 @@ github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
 github.com/aiven/aiven-go-client v1.36.0 h1:AUuldvYdk2b9wu4v7L9qx01d6ZB5VckiMgRW37yxZVE=
 github.com/aiven/aiven-go-client v1.36.0/go.mod h1:3Hh1PDNcqNNCYrkU/jSAHMV/b/ynoy73fwhBPKnMe6I=
-github.com/aiven/aiven-go-client/v2 v2.21.0 h1:OcWJkR7xReCisyl3eTecuJxYKeGH9z8XXwwc+tn3F8U=
-github.com/aiven/aiven-go-client/v2 v2.21.0/go.mod h1:Ox/NZj1lJPT8LQya3kYq6bjQ4GdHpcauB/f+6DJygEE=
+github.com/aiven/aiven-go-client/v2 v2.22.0 h1:0INhM5r8yIIS4LGetM5F5VMfdg+GDoFimcKU6JigGkk=
+github.com/aiven/aiven-go-client/v2 v2.22.0/go.mod h1:Ox/NZj1lJPT8LQya3kYq6bjQ4GdHpcauB/f+6DJygEE=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.2.0 h1:DC2CZ1Ep5Y4k3ZQ899DldepgrayRUGE6BBZ/cd9Cj44=
