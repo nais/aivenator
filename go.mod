@@ -17,7 +17,7 @@ require (
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.9.0
 	github.com/vektra/mockery/v2 v2.43.1
-	golang.org/x/vuln v1.1.0
+	golang.org/x/vuln v1.1.1
 	honnef.co/go/tools v0.4.7
 	k8s.io/api v0.28.3
 	k8s.io/apimachinery v0.28.3
@@ -97,7 +97,7 @@ require (
 	golang.org/x/term v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
-	golang.org/x/tools v0.21.0 // indirect
+	golang.org/x/tools v0.21.1-0.20240514024235-59d9797072e7 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
