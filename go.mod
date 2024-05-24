@@ -9,7 +9,7 @@ require (
 	github.com/aiven/aiven-go-client v1.36.0
 	github.com/aiven/aiven-go-client/v2 v2.23.0
 	github.com/nais/liberator v0.0.0-20231116080924-3cb206988740
-	github.com/onsi/ginkgo/v2 v2.18.0
+	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
 	github.com/prometheus/client_golang v1.19.1
 	github.com/sirupsen/logrus v1.9.3
