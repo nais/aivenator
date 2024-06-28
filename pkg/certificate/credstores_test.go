@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	project  = "nav-integration-test"
-	service  = "nav-integration-test-kafka"
+	project  = "dev-nais-dev"
+	service  = "kafka"
 	username = "test_user"
 )
 

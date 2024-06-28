@@ -6,4 +6,4 @@ metadata:
 spec:
   secretName: my-test-secret
   kafka:
-    pool: nav-integration-test
+    pool: dev-nais-dev

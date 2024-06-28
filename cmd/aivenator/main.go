@@ -70,8 +70,8 @@ func init() {
 	flag.String(LogLevel, "info", logLevelHelp())
 	flag.Duration(KubernetesWriteRetryInterval, time.Second*10, "Requeueing interval when Kubernetes writes fail")
 	flag.Duration(SyncPeriod, time.Hour*1, "How often to re-synchronize all AivenApplication resources including credential rotation")
-	flag.StringSlice(Projects, []string{"nav-integration-test"}, "List of projects allowed to operate on")
-	flag.String(MainProject, "nav-integration-test", "Main project to operate on for services that only allow one")
+	flag.StringSlice(Projects, []string{"dev-nais-dev"}, "List of projects allowed to operate on")
+	flag.String(MainProject, "dev-nais-dev", "Main project to operate on for services that only allow one")
 
 	flag.Parse()
 

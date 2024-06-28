@@ -27,5 +27,5 @@ spec:
       cpu: "200m"
       memory: "256Mi"
   kafka:
-    pool: nav-integration-test
+    pool: dev-nais-dev
   skipCaBundle: true

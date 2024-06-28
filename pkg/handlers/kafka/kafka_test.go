@@ -126,7 +126,7 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 		service:      suite.mockServices,
 		generator:    suite.mockGenerator,
 		nameResolver: suite.mockNameResolver,
-		projects:     []string{"nav-integration-test", "my-testing-pool"},
+		projects:     []string{"dev-nais-dev", "my-testing-pool"},
 	}
 	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
 	suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)

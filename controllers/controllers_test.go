@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	testProject          = "nav-integration-test"
+	testProject          = "dev-nais-dev"
 	aivenApplicationName = "integration-test"
 	baseSecretName       = "aiven-integration-test-secret"
 	namespace            = "test-namespace"
