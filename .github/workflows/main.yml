@@ -21,9 +21,9 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4 # ratchet:actions/checkout@v3
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # ratchet:actions/checkout@v4
       - name: Install cosign
-        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # ratchet:sigstore/cosign-installer@main
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # ratchet:sigstore/cosign-installer@v3.5.0
         with:
           cosign-release: 'v2.2.3'
       - name: Verify runner image
@@ -50,7 +50,7 @@ jobs:
     needs:
       - build
     steps:
-      - uses: actions/checkout@v4 # ratchet:actions/checkout@v3
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # ratchet:actions/checkout@v4
       - id: 'auth'
         name: 'Authenticate to Google Cloud'
         if: github.ref == 'refs/heads/main'
@@ -97,7 +97,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: nais/fasit-deploy@badff0705af8a57bcf0ab172895273da09ae5959 # ratchet:nais/fasit-deploy@v2
+      - uses: nais/fasit-deploy@v2 # ratchet:exclude
         with:
           chart: oci://${{ env.GOOGLE_REGISTRY }}/nais-io/nais/feature/aivenator
           version: ${{ needs.build.outputs.version }}
