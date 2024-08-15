@@ -1505,6 +1505,11 @@
             "text": "dev-nais",
             "value": "dev-nais",
             "selected": false
+          },
+          {
+            "text": "ci-nais",
+            "value": "ci-nais",
+            "selected": false
           }
         ],
         "includeAll": false,
@@ -1512,7 +1517,7 @@
         "allValue": "",
         "multi": false,
         "multiFormat": "",
-        "query": "dev-nais,nav,ssb",
+        "query": "ci-nais,dev-nais,nav,ssb",
         "regex": "",
         "current": {
           "text": [
