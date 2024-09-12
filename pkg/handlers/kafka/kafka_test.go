@@ -75,8 +75,12 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 	if _, ok := enabled[ServicesGetAddresses]; ok {
 		suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 			Return(&service.ServiceAddresses{
-				ServiceURI:     serviceURI,
-				SchemaRegistry: "",
+				ServiceURI: serviceURI,
+				SchemaRegistry: &service.ServiceAddress{
+					URI:  "",
+					Host: "",
+					Port: 0,
+				},
 			}, nil)
 	}
 	if _, ok := enabled[ProjectGetCA]; ok {

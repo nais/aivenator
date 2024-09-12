@@ -23,6 +23,8 @@ const (
 	projectName              = "my-project"
 	instanceName             = "influx-team-a"
 	serviceURI               = "https+influxdb://influx-team-a.example.com:23456"
+	serviceHost              = "influx-team-a.example.com"
+	servicePort              = 23456
 	servicePassword          = "service-password"
 	serviceUserName          = "avnadmin"
 	serviceDbName            = "defaultdb"
@@ -116,7 +118,11 @@ var _ = Describe("influxdb.Handler", func() {
 			BeforeEach(func() {
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, instanceName).
 					Return(&service.ServiceAddresses{
-						InfluxDB: serviceURI,
+						InfluxDB: &service.ServiceAddress{
+							URI:  serviceURI,
+							Host: serviceHost,
+							Port: servicePort,
+						},
 					}, nil)
 
 				mocks.serviceManager.On("Get", mock.Anything, projectName, instanceName).
@@ -156,7 +162,11 @@ var _ = Describe("influxdb.Handler", func() {
 
 			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, instanceName).
 				Return(&service.ServiceAddresses{
-					InfluxDB: serviceURI,
+					InfluxDB: &service.ServiceAddress{
+						URI:  serviceURI,
+						Host: serviceHost,
+						Port: servicePort,
+					},
 				}, nil)
 		})
 

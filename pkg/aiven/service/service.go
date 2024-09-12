@@ -23,12 +23,18 @@ type cacheKey struct {
 	serviceName string
 }
 
+type ServiceAddress struct {
+	URI  string
+	Host string
+	Port int
+}
+
 type ServiceAddresses struct {
 	ServiceURI     string
-	SchemaRegistry string
-	OpenSearch     string
-	Redis          string
-	InfluxDB       string
+	SchemaRegistry *ServiceAddress
+	OpenSearch     *ServiceAddress
+	Redis          *ServiceAddress
+	InfluxDB       *ServiceAddress
 }
 
 func NewManager(service *aiven.ServicesHandler) ServiceManager {
@@ -76,12 +82,16 @@ func getServiceURI(service *aiven.Service) string {
 	return service.URI
 }
 
-func getServiceAddress(service *aiven.Service, componentName, scheme string) string {
+func getServiceAddress(service *aiven.Service, componentName, scheme string) *ServiceAddress {
 	component := findComponent(componentName, service.Components)
 	if component != nil {
-		return fmt.Sprintf("%s://%s:%d", scheme, component.Host, component.Port)
+		return &ServiceAddress{
+			URI:  fmt.Sprintf("%s://%s:%d", scheme, component.Host, component.Port),
+			Host: component.Host,
+			Port: component.Port,
+		}
 	}
-	return ""
+	return nil
 }
 
 func findComponent(needle string, haystack []*aiven.ServiceComponents) *aiven.ServiceComponents {

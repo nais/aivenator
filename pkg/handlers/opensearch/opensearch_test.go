@@ -25,7 +25,9 @@ const (
 	serviceUserName = "team-a"
 	servicePassword = "service-password"
 	projectName     = "my-project"
-	serviceURI      = "http://example.com"
+	serviceURI      = "http://example.com:1234"
+	serviceHost     = "example.com"
+	servicePort     = 1234
 	instance        = "my-instance"
 	access          = "read"
 )
@@ -68,8 +70,12 @@ func (suite *OpenSearchHandlerTestSuite) addDefaultMocks(enabled map[int]struct{
 	if _, ok := enabled[ServicesGetAddresses]; ok {
 		suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 			Return(&service.ServiceAddresses{
-				ServiceURI:     serviceURI,
-				SchemaRegistry: "",
+				ServiceURI: serviceURI,
+				OpenSearch: &service.ServiceAddress{
+					URI:  serviceURI,
+					Host: serviceHost,
+					Port: servicePort,
+				},
 			}, nil)
 	}
 	if _, ok := enabled[ServiceUsersGet]; ok {
@@ -177,7 +183,7 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
 	}
 	suite.Equal(expected, secret)
 	suite.ElementsMatch(utils.KeysFromStringMap(secret.StringData), []string{
-		OpenSearchUser, OpenSearchPassword, OpenSearchURI,
+		OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort,
 	})
 }
 

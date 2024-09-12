@@ -5,6 +5,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"strconv"
 	"testing"
 	"time"
 
@@ -29,12 +30,16 @@ type testData struct {
 	instanceName             string
 	serviceName              string
 	serviceURI               string
+	serviceHost              string
+	servicePort              int
 	access                   string
 	username                 string
 	serviceUserAnnotationKey string
 	usernameKey              string
 	passwordKey              string
 	uriKey                   string
+	hostKey                  string
+	portKey                  string
 }
 
 var testInstances = []testData{
@@ -42,23 +47,31 @@ var testInstances = []testData{
 		instanceName:             "my-instance1",
 		serviceName:              "redis-team-a-my-instance1",
 		serviceURI:               "rediss://my-instance1.example.com:23456",
+		serviceHost:              "my-instance1.example.com",
+		servicePort:              23456,
 		access:                   "read",
 		username:                 "test-app-r",
 		serviceUserAnnotationKey: "my-instance1.redis.aiven.nais.io/serviceUser",
 		usernameKey:              "REDIS_USERNAME_MY_INSTANCE1",
 		passwordKey:              "REDIS_PASSWORD_MY_INSTANCE1",
 		uriKey:                   "REDIS_URI_MY_INSTANCE1",
+		hostKey:                  "REDIS_HOST_MY_INSTANCE1",
+		portKey:                  "REDIS_PORT_MY_INSTANCE1",
 	},
 	{
 		instanceName:             "session-store",
 		serviceName:              "redis-team-a-session-store",
 		serviceURI:               "rediss://session-store.example.com:23456",
+		serviceHost:              "session-store.example.com",
+		servicePort:              23456,
 		access:                   "readwrite",
 		username:                 "test-app-rw",
 		serviceUserAnnotationKey: "session-store.redis.aiven.nais.io/serviceUser",
 		usernameKey:              "REDIS_USERNAME_SESSION_STORE",
 		passwordKey:              "REDIS_PASSWORD_SESSION_STORE",
 		uriKey:                   "REDIS_URI_SESSION_STORE",
+		hostKey:                  "REDIS_HOST_SESSION_STORE",
+		portKey:                  "REDIS_PORT_SESSION_STORE",
 	},
 }
 
@@ -85,7 +98,11 @@ var _ = Describe("redis.Handler", func() {
 	defaultServiceManagerMock := func(data testData) {
 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
 			Return(&service.ServiceAddresses{
-				Redis: data.serviceURI,
+				Redis: &service.ServiceAddress{
+					URI:  data.serviceURI,
+					Host: data.serviceHost,
+					Port: data.servicePort,
+				},
 			}, nil)
 	}
 
@@ -200,6 +217,8 @@ var _ = Describe("redis.Handler", func() {
 			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
 		}
 
 		Context("and the service user already exists", func() {
@@ -270,6 +289,8 @@ var _ = Describe("redis.Handler", func() {
 			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
 		}
 
 		Context("and the service user already exists", func() {

@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -25,6 +26,8 @@ const (
 	RedisUser     = "REDIS_USERNAME"
 	RedisPassword = "REDIS_PASSWORD"
 	RedisURI      = "REDIS_URI"
+	RedisHost     = "REDIS_HOST"
+	RedisPort     = "REDIS_PORT"
 )
 
 var namePattern = regexp.MustCompile("[^a-z0-9]")
@@ -61,6 +64,9 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		if err != nil {
 			return utils.AivenFail("GetService", application, err, true, logger)
 		}
+		if addresses.Redis == nil {
+			return utils.AivenFail("GetService", application, fmt.Errorf("no Redis service found"), true, logger)
+		}
 
 		serviceUserName := fmt.Sprintf("%s%s", application.GetName(), utils.SelectSuffix(spec.Access))
 
@@ -93,7 +99,9 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 			fmt.Sprintf("%s_%s", RedisUser, envVarSuffix):     aivenUser.Username,
 			fmt.Sprintf("%s_%s", RedisPassword, envVarSuffix): aivenUser.Password,
-			fmt.Sprintf("%s_%s", RedisURI, envVarSuffix):      addresses.Redis,
+			fmt.Sprintf("%s_%s", RedisURI, envVarSuffix):      addresses.Redis.URI,
+			fmt.Sprintf("%s_%s", RedisHost, envVarSuffix):     addresses.Redis.Host,
+			fmt.Sprintf("%s_%s", RedisPort, envVarSuffix):     strconv.Itoa(addresses.Redis.Port),
 		})
 	}
 

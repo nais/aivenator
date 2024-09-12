@@ -8,6 +8,7 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"strconv"
 )
 
 const (
@@ -20,6 +21,8 @@ const (
 	InfluxDBUser     = "INFLUXDB_USERNAME"
 	InfluxDBPassword = "INFLUXDB_PASSWORD"
 	InfluxDBURI      = "INFLUXDB_URI"
+	InfluxDBHost     = "INFLUXDB_HOST"
+	InfluxDBPort     = "INFLUXDB_PORT"
 	InfluxDBName     = "INFLUXDB_NAME"
 )
 
@@ -67,7 +70,9 @@ func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		InfluxDBUser:     aivenService.ConnectionInfo.InfluxDBUsername,
 		InfluxDBPassword: aivenService.ConnectionInfo.InfluxDBPassword,
-		InfluxDBURI:      addresses.InfluxDB,
+		InfluxDBURI:      addresses.InfluxDB.URI,
+		InfluxDBHost:     addresses.InfluxDB.Host,
+		InfluxDBPort:     strconv.Itoa(addresses.InfluxDB.Port),
 		InfluxDBName:     aivenService.ConnectionInfo.InfluxDBDatabaseName,
 	})
 

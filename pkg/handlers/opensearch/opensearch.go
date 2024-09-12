@@ -12,6 +12,7 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"strconv"
 )
 
 // Annotations
@@ -25,6 +26,8 @@ const (
 	OpenSearchUser     = "OPEN_SEARCH_USERNAME"
 	OpenSearchPassword = "OPEN_SEARCH_PASSWORD"
 	OpenSearchURI      = "OPEN_SEARCH_URI"
+	OpenSearchHost     = "OPEN_SEARCH_HOST"
+	OpenSearchPort     = "OPEN_SEARCH_PORT"
 )
 
 func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string) OpenSearchHandler {
@@ -63,6 +66,9 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	if err != nil {
 		return utils.AivenFail("GetService", application, err, false, logger)
 	}
+	if addresses.OpenSearch == nil {
+		return utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
+	}
 
 	serviceUserName := fmt.Sprintf("%s%s", application.GetNamespace(), utils.SelectSuffix(spec.Access))
 
@@ -91,7 +97,9 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		OpenSearchUser:     aivenUser.Username,
 		OpenSearchPassword: aivenUser.Password,
-		OpenSearchURI:      addresses.OpenSearch,
+		OpenSearchURI:      addresses.OpenSearch.URI,
+		OpenSearchHost:     addresses.OpenSearch.Host,
+		OpenSearchPort:     strconv.Itoa(addresses.OpenSearch.Port),
 	})
 
 	return nil
