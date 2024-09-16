@@ -65,7 +65,7 @@ spec:
               * Check for other Aiven problems:
                 https://monitoring.nais.io/d/aiven-kafka-overview/aiven-kafka-overview?orgId=1&refresh=1m&var-tenant={{ .Values.tenant }}&var-ds={{ .Values.tenant }}-{{ .Values.clusterName }}
 
-        {{- if ge .Values.aiven.serviceUserLimit 1000 }}
+        {{- if ge (.Values.aiven.serviceUserLimit | atoi) 1000 }}
         - alert: AivenServiceUserLimit
           expr: 'sum(aivenator_service_users_count{pool="{{ .Values.aiven.mainProject }}"}) >= ({{ .Values.aiven.serviceUserLimit }} - 100)'
           for: 5m
