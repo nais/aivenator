@@ -64,6 +64,8 @@ spec:
               * Check aivenator logs: `kubectl logs --namespace nais-system deploy/aivenator -c aivenator`
               * Check for other Aiven problems:
                 https://monitoring.nais.io/d/aiven-kafka-overview/aiven-kafka-overview?orgId=1&refresh=1m&var-tenant={{ .Values.tenant }}&var-ds={{ .Values.tenant }}-{{ .Values.clusterName }}
+
+        {{- if ge .Values.aiven.serviceUserLimit 1000 }}
         - alert: AivenServiceUserLimit
           expr: 'sum(aivenator_service_users_count{pool="{{ .Values.aiven.mainProject }}"}) >= ({{ .Values.aiven.serviceUserLimit }} - 100)'
           for: 5m
@@ -89,3 +91,30 @@ spec:
 
               Documentation: https://github.com/navikt/naisvakt/blob/master/kafka.md#g%C3%A5r-tom-for-kafka-service-users
               Instrumentation: https://monitoring.nais.io/d/aivenator/aivenator?orgId=1&refresh=1m&var-tenant={{ .Values.tenant }}&var-ds={{ .Values.tenant }}-{{ .Values.clusterName }}
+        {{- else }}
+        - alert: AivenServiceUserLimit
+          expr: 'sum(aivenator_service_users_count{pool="{{ .Values.aiven.mainProject }}"}) >= ({{ .Values.aiven.serviceUserLimit }} * 0.9)'
+          for: 5m
+          labels:
+            severity: critical
+            feature: aivenator
+            cluster: "{{ .Values.clusterName }}"
+            namespace: nais-system
+          annotations:
+            summary: Approaching Aiven's Service Users limit
+            consequence: Applications that use Aiven Kafka ({{ .Values.aiven.mainProject }}) will not be able to deploy new builds.
+            description: |
+              Approaching current limit of {{ .Values.aiven.serviceUserLimit }} Service Users in Aiven Kafka ({{ .Values.aiven.mainProject }}).
+
+              Kafkarator allows applications to connect with Kafka topics through Service Users.
+              Aivenator creates a new Service User whenever an application is deployed, and is responsible for deleting Service Users when they are no longer in use.
+
+              Aiven maintains a limit on the number of Service Users per project, and there are less than 10% of Service Users left before we hit the limit.
+
+            action: |
+              * Clean-up old Service Users by deleting unused `aiven-credentials` secrets
+              * Contact Aiven and request extension of limit (afterwards remember to update configuration in fasit, and the dashboard below)
+
+              Documentation: https://github.com/navikt/naisvakt/blob/master/kafka.md#g%C3%A5r-tom-for-kafka-service-users
+              Instrumentation: https://monitoring.nais.io/d/aivenator/aivenator?orgId=1&refresh=1m&var-tenant={{ .Values.tenant }}&var-ds={{ .Values.tenant }}-{{ .Values.clusterName }}
+        {{- end }}
