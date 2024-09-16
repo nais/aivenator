@@ -66,7 +66,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	if err != nil {
 		return utils.AivenFail("GetService", application, err, false, logger)
 	}
-	if addresses.OpenSearch == nil {
+	if len(addresses.OpenSearch.URI) == 0 {
 		return utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
 	}
 

@@ -118,7 +118,7 @@ var _ = Describe("influxdb.Handler", func() {
 			BeforeEach(func() {
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, instanceName).
 					Return(&service.ServiceAddresses{
-						InfluxDB: &service.ServiceAddress{
+						InfluxDB: service.ServiceAddress{
 							URI:  serviceURI,
 							Host: serviceHost,
 							Port: servicePort,
@@ -162,7 +162,7 @@ var _ = Describe("influxdb.Handler", func() {
 
 			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, instanceName).
 				Return(&service.ServiceAddresses{
-					InfluxDB: &service.ServiceAddress{
+					InfluxDB: service.ServiceAddress{
 						URI:  serviceURI,
 						Host: serviceHost,
 						Port: servicePort,

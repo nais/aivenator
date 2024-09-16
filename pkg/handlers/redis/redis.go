@@ -64,7 +64,7 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		if err != nil {
 			return utils.AivenFail("GetService", application, err, true, logger)
 		}
-		if addresses.Redis == nil {
+		if len(addresses.Redis.URI) == 0 {
 			return utils.AivenFail("GetService", application, fmt.Errorf("no Redis service found"), true, logger)
 		}
 

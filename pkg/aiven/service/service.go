@@ -31,10 +31,10 @@ type ServiceAddress struct {
 
 type ServiceAddresses struct {
 	ServiceURI     string
-	SchemaRegistry *ServiceAddress
-	OpenSearch     *ServiceAddress
-	Redis          *ServiceAddress
-	InfluxDB       *ServiceAddress
+	SchemaRegistry ServiceAddress
+	OpenSearch     ServiceAddress
+	Redis          ServiceAddress
+	InfluxDB       ServiceAddress
 }
 
 func NewManager(service *aiven.ServicesHandler) ServiceManager {
@@ -82,16 +82,16 @@ func getServiceURI(service *aiven.Service) string {
 	return service.URI
 }
 
-func getServiceAddress(service *aiven.Service, componentName, scheme string) *ServiceAddress {
+func getServiceAddress(service *aiven.Service, componentName, scheme string) ServiceAddress {
 	component := findComponent(componentName, service.Components)
 	if component != nil {
-		return &ServiceAddress{
+		return ServiceAddress{
 			URI:  fmt.Sprintf("%s://%s:%d", scheme, component.Host, component.Port),
 			Host: component.Host,
 			Port: component.Port,
 		}
 	}
-	return nil
+	return ServiceAddress{}
 }
 
 func findComponent(needle string, haystack []*aiven.ServiceComponents) *aiven.ServiceComponents {

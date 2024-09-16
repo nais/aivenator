@@ -71,7 +71,7 @@ func (suite *OpenSearchHandlerTestSuite) addDefaultMocks(enabled map[int]struct{
 		suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 			Return(&service.ServiceAddresses{
 				ServiceURI: serviceURI,
-				OpenSearch: &service.ServiceAddress{
+				OpenSearch: service.ServiceAddress{
 					URI:  serviceURI,
 					Host: serviceHost,
 					Port: servicePort,

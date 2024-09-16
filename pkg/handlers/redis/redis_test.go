@@ -98,7 +98,7 @@ var _ = Describe("redis.Handler", func() {
 	defaultServiceManagerMock := func(data testData) {
 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
 			Return(&service.ServiceAddresses{
-				Redis: &service.ServiceAddress{
+				Redis: service.ServiceAddress{
 					URI:  data.serviceURI,
 					Host: data.serviceHost,
 					Port: data.servicePort,

@@ -76,7 +76,7 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 		suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 			Return(&service.ServiceAddresses{
 				ServiceURI: serviceURI,
-				SchemaRegistry: &service.ServiceAddress{
+				SchemaRegistry: service.ServiceAddress{
 					URI:  "",
 					Host: "",
 					Port: 0,
