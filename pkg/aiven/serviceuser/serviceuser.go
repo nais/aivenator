@@ -3,13 +3,14 @@ package serviceuser
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	cache "github.com/Code-Hex/go-generics-cache"
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	"strings"
-	"time"
 )
 
 const (
@@ -135,6 +136,7 @@ func (m *Manager) Delete(ctx context.Context, serviceUserName, projectName, serv
 	if err != nil {
 		return err
 	}
+	m.serviceUserCache.Delete(cacheKey{projectName, serviceName, serviceUserName})
 	metrics.ServiceUsersDeleted.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
 	m.ObserveServiceUsersCount(ctx, projectName, serviceName, logger)
 	return nil
