@@ -123,7 +123,7 @@ func (h OpenSearchHandler) updateACL(ctx context.Context, serviceUserName string
 		},
 		Username: serviceUserName,
 	})
-	resp, err = h.openSearchACL.Update(ctx, projectName, serviceName, aiven.OpenSearchACLRequest{
+	_, err = h.openSearchACL.Update(ctx, projectName, serviceName, aiven.OpenSearchACLRequest{
 		OpenSearchACLConfig: config,
 	})
 	if err != nil {
