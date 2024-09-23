@@ -53,7 +53,7 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 			return nil, err
 		}
 
-		used := time.Now().Sub(processingStart)
+		used := time.Since(processingStart)
 		handlerName := reflect.TypeOf(handler).String()
 		metrics.HandlerProcessingTime.With(prometheus.Labels{
 			metrics.LabelHandler: handlerName,

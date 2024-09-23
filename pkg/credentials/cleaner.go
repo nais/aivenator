@@ -220,7 +220,7 @@ func (j *Cleaner) collectPossibleUsers(ctx context.Context, appName string) ([]c
 	if err != nil {
 		return nil, fmt.Errorf("failed to list AivenApplications: %v", err)
 	}
-	for i, _ := range aivenAppList.Items {
+	for i := range aivenAppList.Items {
 		objects = append(objects, &aivenAppList.Items[i])
 	}
 
@@ -229,7 +229,7 @@ func (j *Cleaner) collectPossibleUsers(ctx context.Context, appName string) ([]c
 	if err != nil {
 		return nil, fmt.Errorf("failed to list ReplicaSets: %v", err)
 	}
-	for i, _ := range replicaSetList.Items {
+	for i := range replicaSetList.Items {
 		objects = append(objects, &replicaSetList.Items[i])
 	}
 
@@ -238,7 +238,7 @@ func (j *Cleaner) collectPossibleUsers(ctx context.Context, appName string) ([]c
 	if err != nil {
 		return nil, fmt.Errorf("failed to list CronJobs: %v", err)
 	}
-	for i, _ := range cronJobList.Items {
+	for i := range cronJobList.Items {
 		objects = append(objects, &cronJobList.Items[i])
 	}
 
@@ -247,7 +247,7 @@ func (j *Cleaner) collectPossibleUsers(ctx context.Context, appName string) ([]c
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Jobs: %v", err)
 	}
-	for i, _ := range JobList.Items {
+	for i := range JobList.Items {
 		objects = append(objects, &JobList.Items[i])
 	}
 	return objects, nil

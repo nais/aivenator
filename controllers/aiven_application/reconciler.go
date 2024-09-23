@@ -151,7 +151,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	processingStart := time.Now()
 	defer func() {
-		used := time.Now().Sub(processingStart)
+		used := time.Since(processingStart)
 		syncState := application.Status.SynchronizationState
 		if syncState == "" {
 			syncState = "unknown"

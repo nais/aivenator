@@ -129,9 +129,7 @@ func (m *Manager) Get(ctx context.Context, serviceUserName, projectName, service
 
 func (m *Manager) Delete(ctx context.Context, serviceUserName, projectName, serviceName string, logger log.FieldLogger) error {
 	err := metrics.ObserveAivenLatency("ServiceUser_Delete", projectName, func() error {
-		var err error
-		err = m.serviceUsers.Delete(ctx, projectName, serviceName, serviceUserName)
-		return err
+		return m.serviceUsers.Delete(ctx, projectName, serviceName, serviceUserName)
 	})
 	if err != nil {
 		return err

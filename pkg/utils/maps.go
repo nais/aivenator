@@ -24,7 +24,7 @@ func MergeByteMap(src, dst map[string][]byte) map[string][]byte {
 
 func KeysFromStringMap(m map[string]string) []string {
 	keys := make([]string, 0, len(m))
-	for k, _ := range m {
+	for k := range m {
 		keys = append(keys, k)
 	}
 	return keys
@@ -32,7 +32,7 @@ func KeysFromStringMap(m map[string]string) []string {
 
 func KeysFromByteMap(m map[string][]byte) []string {
 	keys := make([]string, 0, len(m))
-	for k, _ := range m {
+	for k := range m {
 		keys = append(keys, k)
 	}
 	return keys
