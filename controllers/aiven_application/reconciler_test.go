@@ -13,9 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"testing"
 	"time"
@@ -27,20 +24,9 @@ const (
 	secretName    = "my-secret-name"
 	syncHash      = "4264acf8ec09e93"
 	correlationId = "a-correlation-id"
-	rsName1       = "replicaset1"
-	rsName2       = "replicaset2"
-	cjName1       = "cronjob1"
-	cjName2       = "cronjob2"
-	jName1        = "job1"
-	jName2        = "job2"
 )
 
 type schemeAdders func(s *runtime.Scheme) error
-
-type identifier struct {
-	GVK            schema.GroupVersionKind
-	NamespacedName types.NamespacedName
-}
 
 func setupScheme() *runtime.Scheme {
 	var scheme = runtime.NewScheme()
@@ -254,95 +240,5 @@ func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) 
 				t.Errorf("HandleProtectedAndTimeLimited()  actual result; applicationDeleted = %v, deleted %v", applicationDeleted, tt.deleted)
 			}
 		})
-	}
-}
-
-func makeOwnerReference(name string, gvk *schema.GroupVersionKind) metav1.OwnerReference {
-	apiVersion, kind := gvk.ToAPIVersionAndKind()
-	return metav1.OwnerReference{
-		APIVersion: apiVersion,
-		Kind:       kind,
-		Name:       name,
-	}
-}
-
-func makeIdentifierFromObject(obj client.Object) identifier {
-	return identifier{
-		GVK: obj.GetObjectKind().GroupVersionKind(),
-		NamespacedName: types.NamespacedName{
-			Namespace: obj.GetNamespace(),
-			Name:      obj.GetName(),
-		},
-	}
-}
-
-func makeIdentifier(gvk schema.GroupVersionKind, name string) identifier {
-	return identifier{
-		GVK: gvk,
-		NamespacedName: types.NamespacedName{
-			Namespace: namespace,
-			Name:      name,
-		},
-	}
-}
-
-func makeObjectMeta(name string, correlationId string, appName string) metav1.ObjectMeta {
-	return metav1.ObjectMeta{
-		Name:      name,
-		Namespace: namespace,
-		Annotations: map[string]string{
-			nais_io_v1.DeploymentCorrelationIDAnnotation: correlationId,
-		},
-		Labels: map[string]string{
-			constants.AppLabel: appName,
-		},
-	}
-}
-
-func makeReplicaSet(rsName string, correlationId string, appName string) *appsv1.ReplicaSet {
-	return &appsv1.ReplicaSet{
-		ObjectMeta: makeObjectMeta(rsName, correlationId, appName),
-		Spec: appsv1.ReplicaSetSpec{
-			Template: makePodTemplateSpec(),
-		},
-	}
-}
-
-func makeCronJob(cjName string, correlationId string, appName string) *batchv1.CronJob {
-	return &batchv1.CronJob{
-		ObjectMeta: makeObjectMeta(cjName, correlationId, appName),
-		Spec: batchv1.CronJobSpec{
-			JobTemplate: batchv1.JobTemplateSpec{
-				Spec: batchv1.JobSpec{
-					Template: makePodTemplateSpec(),
-				},
-			},
-		},
-	}
-}
-
-func makeJob(jName string, correlationId string, appName string) *batchv1.Job {
-	return &batchv1.Job{
-		ObjectMeta: makeObjectMeta(jName, correlationId, appName),
-		Spec: batchv1.JobSpec{
-			Template: makePodTemplateSpec(),
-		},
-	}
-}
-
-func makePodTemplateSpec() corev1.PodTemplateSpec {
-	return corev1.PodTemplateSpec{
-		Spec: corev1.PodSpec{
-			Volumes: []corev1.Volume{
-				{
-					Name: AivenVolumeName,
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName: secretName,
-						},
-					},
-				},
-			},
-		},
 	}
 }
