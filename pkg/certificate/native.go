@@ -1,7 +1,6 @@
 package certificate
 
 import (
-	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -49,7 +48,7 @@ func (n Native) makeTrustStore(caCert string) ([]byte, error) {
 		},
 	}
 
-	data, err := pkcs12.EncodeTrustStoreEntries(rand.Reader, certs, n.secret)
+	data, err := pkcs12.LegacyRC2.EncodeTrustStoreEntries(certs, n.secret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode truststore: %v", err)
 	}
@@ -68,7 +67,7 @@ func (n Native) makeKeyStore(accessKey string, accessCert string) ([]byte, error
 		return nil, err
 	}
 
-	pfxData, err := pkcs12.Encode(rand.Reader, privateKey, cert, nil, n.secret)
+	pfxData, err := pkcs12.LegacyRC2.Encode(privateKey, cert, nil, n.secret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode pkcs12 keystore: %v", err)
 	}
