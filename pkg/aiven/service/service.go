@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/metrics"
 )
+
+const serviceAddressCacheTTL = 1 * time.Hour
 
 type ServiceManager interface {
 	Get(ctx context.Context, projectName, serviceName string) (*aiven.Service, error)
@@ -35,6 +38,7 @@ type ServiceAddresses struct {
 	OpenSearch     ServiceAddress
 	Redis          ServiceAddress
 	InfluxDB       ServiceAddress
+	expires        time.Time
 }
 
 func NewManager(service *aiven.ServicesHandler) ServiceManager {
@@ -45,25 +49,28 @@ func NewManager(service *aiven.ServicesHandler) ServiceManager {
 }
 
 func (r *Manager) GetServiceAddresses(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error) {
-	var addresses *ServiceAddresses
-	var ok bool
+	addresses, err := r.getServiceAddressesFromCache(projectName, serviceName)
+	if err != nil {
+		_, err = r.Get(ctx, projectName, serviceName)
+		if err != nil {
+			return nil, err
+		}
+		return r.getServiceAddressesFromCache(projectName, serviceName)
+	}
+	return addresses, nil
+}
+
+func (r *Manager) getServiceAddressesFromCache(projectName, serviceName string) (*ServiceAddresses, error) {
 	key := cacheKey{
 		projectName: projectName,
 		serviceName: serviceName,
 	}
-	if addresses, ok = r.addressCache[key]; !ok {
-		aivenService, err := r.Get(ctx, projectName, serviceName)
-		if err != nil {
-			return nil, err
-		}
-		addresses = &ServiceAddresses{
-			ServiceURI:     getServiceURI(aivenService),
-			SchemaRegistry: getServiceAddress(aivenService, "schema_registry", "https"),
-			OpenSearch:     getServiceAddress(aivenService, "opensearch", "https"),
-			Redis:          getServiceAddress(aivenService, "redis", "rediss"),
-			InfluxDB:       getServiceAddress(aivenService, "influxdb", "https+influxdb"),
-		}
-		r.addressCache[key] = addresses
+	addresses, ok := r.addressCache[key]
+	if !ok {
+		return nil, fmt.Errorf("service addresses not found in cache")
+	}
+	if addresses.expires.Before(time.Now()) {
+		return nil, fmt.Errorf("service addresses expired")
 	}
 	return addresses, nil
 }
@@ -75,6 +82,19 @@ func (r *Manager) Get(ctx context.Context, projectName, serviceName string) (*ai
 		service, err = r.service.Get(ctx, projectName, serviceName)
 		return err
 	})
+	key := cacheKey{
+		projectName: projectName,
+		serviceName: serviceName,
+	}
+	addresses := &ServiceAddresses{
+		ServiceURI:     getServiceURI(service),
+		SchemaRegistry: getServiceAddress(service, "schema_registry", "https"),
+		OpenSearch:     getServiceAddress(service, "opensearch", "https"),
+		Redis:          getServiceAddress(service, "redis", "rediss"),
+		InfluxDB:       getServiceAddress(service, "influxdb", "https+influxdb"),
+		expires:        time.Now().Add(serviceAddressCacheTTL),
+	}
+	r.addressCache[key] = addresses
 	return service, err
 }
 
