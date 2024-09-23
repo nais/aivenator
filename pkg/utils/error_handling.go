@@ -11,8 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/json"
 )
 
-var UnrecoverableError = errors.New("UnrecoverableError")
-var NotFoundError = errors.New("NotFoundError")
+var ErrUnrecoverable = errors.New("ErrUnrecoverable")
+var ErrNotFound = errors.New("ErrNotFound")
 
 func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, notFoundIsRecoverable bool, logger logrus.FieldLogger) error {
 	errorMessage := UnwrapAivenError(err, logger, notFoundIsRecoverable)
@@ -42,10 +42,10 @@ func UnwrapAivenError(errorMessage error, logger logrus.FieldLogger, notFoundIsR
 			message = apiMessage.Message
 		}
 		if aivenErr.Status == 404 && notFoundIsRecoverable {
-			return fmt.Errorf("%s: %w", message, NotFoundError)
+			return fmt.Errorf("%s: %w", message, ErrNotFound)
 		}
 		if 400 <= aivenErr.Status && aivenErr.Status < 500 {
-			return fmt.Errorf("%s: %w", message, UnrecoverableError)
+			return fmt.Errorf("%s: %w", message, ErrUnrecoverable)
 		} else {
 			return fmt.Errorf("%s", message)
 		}

@@ -43,7 +43,7 @@ func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenA
 	hasErrors := len(errors) > 0
 
 	if hasErrors {
-		return fmt.Errorf("invalid secret name '%s': %w", secretName, utils.UnrecoverableError)
+		return fmt.Errorf("invalid secret name '%s': %w", secretName, utils.ErrUnrecoverable)
 	}
 
 	updateObjectMeta(application, &secret.ObjectMeta)

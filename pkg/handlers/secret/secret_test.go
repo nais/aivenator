@@ -156,7 +156,7 @@ var _ = Describe("secret.Handler", func() {
 			Build()
 		err := handler.Apply(ctx, &application, &corev1.Secret{}, nil)
 		Expect(err).ToNot(Succeed())
-		Expect(errors.Is(err, utils.UnrecoverableError)).To(BeTrue())
+		Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
 	},
 		EntryDescription("%v"),
 		Entry("<empty>", ""),

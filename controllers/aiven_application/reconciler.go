@@ -79,9 +79,9 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		application.Status.SynchronizationState = rolloutFailed
 		cr := ctrl.Result{}
 
-		if errors.Is(err, utils.NotFoundError) {
+		if errors.Is(err, utils.ErrNotFound) {
 			cr.RequeueAfter = requeueInterval * 10
-		} else if !errors.Is(err, utils.UnrecoverableError) {
+		} else if !errors.Is(err, utils.ErrUnrecoverable) {
 			cr.RequeueAfter = requeueInterval
 		}
 
@@ -97,7 +97,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	err := r.Get(ctx, req.NamespacedName, &application)
 	switch {
 	case k8serrors.IsNotFound(err):
-		return fail(fmt.Errorf("resource deleted from cluster; noop: %w", utils.UnrecoverableError))
+		return fail(fmt.Errorf("resource deleted from cluster; noop: %w", utils.ErrUnrecoverable))
 	case err != nil:
 		return fail(fmt.Errorf("unable to retrieve resource from cluster: %s", err))
 	}

@@ -400,7 +400,7 @@ func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
 	err := suite.kafkaHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.Error(err)
-	suite.True(errors.Is(err, utils.UnrecoverableError))
+	suite.True(errors.Is(err, utils.ErrUnrecoverable))
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationLocalFailure))
 }
 

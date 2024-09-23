@@ -95,7 +95,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	})
 
 	if !strings.ContainsString(h.projects, projectName) {
-		err := fmt.Errorf("pool %s is not allowed in this cluster: %w", projectName, utils.UnrecoverableError)
+		err := fmt.Errorf("pool %s is not allowed in this cluster: %w", projectName, utils.ErrUnrecoverable)
 		utils.LocalFail("ValidatePool", application, err, logger)
 		return err
 	}
@@ -155,7 +155,7 @@ func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven
 
 	suffix, err := createSuffix(application)
 	if err != nil {
-		err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.UnrecoverableError)
+		err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.ErrUnrecoverable)
 		utils.LocalFail("CreateSuffix", application, err, logger)
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven
 	} else {
 		serviceUserName, err = kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, suffix)
 		if err != nil {
-			err = fmt.Errorf("unable to create service user name: %s %w", err, utils.UnrecoverableError)
+			err = fmt.Errorf("unable to create service user name: %s %w", err, utils.ErrUnrecoverable)
 			utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
 			return nil, err
 		}
