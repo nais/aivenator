@@ -82,6 +82,9 @@ func (r *Manager) Get(ctx context.Context, projectName, serviceName string) (*ai
 		service, err = r.service.Get(ctx, projectName, serviceName)
 		return err
 	})
+	if err != nil {
+		return nil, err
+	}
 	key := cacheKey{
 		projectName: projectName,
 		serviceName: serviceName,
