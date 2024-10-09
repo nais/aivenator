@@ -1,7 +1,6 @@
 module github.com/nais/aivenator
 
 go 1.22.1
-
 toolchain go1.23.1
 
 require (
@@ -16,7 +15,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
-	github.com/vektra/mockery/v2 v2.46.0
+	github.com/vektra/mockery/v2 v2.46.2
 	golang.org/x/vuln v1.1.3
 	honnef.co/go/tools v0.5.1
 	k8s.io/api v0.28.3
