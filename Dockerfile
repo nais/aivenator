@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM --platform=$BUILDPLATFORM golang:1.22 as builder
+FROM --platform=$BUILDPLATFORM golang:1.23 AS builder
 
 # download kubebuilder and extract it to tmp
 ARG BUILDOS BUILDARCH
