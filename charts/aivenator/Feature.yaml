@@ -1,7 +1,9 @@
 dependencies:
   - allOf:
-      - monitoring
+      - nais-crds
+      - monitoring-crds
       - replicator
+      - kyverno
 environmentKinds:
   - tenant
   - onprem
