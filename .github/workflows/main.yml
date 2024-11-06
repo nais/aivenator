@@ -101,4 +101,3 @@ jobs:
         with:
           chart: oci://${{ env.GOOGLE_REGISTRY }}/nais-io/nais/feature/aivenator
           version: ${{ needs.build.outputs.version }}
-          feature_name: aivenator
