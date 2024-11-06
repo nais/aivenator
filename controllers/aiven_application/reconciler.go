@@ -57,7 +57,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger := r.Logger.WithFields(log.Fields{
 		"aiven_application": req.Name,
-		"namespace":         req.Namespace,
+		"team":              req.Namespace,
 	})
 
 	logger.Infof("Processing request")

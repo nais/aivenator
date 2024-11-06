@@ -31,7 +31,7 @@ func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	logger := s.Logger.WithFields(log.Fields{
 		"secret_name": req.Name,
-		"namespace":   req.Namespace,
+		"team":        req.Namespace,
 	})
 
 	failRetry := func(err error) (ctrl.Result, error) {
