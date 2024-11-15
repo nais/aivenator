@@ -20,12 +20,13 @@ import (
 )
 
 const (
-	namespace       = "ns"
-	applicationName = "app"
-	secretName      = "my-secret"
-	projectName     = "test-project"
-	correlationId   = "correlation-id"
-	projectCA       = "==== PROJECT CA ===="
+	namespace        = "ns"
+	applicationName  = "app"
+	secretName       = "my-secret"
+	projectName      = "test-project"
+	correlationId    = "correlation-id"
+	projectCA        = "==== PROJECT CA ===="
+	secretGeneration = "123"
 )
 
 func TestSecret(t *testing.T) {
@@ -37,6 +38,10 @@ var _ = Describe("secret.Handler", func() {
 	exampleAivenApplication := aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 		Build()
+	applicationWithGeneration := aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
+		Build()
+	applicationWithGeneration.Labels = map[string]string{constants.GenerationLabel: secretGeneration}
 	var handler Handler
 	var mockProjects *project.MockProjectManager
 	var ctx context.Context
@@ -115,6 +120,15 @@ var _ = Describe("secret.Handler", func() {
 					Expect(a.secret.OwnerReferences).Should(ContainElement(metav1.OwnerReference{Name: "pre-existing-owner-reference"}), "pre-existing ownerReference missing")
 
 					Expect(a.secret.OwnerReferences).Should(HaveLen(1), "additional ownerReferences set")
+				},
+			}),
+		Entry("a aiven-generation label is set on application",
+			args{
+				application: applicationWithGeneration,
+				secret:      corev1.Secret{},
+				assert: func(a args) {
+					Expect(a.secret.Labels).Should(HaveKey(constants.GenerationLabel), "generation label missing")
+					Expect(a.secret.Labels[constants.GenerationLabel]).To(Equal(secretGeneration))
 				},
 			}),
 		Entry("a protected secret",

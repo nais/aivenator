@@ -64,10 +64,20 @@ func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenA
 func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *metav1.ObjectMeta) {
 	objMeta.Name = application.Spec.SecretName
 	objMeta.Namespace = application.GetNamespace()
+
+	generation := 0
+	if v, ok := application.Labels[constants.GenerationLabel]; ok {
+		g, err := strconv.Atoi(v)
+		if err == nil {
+			generation = g
+		}
+	}
+
 	objMeta.Labels = utils.MergeStringMap(objMeta.Labels, map[string]string{
 		constants.AppLabel:        application.GetName(),
 		constants.TeamLabel:       application.GetNamespace(),
 		constants.SecretTypeLabel: constants.AivenatorSecretType,
+		constants.GenerationLabel: strconv.Itoa(generation),
 	})
 	objMeta.Annotations = utils.MergeStringMap(objMeta.Annotations, createAnnotations(application))
 }

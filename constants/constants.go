@@ -6,6 +6,7 @@ const (
 	AppLabel        = "app"
 	TeamLabel       = "team"
 	SecretTypeLabel = "type"
+	GenerationLabel = "aiven.nais.io/secret-generation"
 
 	AivenatorProtectedAnnotation              = "aivenator.aiven.nais.io/protected"
 	AivenatorProtectedWithTimeLimitAnnotation = "aivenator.aiven.nais.io/with-time-limit"
