@@ -143,10 +143,13 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			clientBuilder := fake.NewClientBuilder().WithScheme(scheme)
 			if tt.args.hasSecret {
 				ownerReferences := make([]metav1.OwnerReference, 0)
+				labels := make(map[string]string)
+				labels[constants.TeamLabel] = namespace
 				annotations := make(map[string]string)
 				annotations[nais_io_v1.DeploymentCorrelationIDAnnotation] = correlationId
 				if tt.args.isProtected {
-					annotations[constants.AivenatorProtectedAnnotation] = "true"
+					annotations[constants.AivenatorProtectedKey] = "true"
+					labels[constants.AivenatorProtectedKey] = "true"
 				}
 				clientBuilder.WithRuntimeObjects(&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
@@ -154,6 +157,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 						Namespace:       namespace,
 						OwnerReferences: ownerReferences,
 						Annotations:     annotations,
+						Labels:          labels,
 					},
 				})
 			}

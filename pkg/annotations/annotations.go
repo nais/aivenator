@@ -10,7 +10,7 @@ func hasAnnotation(annotations map[string]string, key string) (string, bool) {
 }
 
 func HasProtected(annotations map[string]string) bool {
-	value, found := hasAnnotation(annotations, constants.AivenatorProtectedAnnotation)
+	value, found := hasAnnotation(annotations, constants.AivenatorProtectedKey)
 	return found && value == "true"
 }
 

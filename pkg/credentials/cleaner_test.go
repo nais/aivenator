@@ -413,8 +413,9 @@ func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSec
 	}
 	if !opts.hasNoAnnotations || opts.protected {
 		s.SetAnnotations(map[string]string{
-			constants.AivenatorProtectedAnnotation: strconv.FormatBool(opts.protected),
+			constants.AivenatorProtectedKey: strconv.FormatBool(opts.protected),
 		})
+		s.ObjectMeta.Labels[constants.AivenatorProtectedKey] = strconv.FormatBool(opts.protected)
 	}
 
 	if opts.hasTimeLimit {

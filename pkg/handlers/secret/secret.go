@@ -74,10 +74,11 @@ func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *m
 	}
 
 	objMeta.Labels = utils.MergeStringMap(objMeta.Labels, map[string]string{
-		constants.AppLabel:        application.GetName(),
-		constants.TeamLabel:       application.GetNamespace(),
-		constants.SecretTypeLabel: constants.AivenatorSecretType,
-		constants.GenerationLabel: strconv.Itoa(generation),
+		constants.AppLabel:              application.GetName(),
+		constants.TeamLabel:             application.GetNamespace(),
+		constants.SecretTypeLabel:       constants.AivenatorSecretType,
+		constants.GenerationLabel:       strconv.Itoa(generation),
+		constants.AivenatorProtectedKey: strconv.FormatBool(application.Spec.Protected),
 	})
 	objMeta.Annotations = utils.MergeStringMap(objMeta.Annotations, createAnnotations(application))
 }
@@ -85,7 +86,7 @@ func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *m
 func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[string]string {
 	annotations := map[string]string{
 		nais_io_v1.DeploymentCorrelationIDAnnotation: application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation],
-		constants.AivenatorProtectedAnnotation:       strconv.FormatBool(application.Spec.Protected),
+		constants.AivenatorProtectedKey:              strconv.FormatBool(application.Spec.Protected),
 	}
 
 	if application.Spec.Protected && application.Spec.ExpiresAt != nil {

@@ -8,7 +8,7 @@ const (
 	SecretTypeLabel = "type"
 	GenerationLabel = "aiven.nais.io/secret-generation"
 
-	AivenatorProtectedAnnotation              = "aivenator.aiven.nais.io/protected"
+	AivenatorProtectedKey                     = "aivenator.aiven.nais.io/protected"
 	AivenatorProtectedWithTimeLimitAnnotation = "aivenator.aiven.nais.io/with-time-limit"
 	AivenatorProtectedExpiresAtAnnotation     = "aivenator.aiven.nais.io/expires-at"
 	AivenatorRetryCounterAnnotation           = "aivenator.aiven.nais.io/retries"

@@ -139,7 +139,8 @@ var _ = Describe("secret.Handler", func() {
 				secret: corev1.Secret{},
 				assert: func(a args) {
 					Expect(validation.ValidateAnnotations(a.secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-					Expect(a.secret.GetAnnotations()[constants.AivenatorProtectedAnnotation]).To(Equal("true"))
+					Expect(a.secret.GetAnnotations()[constants.AivenatorProtectedKey]).To(Equal("true"))
+					Expect(a.secret.GetLabels()[constants.AivenatorProtectedKey]).To(Equal("true"))
 				},
 			}),
 	)
