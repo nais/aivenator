@@ -13,7 +13,7 @@ resources:
     memory: 4Gi
   requests:
     cpu: 200m
-    memory: 512Mi
+    memory: 1Gi
 
 extraEnv: {}
 caBundle: false
