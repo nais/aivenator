@@ -71,7 +71,7 @@ func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 func (s *SecretsFinalizer) SetupWithManager(mgr ctrl.Manager) error {
 	opts := controller.Options{
-		MaxConcurrentReconciles: 5,
+		MaxConcurrentReconciles: 15,
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1.Secret{}).
