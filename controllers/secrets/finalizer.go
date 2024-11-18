@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -69,8 +70,12 @@ func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 func (s *SecretsFinalizer) SetupWithManager(mgr ctrl.Manager) error {
+	opts := controller.Options{
+		MaxConcurrentReconciles: 5,
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1.Secret{}).
+		WithOptions(opts).
 		WithEventFilter(predicate.Funcs{
 			CreateFunc: func(createEvent event.CreateEvent) bool {
 				return false // We don't care about secrets created, as the application reconciler is responsible for adding finalizer
