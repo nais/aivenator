@@ -7,7 +7,7 @@ toolchain go1.23.2
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
 	github.com/aiven/aiven-go-client v1.36.0
-	github.com/aiven/aiven-go-client/v2 v2.31.0
+	github.com/aiven/aiven-go-client/v2 v2.32.0
 	github.com/nais/liberator v0.0.0-20231116080924-3cb206988740
 	github.com/onsi/ginkgo/v2 v2.22.0
 	github.com/onsi/gomega v1.35.1
@@ -15,7 +15,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/vektra/mockery/v2 v2.49.0
 	golang.org/x/vuln v1.1.3
 	honnef.co/go/tools v0.5.1
