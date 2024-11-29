@@ -80,6 +80,8 @@ def delete(secret_id, dry_run):
     LOG.debug(" ".join(cmd))
     if not dry_run:
         subprocess.run(cmd, check=True)
+    else:
+        LOG.debug("DRY RUN: Skipping execution")
 
 
 def get_all_containers(pod_spec):
