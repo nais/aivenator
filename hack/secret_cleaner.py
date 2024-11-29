@@ -1,22 +1,13 @@
 #!/usr/bin/env python
 
-"""
-Things to do
-- Find secrets referencing non-existent application and delete
-    - kafka.nais.io/application
-- Find secrets not in use and delete
-"""
 import argparse
 import json
 import logging
-import re
 import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
 
 LOG = logging.getLogger(__name__)
-
-KAFKARATOR_NAME_PATTERN = re.compile(r"kafka-(?P<app>.*)-(?P<pool>nav-.*)-[0-9a-f]{7,8}")
 
 
 @dataclass
@@ -59,6 +50,7 @@ def list_secrets(contexts):
             "get", "secret",
             "--context", context,
             "--all-namespaces",
+            "--selector", "type=aivenator.aiven.nais.io,aivenator.aiven.nais.io/protected!=true",
             "--output", "json",
         )
         LOG.debug(" ".join(cmd))
@@ -72,7 +64,7 @@ def list_secrets(contexts):
             # Make sure annotations and labels exists in metadata
             metadata.setdefault("labels", {})
             metadata.setdefault("annotations", {})
-            if KAFKARATOR_NAME_PATTERN.match(secret_name):
+            if metadata["annotations"].get("aivenator.aiven.nais.io/protected") != "true":
                 yield secret, ResourceID(secret_name, namespace, context)
 
 
