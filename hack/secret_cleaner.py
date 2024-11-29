@@ -152,7 +152,10 @@ def in_use(secret_id, pods):
 
 
 def main(options):
-    k8s_contexts = [f"{options.env}-{c}" for c in ("gcp", "fss")]
+    if options.tenant == "nav":
+        k8s_contexts = [f"{options.tenant}-{options.env}-{c}" for c in ("gcp", "fss")]
+    else:
+        k8s_contexts = [f"{options.tenant}-{options.env}"]
 
     total_count = 0
     deleted_count = 0
@@ -177,5 +180,6 @@ if __name__ == '__main__':
     logging.basicConfig(format="[%(asctime)s|%(levelname)5.5s] %(message)s", level=logging.DEBUG)
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--dry-run", action="store_true", help="Make no actual changes")
+    parser.add_argument("tenant", help="Tenant to use")
     parser.add_argument("env", help="Environment to process")
     main(parser.parse_args())
