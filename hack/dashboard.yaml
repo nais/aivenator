@@ -12,20 +12,16 @@ timezone: default # valid values are: utc, browser, default
 # 1. Render to JSON using https://github.com/K-Phoen/grabana v0.21.13 or newer
 #    $ grabana render --input dashboard.yaml > dashboard.json
 # 2. Reset maxDataPoints in dashboard.json as needed (use git diff to find out where)
-# 3. Delete existing Aivenator dashboard in Grafana
-# 4. Import dashboard.json to Grafana (remember to select correct folder)
-# 5. Verify that links in alerts etc. are still correct (should be if uid and slug were kept)
+# 3. Import dashboard.json to Grafana (select overwrite)
+# 4. Verify that links in alerts etc. are still correct (should be if uid and slug were kept)
 
 
 variables:
-  - custom:
+  - query:
       name: tenant
-      default: nav
-      values_map:
-        nav: nav
-        dev-nais: dev-nais
-        ci-nais: ci-nais
-        ssb: ssb
+      label: Tenant
+      datasource: nais-io
+      request: "label_values(cluster_info, tenant)"
   - datasource:
       name: ds
       type: prometheus
