@@ -56,7 +56,7 @@ func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string
 		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:      service.NewManager(aiven.Services),
 		generator:    generator,
-		nameResolver: liberator_service.NewCachedNameResolver(aivenv1.Services),
+		nameResolver: liberator_service.NewCachedNameResolver(aiven.Services),
 		projects:     projects,
 	}
 	handler.StartUserCounter(ctx, logger)
@@ -84,7 +84,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		return nil
 	}
 
-	serviceName, err := h.nameResolver.ResolveKafkaServiceName(application.Spec.Kafka.Pool)
+	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, application.Spec.Kafka.Pool)
 	if err != nil {
 		return utils.AivenFail("ResolveServiceName", application, err, false, logger)
 	}
@@ -204,7 +204,7 @@ func (h KafkaHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *lo
 	annotations := secret.GetAnnotations()
 	if serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]; okServiceUser {
 		if projectName, okPool := annotations[PoolAnnotation]; okPool {
-			serviceName, err := h.nameResolver.ResolveKafkaServiceName(projectName)
+			serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, projectName)
 			if err != nil {
 				return err
 			}
@@ -243,7 +243,7 @@ func (h *KafkaHandler) countUsers(ctx context.Context, logger *log.Entry) {
 			return
 		case <-ticker.C:
 			for _, prj := range h.projects {
-				serviceName, err := h.nameResolver.ResolveKafkaServiceName(prj)
+				serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, prj)
 				if err != nil {
 					logger.Warnf("unable to count service users for pool %s: %v", prj, err)
 					continue

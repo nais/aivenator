@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/nais/aivenator/pkg/handlers/influxdb"
 	"github.com/nais/aivenator/pkg/handlers/redis"
+	"github.com/nais/aivenator/pkg/handlers/valkey"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"reflect"
@@ -36,6 +37,7 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger, aivenv1),
 			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
 			redis.NewRedisHandler(ctx, aiven, mainProjectName),
+			valkey.NewValkeyHandler(ctx, aiven, mainProjectName),
 			influxdb.NewInfluxDBHandler(ctx, aiven, mainProjectName),
 		},
 	}
