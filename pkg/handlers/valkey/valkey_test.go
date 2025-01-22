@@ -2,21 +2,21 @@ package valkey
 
 import (
 	"context"
-	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	"k8s.io/apimachinery/pkg/api/validation"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
+	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 const (
@@ -246,10 +246,9 @@ var _ = Describe("valkey.Handler", func() {
 						Status:  404,
 					})
 				accessControl := &aiven.AccessControl{
-					// TODO: Need Valkey support in aiven-go-client https://github.com/aiven/aiven-go-client/issues/374
-					//ValkeyACLCategories: getValkeyACLCategories(data.access),
-					//ValkeyACLKeys:       []string{"*"},
-					//ValkeyACLChannels:   []string{"*"},
+					ValkeyACLCategories: getValkeyACLCategories(data.access),
+					ValkeyACLKeys:       []string{"*"},
+					ValkeyACLChannels:   []string{"*"},
 				}
 				mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, accessControl, mock.Anything).
 					Return(&aiven.ServiceUser{
@@ -324,10 +323,9 @@ var _ = Describe("valkey.Handler", func() {
 							Status:  404,
 						})
 					accessControl := &aiven.AccessControl{
-						// TODO: Need Valkey support in aiven-go-client https://github.com/aiven/aiven-go-client/issues/374
-						//ValkeyACLCategories: getValkeyACLCategories(data.access),
-						//ValkeyACLKeys:       []string{"*"},
-						//ValkeyACLChannels:   []string{"*"},
+						ValkeyACLCategories: getValkeyACLCategories(data.access),
+						ValkeyACLKeys:       []string{"*"},
+						ValkeyACLChannels:   []string{"*"},
 					}
 					mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, accessControl, mock.Anything).
 						Return(&aiven.ServiceUser{

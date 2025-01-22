@@ -3,6 +3,10 @@ package valkey
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -10,9 +14,6 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 // Annotations
@@ -74,10 +75,9 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		if err != nil {
 			if aiven.IsNotFound(err) {
 				accessControl := &aiven.AccessControl{
-					// TODO: Need Valkey support in aiven-go-client https://github.com/aiven/aiven-go-client/issues/374
-					//ValkeyACLCategories: getValkeyACLCategories(spec.Access),
-					//ValkeyACLKeys:       []string{"*"},
-					//ValkeyACLChannels:   []string{"*"},
+					ValkeyACLCategories: getValkeyACLCategories(spec.Access),
+					ValkeyACLKeys:       []string{"*"},
+					ValkeyACLChannels:   []string{"*"},
 				}
 				aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, accessControl, logger)
 				if err != nil {
