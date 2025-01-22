@@ -37,6 +37,7 @@ type ServiceAddresses struct {
 	SchemaRegistry ServiceAddress
 	OpenSearch     ServiceAddress
 	Redis          ServiceAddress
+	Valkey         ServiceAddress
 	InfluxDB       ServiceAddress
 	expires        time.Time
 }
@@ -94,6 +95,7 @@ func (r *Manager) Get(ctx context.Context, projectName, serviceName string) (*ai
 		SchemaRegistry: getServiceAddress(service, "schema_registry", "https"),
 		OpenSearch:     getServiceAddress(service, "opensearch", "https"),
 		Redis:          getServiceAddress(service, "redis", "rediss"),
+		Valkey:         getServiceAddress(service, "valkey", "valkeys"),
 		InfluxDB:       getServiceAddress(service, "influxdb", "https+influxdb"),
 		expires:        time.Now().Add(serviceAddressCacheTTL),
 	}

@@ -5,7 +5,12 @@ package controllers_test
 import (
 	"context"
 	"fmt"
-	aivenv1 "github.com/aiven/aiven-go-client"
+	"os"
+	"path/filepath"
+	"runtime"
+	"testing"
+	"time"
+
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/controllers/aiven_application"
@@ -24,15 +29,10 @@ import (
 	k8s_runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
-	"os"
-	"path/filepath"
-	"runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"testing"
-	"time"
 )
 
 const (
@@ -118,12 +118,8 @@ func newTestRig(ctx context.Context, t *testing.T, logger *log.Logger) (*testRig
 	if err != nil {
 		return nil, fmt.Errorf("unable to set up aiven client: %s", err)
 	}
-	aivenv1Client, err := aivenv1.NewTokenClient(token, "")
-	if err != nil {
-		return nil, fmt.Errorf("unable to set up aivenv1 client: %s", err)
-	}
 
-	credentialsManager := credentials.NewManager(ctx, aivenClient, []string{testProject}, testProject, logger.WithField("component", "CredentialsManager"), aivenv1Client)
+	credentialsManager := credentials.NewManager(ctx, aivenClient, []string{testProject}, testProject, logger.WithField("component", "CredentialsManager"))
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
 	reconciler := aiven_application.NewReconciler(rig.manager, logger, credentialsManager, appChanges)
 

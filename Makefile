@@ -1,4 +1,4 @@
-K8S_VERSION := 1.24.2
+K8S_VERSION := 1.30.0
 arch        := amd64
 os          := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 testbin_dir := ./.testbin/
@@ -15,14 +15,14 @@ check:
 	go run golang.org/x/vuln/cmd/govulncheck ./...
 
 mocks:
-	go run github.com/vektra/mockery/v2
+	go run github.com/vektra/mockery/v2@v2.51.1
 
 integration_test: kubebuilder
 	echo "*** Make sure to set the environment AIVEN_TOKEN to a valid token ***"
 	go test ./pkg/certificate/... ./controllers/... -tags=integration -v -count=1
 
-kubebuilder: $(testbin_dir)/$(tools_archive)
-	tar -xzf $(testbin_dir)/$(tools_archive) --strip-components=2 -C $(testbin_dir)
+kubebuilder: $(testbin_dir)$(tools_archive)
+	tar -xzf $(testbin_dir)$(tools_archive) --strip-components=2 -C $(testbin_dir)
 	chmod -R +x $(testbin_dir)
 
 $(testbin_dir)/$(tools_archive):

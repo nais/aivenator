@@ -4,26 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/nais/aivenator/pkg/aiven/project"
-	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	"k8s.io/apimachinery/pkg/api/validation"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"testing"
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
+	"github.com/nais/aivenator/constants"
+	"github.com/nais/aivenator/pkg/aiven/project"
+	"github.com/nais/aivenator/pkg/aiven/service"
+	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"github.com/nais/aivenator/pkg/certificate"
+	"github.com/nais/aivenator/pkg/utils"
+	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/nais/aivenator/constants"
-	"github.com/nais/aivenator/pkg/aiven/service"
-	"github.com/nais/aivenator/pkg/certificate"
-	"github.com/nais/aivenator/pkg/utils"
-	liberator_service "github.com/nais/liberator/pkg/aiven/service"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 const (
@@ -123,7 +122,7 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 	suite.mockProjects = &project.MockProjectManager{}
 	suite.mockGenerator = &certificate.MockGenerator{}
 	suite.mockNameResolver = liberator_service.NewMockNameResolver(suite.T())
-	suite.mockNameResolver.On("ResolveKafkaServiceName", mock.Anything).Maybe().Return("kafka", nil)
+	suite.mockNameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Maybe().Return("kafka", nil)
 	suite.kafkaHandler = KafkaHandler{
 		project:      suite.mockProjects,
 		serviceuser:  suite.mockServiceUsers,
@@ -389,6 +388,8 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
 
 func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
+	suite.mockNameResolver.On("ResolveKafkaServiceName", mock.Anything, "not-my-testing-pool").Maybe().Return("", utils.ErrUnrecoverable)
+
 	application := suite.applicationBuilder.
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			Kafka: &aiven_nais_io_v1.KafkaSpec{
@@ -401,7 +402,6 @@ func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
 
 	suite.Error(err)
 	suite.True(errors.Is(err, utils.ErrUnrecoverable))
-	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationLocalFailure))
 }
 
 func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {

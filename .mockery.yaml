@@ -4,6 +4,8 @@ dir: "{{.InterfaceDir}}"
 mockname: "{{.Mock}}{{.InterfaceName}}"
 outpkg: "{{.PackageName}}"
 filename: "mock_{{.InterfaceName | snakecase}}.go"
+resolve-type-alias: False
+issue-845-fix: True
 all: True
 packages:
   github.com/nais/aivenator:
