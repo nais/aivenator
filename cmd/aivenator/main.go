@@ -3,32 +3,32 @@ package main
 import (
 	"context"
 	"fmt"
-	aivenv1 "github.com/aiven/aiven-go-client"
-	"github.com/aiven/aiven-go-client/v2"
-	"github.com/nais/aivenator/controllers/aiven_application"
-	"github.com/nais/aivenator/controllers/secrets"
-	"github.com/nais/aivenator/pkg/credentials"
-	"github.com/nais/aivenator/pkg/utils"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
-	liberator_scheme "github.com/nais/liberator/pkg/scheme"
 	"net/http"
 	"os"
 	"os/signal"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"strings"
 	"syscall"
 	"time"
 
+	_ "net/http/pprof" // Enable http profiling
+
+	"github.com/aiven/aiven-go-client/v2"
+	"github.com/nais/aivenator/controllers/aiven_application"
+	"github.com/nais/aivenator/controllers/secrets"
+	"github.com/nais/aivenator/pkg/credentials"
 	aivenatormetrics "github.com/nais/aivenator/pkg/metrics"
+	"github.com/nais/aivenator/pkg/utils"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	liberator_scheme "github.com/nais/liberator/pkg/scheme"
 	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	_ "net/http/pprof" // Enable http profiling
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 const (
@@ -135,7 +135,7 @@ func main() {
 
 	ctx := context.Background()
 
-	aivenClient, aivenv1Client, err := newAivenClient(ctx, logger)
+	aivenClient, err := newAivenClient(ctx, logger)
 	if err != nil {
 		logger.Errorf("unable to set up aiven client: %s", err)
 		os.Exit(ExitConfig)
@@ -167,7 +167,7 @@ func main() {
 
 	logger.Info("Aivenator running")
 
-	if err := manageCredentials(ctx, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject), aivenv1Client); err != nil {
+	if err := manageCredentials(ctx, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject)); err != nil {
 		logger.Errorln(err)
 		os.Exit(ExitCredentialsManager)
 	}
@@ -189,29 +189,23 @@ func main() {
 	logger.Errorln(fmt.Errorf("manager has stopped"))
 }
 
-func newAivenClient(ctx context.Context, logger log.FieldLogger) (*aiven.Client, *aivenv1.Client, error) {
+func newAivenClient(ctx context.Context, logger log.FieldLogger) (*aiven.Client, error) {
 	aivenClient, err := aiven.NewTokenClient(viper.GetString(AivenToken), "")
 	if err != nil {
-		return nil, nil, err
-	}
-
-	// TODO: Remove when liberator is upgraded to aiven-go-client v2
-	aivenV1Client, err := aivenv1.NewTokenClient(viper.GetString(AivenToken), "")
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	_, err = aivenClient.Projects.List(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error verifying Aiven connection: %w", utils.UnwrapAivenError(err, logger, false))
+		return nil, fmt.Errorf("error verifying Aiven connection: %w", utils.UnwrapAivenError(err, logger, false))
 	}
-	return aivenClient, aivenV1Client, err
+	return aivenClient, err
 }
 
-func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string, aivenv1 *aivenv1.Client) error {
+func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string) error {
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
 
-	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}), aivenv1)
+	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}))
 	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges)
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {

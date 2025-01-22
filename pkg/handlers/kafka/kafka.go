@@ -8,15 +8,7 @@ import (
 	"os"
 	"time"
 
-	aivenv1 "github.com/aiven/aiven-go-client"
 	"github.com/aiven/aiven-go-client/v2"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
-	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
-	"github.com/nais/liberator/pkg/strings"
-	log "github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -24,6 +16,12 @@ import (
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
+	"github.com/nais/liberator/pkg/strings"
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Keys in secret
@@ -49,7 +47,7 @@ const (
 
 var clusterName = ""
 
-func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry, aivenv1 *aivenv1.Client) KafkaHandler {
+func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry) KafkaHandler {
 	generator := certificate.NewNativeGenerator()
 	handler := KafkaHandler{
 		project:      project.NewManager(aiven.CA),

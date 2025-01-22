@@ -6,7 +6,6 @@ toolchain go1.23.2
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
-	github.com/aiven/aiven-go-client v1.36.0
 	github.com/aiven/aiven-go-client/v2 v2.34.0
 	github.com/nais/liberator v0.0.0-20250120121331-1a7304c71267
 	github.com/onsi/ginkgo/v2 v2.22.2

@@ -3,20 +3,19 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"github.com/nais/aivenator/pkg/handlers/influxdb"
-	"github.com/nais/aivenator/pkg/handlers/redis"
-	"github.com/nais/aivenator/pkg/handlers/valkey"
-	"github.com/nais/aivenator/pkg/metrics"
-	"github.com/prometheus/client_golang/prometheus"
 	"reflect"
 	"time"
 
-	aivenv1 "github.com/aiven/aiven-go-client"
 	"github.com/aiven/aiven-go-client/v2"
+	"github.com/nais/aivenator/pkg/handlers/influxdb"
 	"github.com/nais/aivenator/pkg/handlers/kafka"
 	"github.com/nais/aivenator/pkg/handlers/opensearch"
+	"github.com/nais/aivenator/pkg/handlers/redis"
 	"github.com/nais/aivenator/pkg/handlers/secret"
+	"github.com/nais/aivenator/pkg/handlers/valkey"
+	"github.com/nais/aivenator/pkg/metrics"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 )
@@ -30,11 +29,11 @@ type Manager struct {
 	handlers []Handler
 }
 
-func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger *log.Entry, aivenv1 *aivenv1.Client) Manager {
+func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger *log.Entry) Manager {
 	return Manager{
 		handlers: []Handler{
 			secret.NewHandler(aiven, mainProjectName),
-			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger, aivenv1),
+			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
 			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
 			redis.NewRedisHandler(ctx, aiven, mainProjectName),
 			valkey.NewValkeyHandler(ctx, aiven, mainProjectName),
