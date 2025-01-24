@@ -30,6 +30,7 @@ type testData struct {
 	instanceName             string
 	serviceName              string
 	serviceURI               string
+	redisServiceURI          string
 	serviceHost              string
 	servicePort              int
 	access                   string
@@ -40,6 +41,11 @@ type testData struct {
 	uriKey                   string
 	hostKey                  string
 	portKey                  string
+	redisUsernameKey         string
+	redisPasswordKey         string
+	redisUriKey              string
+	redisHostKey             string
+	redisPortKey             string
 }
 
 var testInstances = []testData{
@@ -47,6 +53,7 @@ var testInstances = []testData{
 		instanceName:             "my-instance1",
 		serviceName:              "valkey-team-a-my-instance1",
 		serviceURI:               "valkeys://my-instance1.example.com:23456",
+		redisServiceURI:          "rediss://my-instance1.example.com:23456",
 		serviceHost:              "my-instance1.example.com",
 		servicePort:              23456,
 		access:                   "read",
@@ -57,11 +64,17 @@ var testInstances = []testData{
 		uriKey:                   "VALKEY_URI_MY_INSTANCE1",
 		hostKey:                  "VALKEY_HOST_MY_INSTANCE1",
 		portKey:                  "VALKEY_PORT_MY_INSTANCE1",
+		redisUriKey:              "REDIS_URI_MY_INSTANCE1",
+		redisPortKey:             "REDIS_PORT_MY_INSTANCE1",
+		redisHostKey:             "REDIS_HOST_MY_INSTANCE1",
+		redisPasswordKey:         "REDIS_PASSWORD_MY_INSTANCE1",
+		redisUsernameKey:         "REDIS_USERNAME_MY_INSTANCE1",
 	},
 	{
 		instanceName:             "session-store",
 		serviceName:              "valkey-team-a-session-store",
 		serviceURI:               "valkeys://session-store.example.com:23456",
+		redisServiceURI:          "rediss://session-store.example.com:23456",
 		serviceHost:              "session-store.example.com",
 		servicePort:              23456,
 		access:                   "readwrite",
@@ -72,6 +85,11 @@ var testInstances = []testData{
 		uriKey:                   "VALKEY_URI_SESSION_STORE",
 		hostKey:                  "VALKEY_HOST_SESSION_STORE",
 		portKey:                  "VALKEY_PORT_SESSION_STORE",
+		redisUriKey:              "REDIS_URI_SESSION_STORE",
+		redisPortKey:             "REDIS_PORT_SESSION_STORE",
+		redisHostKey:             "REDIS_HOST_SESSION_STORE",
+		redisPasswordKey:         "REDIS_PASSWORD_SESSION_STORE",
+		redisUsernameKey:         "REDIS_USERNAME_SESSION_STORE",
 	},
 }
 
@@ -219,6 +237,12 @@ var _ = Describe("valkey.Handler", func() {
 			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.redisUsernameKey, data.username))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.redisPasswordKey, servicePassword))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.redisUriKey, data.redisServiceURI))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.redisHostKey, data.serviceHost))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.redisPortKey, strconv.Itoa(data.servicePort)))
+
 		}
 
 		Context("and the service user already exists", func() {

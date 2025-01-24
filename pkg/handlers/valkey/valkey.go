@@ -10,6 +10,7 @@ import (
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	redis "github.com/nais/aivenator/pkg/handlers/redis"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
@@ -98,11 +99,16 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 
 		envVarSuffix := envVarName(spec.Instance)
 		secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
-			fmt.Sprintf("%s_%s", ValkeyUser, envVarSuffix):     aivenUser.Username,
-			fmt.Sprintf("%s_%s", ValkeyPassword, envVarSuffix): aivenUser.Password,
-			fmt.Sprintf("%s_%s", ValkeyURI, envVarSuffix):      addresses.Valkey.URI,
-			fmt.Sprintf("%s_%s", ValkeyHost, envVarSuffix):     addresses.Valkey.Host,
-			fmt.Sprintf("%s_%s", ValkeyPort, envVarSuffix):     strconv.Itoa(addresses.Valkey.Port),
+			fmt.Sprintf("%s_%s", ValkeyUser, envVarSuffix):          aivenUser.Username,
+			fmt.Sprintf("%s_%s", ValkeyPassword, envVarSuffix):      aivenUser.Password,
+			fmt.Sprintf("%s_%s", ValkeyURI, envVarSuffix):           addresses.Valkey.URI,
+			fmt.Sprintf("%s_%s", ValkeyHost, envVarSuffix):          addresses.Valkey.Host,
+			fmt.Sprintf("%s_%s", ValkeyPort, envVarSuffix):          strconv.Itoa(addresses.Valkey.Port),
+			fmt.Sprintf("%s_%s", redis.RedisPort, envVarSuffix):     strconv.Itoa(addresses.Valkey.Port),
+			fmt.Sprintf("%s_%s", redis.RedisUser, envVarSuffix):     aivenUser.Username,
+			fmt.Sprintf("%s_%s", redis.RedisPassword, envVarSuffix): aivenUser.Password,
+			fmt.Sprintf("%s_%s", redis.RedisHost, envVarSuffix):     addresses.Valkey.Host,
+			fmt.Sprintf("%s_%s", redis.RedisURI, envVarSuffix):      strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
 		})
 	}
 
