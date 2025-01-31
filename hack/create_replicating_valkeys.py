@@ -57,6 +57,7 @@ class MigrationConfig:
 
 
 def create_migration_config(name) -> MigrationConfig:
+    # TODO: An Aivenator "admin" user doesn't have enough access to setup replication, we need to fetch the default user
     if m := re.match(r"redis-(.+?)-(.*)", name):
         namespace = m.group(1)
         instance_name = m.group(2)
