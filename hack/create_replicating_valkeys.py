@@ -95,7 +95,8 @@ def apply_manifest(manifest):
 
 
 def get_secret_data(data, key, instance_name) -> str:
-    return base64.b64decode(data[f"REDIS_{key.upper()}_{instance_name.upper()}"]).decode("utf-8")
+    env_key = f"REDIS_{key.upper()}_{instance_name.upper()}".replace("-", "_")
+    return base64.b64decode(data[env_key]).decode("utf-8")
 
 
 def allow_terminating_redis(name):
