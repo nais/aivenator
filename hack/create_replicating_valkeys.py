@@ -29,6 +29,7 @@ metadata:
   name: valkey-migration-{name}
   namespace: {namespace}
 spec:
+  expiresAt: "2025-04-07T00:00:00Z"
   secretName: {secret_name}
   redis:
   - access: admin
