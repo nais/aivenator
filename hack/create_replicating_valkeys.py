@@ -113,6 +113,15 @@ def create_replicating_valkey(name, migration_config: MigrationConfig):
     del valkey_manifest["status"]
     valkey_manifest["kind"] = "Valkey"
     valkey_manifest["metadata"]["name"] = valkey_name
+    for metadata_key in (
+            "creationTimestamp",
+            "finalizers",
+            "generation",
+            "ownerReferences",
+            "resourceVersion",
+            "uid",
+    ):
+        del valkey_manifest["metadata"][metadata_key]
     for annotation in (
             "controllers.aiven.io/generation-was-processed",
             "controllers.aiven.io/instance-is-running",
