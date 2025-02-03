@@ -17,6 +17,22 @@ from dataclasses import dataclass
 
 import requests
 
+"""
+TODO / Notes
+============
+
+1. Don't remove ownerReference, we need it later
+2. Can we use the default secret created by aiven-operator to get the default user?
+3. Can migration work via the operator if we have the correct user?
+4. Can you write to a replica?
+   If not, how does that affect our migration rollout?
+5. If replication is active, how do we stop it? (deploy without migration in user config :crossed_fingers: ?)
+6. For redises with ownerReference, get the application, then get the repo from its annotations
+   For redises without ownerReference, look at its annotations to find repo :crossed_fingers:
+7. Should we script creation of PR here, or separate script?
+
+"""
+
 AIVEN_APP_TEMPLATE = """
 apiVersion: aiven.nais.io/v1
 kind: AivenApplication
