@@ -8,8 +8,8 @@ metadata:
 spec:
   image: europe-north1-docker.pkg.dev/nais-io/nais/images/kafka-debug:2025-01-22-132723-a7c7314
   replicas:
-    min: 1
-    max: 1
+    min: 2
+    max: 2
     cpuThresholdPercentage: 50
   prometheus:
     enabled: false
@@ -20,6 +20,6 @@ spec:
     requests:
       cpu: "200m"
       memory: "256Mi"
-  redis:
+  valkey:
     - instance: cache
       access: admin

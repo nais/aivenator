@@ -21,35 +21,9 @@ import requests
 TODO / Notes
 ============
 
-1. Don't remove ownerReference, we need it later
-2. Can we use the default secret created by aiven-operator to get the default user?
-3. Can migration work via the operator if we have the correct user?
 4. Can you write to a replica?
    If not, how does that affect our migration rollout?
 5. If replication is active, how do we stop it? (deploy without migration in user config :crossed_fingers: ?)
-6. For redises with ownerReference, get the application, then get the repo from its annotations
-   For redises without ownerReference, look at its annotations to find repo :crossed_fingers:
-7. Should we script creation of PR here, or separate script?
-
-"""
-
-AIVEN_APP_TEMPLATE = """
-apiVersion: aiven.nais.io/v1
-kind: AivenApplication
-metadata:
-  annotations:
-    nais.io/migration: "true"
-  labels:
-    app: {name}
-    team: {namespace}
-  name: valkey-migration-{name}
-  namespace: {namespace}
-spec:
-  expiresAt: "2025-04-07T00:00:00Z"
-  secretName: {secret_name}
-  redis:
-  - access: admin
-    instance: {instance_name}
 """
 
 
@@ -73,34 +47,16 @@ class MigrationConfig:
 
 
 def create_migration_config(name) -> MigrationConfig:
-    # TODO: An Aivenator "admin" user doesn't have enough access to setup replication, we need to fetch the default user
-    if m := re.match(r"redis-(.+?)-(.*)", name):
-        namespace = m.group(1)
-        instance_name = m.group(2)
-    else:
-        raise ValueError(f"Invalid name: {name}")
-
-    secret_name = f"aiven-{name}-migration"
-    manifest = AIVEN_APP_TEMPLATE.format(
-        name=name,
-        namespace=namespace,
-        secret_name=secret_name,
-        instance_name=instance_name,
-    )
-    print("Applying manifest to create migration user")
-    apply_manifest(manifest)
-    print("Waiting for secret to be created")
-    subprocess.run(["kubectl", "wait", "--timeout=180s", "--for=create", f"secret/{secret_name}"])
     print("Fetching secret")
-    output = subprocess.run(["kubectl", "get", "secret", secret_name, "-o", "json"], check=True,
+    output = subprocess.run(["kubectl", "get", "secret", name, "-o", "json"], check=True,
                             capture_output=True).stdout
     secret = json.loads(output)
     data = secret.get("data", {})
     return MigrationConfig(
-        host=get_secret_data(data, "host", instance_name),
-        port=int(get_secret_data(data, "port", instance_name)),
-        username=get_secret_data(data, "username", instance_name),
-        password=get_secret_data(data, "password", instance_name),
+        host=get_secret_data(data, "host"),
+        port=int(get_secret_data(data, "port")),
+        username=get_secret_data(data, "user"),
+        password=get_secret_data(data, "password"),
     )
 
 
@@ -111,8 +67,8 @@ def apply_manifest(manifest):
         subprocess.run(["kubectl", "apply", "-f", f.name], check=True)
 
 
-def get_secret_data(data, key, instance_name) -> str:
-    env_key = f"REDIS_{key.upper()}_{instance_name.upper()}".replace("-", "_")
+def get_secret_data(data, key) -> str:
+    env_key = f"REDIS_{key.upper()}".replace("-", "_")
     return base64.b64decode(data[env_key]).decode("utf-8")
 
 
@@ -136,7 +92,6 @@ def create_replicating_valkey(name, migration_config: MigrationConfig):
             "creationTimestamp",
             "finalizers",
             "generation",
-            "ownerReferences",
             "resourceVersion",
             "uid",
     ):
@@ -147,19 +102,18 @@ def create_replicating_valkey(name, migration_config: MigrationConfig):
             "nais.io/deploymentCorrelationID"
     ):
         del valkey_manifest["metadata"]["annotations"][annotation]
-    # XXX: Migration like this doesn't work for some reason, so we do that via API later
-    # migration = {
-    #     "host": migration_config.host,
-    #     "port": migration_config.port,
-    #     "username": migration_config.username,
-    #     "password": migration_config.password,
-    #     "ssl": True,
-    #     "method": "replication",
-    # }
-    # if "userConfig" in valkey_manifest["spec"]:
-    #     valkey_manifest["spec"]["userConfig"]["migration"] = migration
-    # else:
-    #     valkey_manifest["spec"]["userConfig"] = {"migration": migration}
+    migration = {
+        "host": migration_config.host,
+        "port": migration_config.port,
+        "username": migration_config.username,
+        "password": migration_config.password,
+        "ssl": True,
+        "method": "replication",
+    }
+    if "userConfig" in valkey_manifest["spec"]:
+        valkey_manifest["spec"]["userConfig"]["migration"] = migration
+    else:
+        valkey_manifest["spec"]["userConfig"] = {"migration": migration}
     print("Applying Valkey manifest")
     apply_manifest(json.dumps(valkey_manifest))
     print("Waiting for Valkey to be running")
@@ -177,33 +131,12 @@ def make_valkey_name(name):
     return valkey_name
 
 
-def start_replication(name, config, project):
-    payload = {
-        "user_config": {
-            "migration": {
-                "host": config.host,
-                "port": config.port,
-                "username": config.username,
-                "password": config.password,
-                "ssl": True,
-                "method": "replication",
-            },
-        }
-    }
-    valkey_name = make_valkey_name(name)
-    resp = requests.put(f"https://console.aiven.io/v1/project/{project}/service/{valkey_name}", json=payload,
-                        auth=AivenAuth())
-    resp.raise_for_status()
-
-
 def main(name):
     print(f"Creating replicating Valkey for {name}")
     print("Create migration config")
     config = create_migration_config(name)
     print("Creating replicating Valkey")
-    project = create_replicating_valkey(name, config)
-    print("Starting replication")
-    start_replication(name, config, project)
+    create_replicating_valkey(name, config)
     print("Allowing accidental deletion of Redis")
     allow_terminating_redis(name)
     print("All done, remember to update Git")
