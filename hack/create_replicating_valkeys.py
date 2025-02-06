@@ -1,30 +1,17 @@
 #!/usr/bin/env -S uv run
 # /// script
 # requires-python = ">=3.11"
-# dependencies = [
-#   "requests",
-# ]
 # ///
 import argparse
 import base64
 import copy
 import json
 import os
-import re
 import subprocess
 import tempfile
 from dataclasses import dataclass
 
 import requests
-
-"""
-TODO / Notes
-============
-
-4. Can you write to a replica?
-   If not, how does that affect our migration rollout?
-5. If replication is active, how do we stop it? (deploy without migration in user config :crossed_fingers: ?)
-"""
 
 
 class AivenAuth(requests.auth.AuthBase):
