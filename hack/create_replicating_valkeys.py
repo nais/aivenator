@@ -92,7 +92,7 @@ def create_replicating_valkey(name, migration_config: MigrationConfig):
     print("Waiting for Valkey to be running")
     subprocess.run([
         "kubectl", "wait",
-        "--timeout=180s",
+        "--timeout=300s",
         "--for=jsonpath={.status.state}=RUNNING",
         f"valkey/{valkey_name}"
     ], check=True)
