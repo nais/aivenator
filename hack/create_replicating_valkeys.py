@@ -6,23 +6,9 @@ import argparse
 import base64
 import copy
 import json
-import os
 import subprocess
 import tempfile
 from dataclasses import dataclass
-
-import requests
-
-
-class AivenAuth(requests.auth.AuthBase):
-    def __init__(self, token=None):
-        if token is None:
-            token = os.getenv("AIVEN_TOKEN")
-        self.token = token
-
-    def __call__(self, r):
-        r.headers["authorization"] = f"Bearer {self.token}"
-        return r
 
 
 @dataclass
