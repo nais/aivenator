@@ -1,0 +1,7 @@
+cat >kcat.conf <<EOF
+ssl.certificate.location=${KAFKA_CERTIFICATE_PATH}
+ssl.key.location=${KAFKA_PRIVATE_KEY_PATH}
+ssl.ca.location=${KAFKA_CA_PATH}
+bootstrap.servers=${KAFKA_BROKERS}
+security.protocol=ssl
+EOF

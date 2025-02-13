@@ -1,7 +1,7 @@
 apiVersion: "nais.io/v1alpha1"
 kind: "Application"
 metadata:
-  name: "redis-test"
+  name: "kafka-test"
   namespace: basseng
   labels:
     team: "basseng"
@@ -20,6 +20,5 @@ spec:
     requests:
       cpu: "200m"
       memory: "256Mi"
-  valkey:
-    - instance: cache
-      access: admin
+  kafka:
+    pool: dev-nais-dev
