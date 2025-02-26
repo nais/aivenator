@@ -35,7 +35,7 @@ RUN make test
 # Build
 RUN CGO_ENABLED=0 go build -a -installsuffix cgo -o aivenator cmd/aivenator/main.go
 
-FROM gcr.io/distroless/static-debian11
+FROM scratch
 WORKDIR /
 COPY --from=builder /workspace/aivenator /aivenator
 
