@@ -35,7 +35,7 @@ RUN make test
 # Build
 RUN CGO_ENABLED=0 go build -a -installsuffix cgo -o aivenator cmd/aivenator/main.go
 
-FROM scratch
+FROM cgr.dev/chainguard/static:latest
 WORKDIR /
 COPY --from=builder /workspace/aivenator /aivenator
 
