@@ -1,6 +1,7 @@
 module github.com/nais/aivenator
 
 go 1.23.6
+toolchain go1.24.0
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
@@ -13,7 +14,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
-	github.com/vektra/mockery/v2 v2.52.1
+	github.com/vektra/mockery/v2 v2.52.4
 	golang.org/x/vuln v1.1.4
 	honnef.co/go/tools v0.6.0
 	k8s.io/api v0.32.1
@@ -87,7 +88,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
-	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
+	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/mod v0.23.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
