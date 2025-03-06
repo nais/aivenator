@@ -1,6 +1,8 @@
 module github.com/nais/aivenator
 
-go 1.23.6
+go 1.24
+
+toolchain go1.24.1
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
