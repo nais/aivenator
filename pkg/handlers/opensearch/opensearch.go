@@ -117,17 +117,17 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *v1.Secret, logge
 	annotations := secret.GetAnnotations()
 
 	serviceUser, okServiceName := annotations[ServiceUserAnnotation]
-	if okServiceName {
+	if !okServiceName {
 		return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
 	}
 
 	serviceName, okServiceName := annotations[ServiceNameAnnotation]
-	if okServiceName {
+	if !okServiceName {
 		return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
 	}
 
 	projectName, okProjectName := annotations[ProjectAnnotation]
-	if okProjectName {
+	if !okProjectName {
 		return fmt.Errorf("missing annotation %s", ProjectAnnotation)
 	}
 

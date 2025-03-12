@@ -151,7 +151,7 @@ func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *l
 	annotations := secret.GetAnnotations()
 
 	projectName, okProjectName := annotations[ProjectAnnotation]
-	if okProjectName {
+	if !okProjectName {
 		return fmt.Errorf("missing annotation %s", ProjectAnnotation)
 	}
 
