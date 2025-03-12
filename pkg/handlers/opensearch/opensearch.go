@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/aiven/aiven-go-client/v2"
+	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -14,6 +15,7 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Annotations
@@ -105,6 +107,8 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		OpenSearchHost:     addresses.OpenSearch.Host,
 		OpenSearchPort:     strconv.Itoa(addresses.OpenSearch.Port),
 	})
+
+	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
 	return nil
 }
