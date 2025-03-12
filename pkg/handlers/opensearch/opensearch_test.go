@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -178,6 +179,7 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
 				ServiceNameAnnotation: instance,
 				ServiceUserAnnotation: serviceUserName,
 			},
+			Finalizers: []string{constants.AivenatorFinalizer},
 		},
 		// Check these individually
 		Data:       secret.Data,
