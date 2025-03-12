@@ -116,36 +116,33 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
 	annotations := secret.GetAnnotations()
 
-	serviceUser, okServiceName := annotations[ServiceUserAnnotation]
-	if !okServiceName {
-		return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
-	}
-
-	serviceName, okServiceName := annotations[ServiceNameAnnotation]
-	if !okServiceName {
-		return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
-	}
-
-	projectName, okProjectName := annotations[ProjectAnnotation]
-	if !okProjectName {
-		return fmt.Errorf("missing annotation %s", ProjectAnnotation)
-	}
-
-	logger = logger.WithFields(log.Fields{
-		"serviceUser": serviceUser,
-		"project":     projectName,
-	})
-
-	if err := h.serviceuser.Delete(ctx, serviceUser, projectName, serviceName, logger); err != nil {
-		if aiven.IsNotFound(err) {
-			logger.Infof("Service user %s does not exist", serviceUser)
-			return nil
+	if serviceName, okServiceName := annotations[ServiceNameAnnotation]; okServiceName {
+		serviceUser, okServiceUser := annotations[ServiceUserAnnotation]
+		if !okServiceUser {
+			return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
 		}
 
-		return err
-	}
+		projectName, okProjectName := annotations[ProjectAnnotation]
+		if !okProjectName {
+			return fmt.Errorf("missing annotation %s", ProjectAnnotation)
+		}
 
-	logger.Infof("Deleted service user %s", serviceUser)
+		logger = logger.WithFields(log.Fields{
+			"serviceUser": serviceUser,
+			"project":     projectName,
+		})
+
+		if err := h.serviceuser.Delete(ctx, serviceUser, projectName, serviceName, logger); err != nil {
+			if aiven.IsNotFound(err) {
+				logger.Infof("Service user %s does not exist", serviceUser)
+				return nil
+			}
+
+			return err
+		}
+
+		logger.Infof("Deleted service user %s", serviceUser)
+	}
 
 	return nil
 }
