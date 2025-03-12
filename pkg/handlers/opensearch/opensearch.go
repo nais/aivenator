@@ -3,6 +3,8 @@ package opensearch
 import (
 	"context"
 	"fmt"
+	"strconv"
+
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
@@ -12,12 +14,12 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"strconv"
 )
 
 // Annotations
 const (
 	ServiceUserAnnotation = "opensearch.aiven.nais.io/serviceUser"
+	ServiceNameAnnotation = "opensearch.aiven.nais.io/serviceName"
 	ProjectAnnotation     = "opensearch.aiven.nais.io/project"
 )
 
@@ -70,28 +72,30 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		return utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
 	}
 
-	serviceUserName := fmt.Sprintf("%s%s", application.GetNamespace(), utils.SelectSuffix(spec.Access))
+	serviceUserName := fmt.Sprintf("%s%s-%d", application.GetNamespace(), utils.SelectSuffix(spec.Access), application.Generation)
 
 	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
-	if err != nil {
-		if aiven.IsNotFound(err) {
-			aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, nil, logger)
-			if err != nil {
-				return utils.AivenFail("CreateServiceUser", application, err, false, logger)
-			}
-			err = h.updateACL(ctx, serviceUserName, spec.Access, h.projectName, serviceName)
-			if err != nil {
-				return utils.AivenFail("UpdateACL", application, err, false, logger)
-			}
-		} else {
-			return utils.AivenFail("GetServiceUser", application, err, false, logger)
+	if err != nil && !aiven.IsNotFound(err) {
+		return utils.AivenFail("GetServiceUser", application, err, false, logger)
+	}
+
+	if aivenUser == nil {
+		aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, nil, logger)
+		if err != nil {
+			return utils.AivenFail("CreateServiceUser", application, err, false, logger)
+		}
+
+		if err = h.updateACL(ctx, serviceUserName, spec.Access, h.projectName, serviceName); err != nil {
+			return utils.AivenFail("UpdateACL", application, err, false, logger)
 		}
 	}
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenUser.Username,
+		ServiceNameAnnotation: serviceName,
 		ProjectAnnotation:     h.projectName,
 	}))
+
 	logger.Infof("Fetched service user %s", aivenUser.Username)
 
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
@@ -105,7 +109,40 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	return nil
 }
 
-func (h OpenSearchHandler) Cleanup(_ context.Context, _ *v1.Secret, _ *log.Entry) error {
+func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
+	annotations := secret.GetAnnotations()
+
+	serviceUser, okServiceName := annotations[ServiceUserAnnotation]
+	if okServiceName {
+		return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
+	}
+
+	serviceName, okServiceName := annotations[ServiceNameAnnotation]
+	if okServiceName {
+		return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
+	}
+
+	projectName, okProjectName := annotations[ProjectAnnotation]
+	if okProjectName {
+		return fmt.Errorf("missing annotation %s", ProjectAnnotation)
+	}
+
+	logger = logger.WithFields(log.Fields{
+		"serviceUser": serviceUser,
+		"project":     projectName,
+	})
+
+	if err := h.serviceuser.Delete(ctx, serviceUser, projectName, serviceName, logger); err != nil {
+		if aiven.IsNotFound(err) {
+			logger.Infof("Service user %s does not exist", serviceUser)
+			return nil
+		}
+
+		return err
+	}
+
+	logger.Infof("Deleted service user %s", serviceUser)
+
 	return nil
 }
 

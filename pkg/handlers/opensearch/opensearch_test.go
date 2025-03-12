@@ -2,11 +2,12 @@ package opensearch
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	"testing"
-	"time"
 
 	"github.com/nais/aivenator/pkg/utils"
 	v1 "k8s.io/api/core/v1"
@@ -174,6 +175,7 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ProjectAnnotation:     projectName,
+				ServiceNameAnnotation: instance,
 				ServiceUserAnnotation: serviceUserName,
 			},
 		},
@@ -244,7 +246,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreateFailed() {
 			},
 		}).
 		Build()
-	username := serviceUserName + "-r"
+	username := serviceUserName + "-r-0"
 
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	suite.mockServiceUsers.On("Get", mock.Anything, username, projectName, mock.Anything, mock.Anything).
@@ -275,7 +277,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreatedIfNeeded() {
 			},
 		}).
 		Build()
-	username := serviceUserName + "-r"
+	username := serviceUserName + "-r-0"
 
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, OpenSearchACLGet, OpenSearchACLUpdate))
 	suite.mockServiceUsers.On("Get", mock.Anything, username, projectName, mock.Anything, mock.Anything).
@@ -306,15 +308,15 @@ func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelected() {
 	}{
 		{
 			access:   "read",
-			username: serviceUserName + "-r",
+			username: serviceUserName + "-r-0",
 		},
 		{
 			access:   "readwrite",
-			username: serviceUserName + "-rw",
+			username: serviceUserName + "-rw-0",
 		},
 		{
 			access:   "write",
-			username: serviceUserName + "-w",
+			username: serviceUserName + "-w-0",
 		},
 		{
 			access:   "admin",
