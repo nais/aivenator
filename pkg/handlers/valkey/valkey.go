@@ -156,12 +156,13 @@ func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *l
 	}
 
 	logger = logger.WithFields(log.Fields{"project": projectName})
-
-	for serviceNameKey := range annotations {
-		if strings.HasSuffix(serviceNameKey, ServiceNameAnnotation) {
-			serviceName := annotations[serviceNameKey]
+	logger.Info("Cleaning up")
+	for annotationKey := range annotations {
+		// Specifically for the suffix serviceName
+		if strings.HasSuffix(annotationKey, ServiceNameAnnotation) {
+			serviceName := annotations[annotationKey]
 			logger = logger.WithField("service", serviceName)
-			instance := strings.Split(serviceNameKey, ".")[0]
+			instance := strings.Split(annotationKey, ".")[0]
 
 			serviceUserNameKey := fmt.Sprintf("%s.%s", instance, ServiceUserAnnotation)
 			serviceUserName, okServiceUser := annotations[serviceUserNameKey]
