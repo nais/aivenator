@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/aiven/aiven-go-client/v2"
+	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	redis "github.com/nais/aivenator/pkg/handlers/redis"
@@ -15,11 +16,13 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Annotations
 const (
 	ServiceUserAnnotation = "valkey.aiven.nais.io/serviceUser"
+	ServiceNameAnnotation = "valkey.aiven.nais.io/serviceName"
 	ProjectAnnotation     = "valkey.aiven.nais.io/project"
 )
 
@@ -70,31 +73,34 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			return utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
 		}
 
-		serviceUserName := fmt.Sprintf("%s%s", application.GetName(), utils.SelectSuffix(spec.Access))
+		serviceUserName := fmt.Sprintf("%s%s-%d", application.GetName(), utils.SelectSuffix(spec.Access), application.Generation)
 
 		aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
-		if err != nil {
-			if aiven.IsNotFound(err) {
-				accessControl := &aiven.AccessControl{
-					ValkeyACLCategories: getValkeyACLCategories(spec.Access),
-					ValkeyACLKeys:       []string{"*"},
-					ValkeyACLChannels:   []string{"*"},
-				}
-				aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, accessControl, logger)
-				if err != nil {
-					return utils.AivenFail("CreateServiceUser", application, err, false, logger)
-				}
-			} else {
-				return utils.AivenFail("GetServiceUser", application, err, false, logger)
+		if err != nil && !aiven.IsNotFound(err) {
+			return utils.AivenFail("GetServiceUser", application, err, false, logger)
+		}
+
+		if aivenUser == nil {
+			accessControl := &aiven.AccessControl{
+				ValkeyACLCategories: getValkeyACLCategories(spec.Access),
+				ValkeyACLKeys:       []string{"*"},
+				ValkeyACLChannels:   []string{"*"},
+			}
+			aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, accessControl, logger)
+			if err != nil {
+				return utils.AivenFail("CreateServiceUser", application, err, false, logger)
 			}
 		}
 
 		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceUserAnnotation)
+		serviceNameAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceNameAnnotation)
 
 		secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
 			serviceUserAnnotationKey: aivenUser.Username,
+			serviceNameAnnotationKey: serviceName,
 			ProjectAnnotation:        h.projectName,
 		}))
+
 		logger.Infof("Fetched service user %s", aivenUser.Username)
 
 		envVarSuffix := envVarName(spec.Instance)
@@ -111,6 +117,8 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			fmt.Sprintf("%s_%s", redis.RedisURI, envVarSuffix):      strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
 		})
 	}
+
+	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
 	return nil
 }
@@ -139,6 +147,42 @@ func getValkeyACLCategories(access string) []string {
 	return categories
 }
 
-func (h ValkeyHandler) Cleanup(_ context.Context, _ *v1.Secret, _ *log.Entry) error {
+func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
+	annotations := secret.GetAnnotations()
+
+	projectName, okProjectName := annotations[ProjectAnnotation]
+	if !okProjectName {
+		return fmt.Errorf("missing annotation %s", ProjectAnnotation)
+	}
+
+	logger = logger.WithFields(log.Fields{"project": projectName})
+	for annotationKey := range annotations {
+		// Specifically for the suffix serviceName
+		if strings.HasSuffix(annotationKey, ServiceNameAnnotation) {
+			serviceName := annotations[annotationKey]
+			logger = logger.WithField("service", serviceName)
+			instance := strings.Split(annotationKey, ".")[0]
+
+			serviceUserNameKey := fmt.Sprintf("%s.%s", instance, ServiceUserAnnotation)
+			serviceUserName, okServiceUser := annotations[serviceUserNameKey]
+			if !okServiceUser {
+				logger.Errorf("missing annotation %s", serviceUserNameKey)
+				continue
+			}
+
+			if err := h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger); err != nil {
+				if aiven.IsNotFound(err) {
+					logger.Infof("Service user %s does not exist", serviceUserName)
+					continue
+				}
+
+				logger.Errorf("deleting service user %s: %v", serviceUserName, err)
+				continue
+			}
+
+			logger.Infof("Deleted service user %s", serviceUserName)
+		}
+	}
+
 	return nil
 }

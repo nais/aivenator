@@ -35,6 +35,7 @@ type testData struct {
 	servicePort              int
 	access                   string
 	username                 string
+	serviceNameAnnotationKey string
 	serviceUserAnnotationKey string
 	usernameKey              string
 	passwordKey              string
@@ -57,8 +58,9 @@ var testInstances = []testData{
 		serviceHost:              "my-instance1.example.com",
 		servicePort:              23456,
 		access:                   "read",
-		username:                 "test-app-r",
+		username:                 "test-app-r-0",
 		serviceUserAnnotationKey: "my-instance1.valkey.aiven.nais.io/serviceUser",
+		serviceNameAnnotationKey: "my-instance1.valkey.aiven.nais.io/serviceName",
 		usernameKey:              "VALKEY_USERNAME_MY_INSTANCE1",
 		passwordKey:              "VALKEY_PASSWORD_MY_INSTANCE1",
 		uriKey:                   "VALKEY_URI_MY_INSTANCE1",
@@ -78,8 +80,9 @@ var testInstances = []testData{
 		serviceHost:              "session-store.example.com",
 		servicePort:              23456,
 		access:                   "readwrite",
-		username:                 "test-app-rw",
+		username:                 "test-app-rw-0",
 		serviceUserAnnotationKey: "session-store.valkey.aiven.nais.io/serviceUser",
+		serviceNameAnnotationKey: "session-store.valkey.aiven.nais.io/serviceName",
 		usernameKey:              "VALKEY_USERNAME_SESSION_STORE",
 		passwordKey:              "VALKEY_PASSWORD_SESSION_STORE",
 		uriKey:                   "VALKEY_URI_SESSION_STORE",
@@ -122,6 +125,14 @@ var _ = Describe("valkey.Handler", func() {
 					Port: data.servicePort,
 				},
 			}, nil)
+	}
+
+	defaultAccessControl := func(data testData) *aiven.AccessControl {
+		return &aiven.AccessControl{
+			ValkeyACLCategories: getValkeyACLCategories(data.access),
+			ValkeyACLKeys:       []string{"*"},
+			ValkeyACLChannels:   []string{"*"},
+		}
 	}
 
 	BeforeEach(func() {
@@ -232,6 +243,7 @@ var _ = Describe("valkey.Handler", func() {
 			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
+			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
@@ -266,15 +278,11 @@ var _ = Describe("valkey.Handler", func() {
 				defaultServiceManagerMock(data)
 				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 					Return(nil, aiven.Error{
-						Message: "Service user does not exist",
-						Status:  404,
+						Message:  "aiven-error",
+						MoreInfo: "aiven-more-info",
+						Status:   404,
 					})
-				accessControl := &aiven.AccessControl{
-					ValkeyACLCategories: getValkeyACLCategories(data.access),
-					ValkeyACLKeys:       []string{"*"},
-					ValkeyACLChannels:   []string{"*"},
-				}
-				mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, accessControl, mock.Anything).
+				mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, defaultAccessControl(data), mock.Anything).
 					Return(&aiven.ServiceUser{
 						Username: data.username,
 						Password: servicePassword,
@@ -310,6 +318,7 @@ var _ = Describe("valkey.Handler", func() {
 			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
 			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
+			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
@@ -343,15 +352,11 @@ var _ = Describe("valkey.Handler", func() {
 					defaultServiceManagerMock(data)
 					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 						Return(nil, aiven.Error{
-							Message: "Service user does not exist",
-							Status:  404,
+							Message:  "aiven-error",
+							MoreInfo: "aiven-more-info",
+							Status:   404,
 						})
-					accessControl := &aiven.AccessControl{
-						ValkeyACLCategories: getValkeyACLCategories(data.access),
-						ValkeyACLKeys:       []string{"*"},
-						ValkeyACLChannels:   []string{"*"},
-					}
-					mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, accessControl, mock.Anything).
+					mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, defaultAccessControl(data), mock.Anything).
 						Return(&aiven.ServiceUser{
 							Username: data.username,
 							Password: servicePassword,
