@@ -53,15 +53,14 @@ type OpenSearchHandler struct {
 }
 
 func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
-	logger = logger.WithFields(log.Fields{"handler": "opensearch"})
 	spec := application.Spec.OpenSearch
 	if spec == nil {
 		return nil
 	}
-
 	serviceName := spec.Instance
 
 	logger = logger.WithFields(log.Fields{
+		"handler": "opensearch",
 		"project": h.projectName,
 		"service": serviceName,
 	})

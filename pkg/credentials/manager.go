@@ -32,12 +32,12 @@ type Manager struct {
 func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger *log.Entry) Manager {
 	return Manager{
 		handlers: []Handler{
-			secret.NewHandler(aiven, mainProjectName),
+			influxdb.NewInfluxDBHandler(ctx, aiven, mainProjectName),
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
 			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
 			redis.NewRedisHandler(ctx, aiven, mainProjectName),
+			secret.NewHandler(aiven, mainProjectName),
 			valkey.NewValkeyHandler(ctx, aiven, mainProjectName),
-			influxdb.NewInfluxDBHandler(ctx, aiven, mainProjectName),
 		},
 	}
 }
@@ -45,6 +45,21 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) (*v1.Secret, error) {
 	for _, handler := range c.handlers {
 		processingStart := time.Now()
+		if logger != nil {
+			valkey := "Not found"
+			if application.Spec.Valkey != nil && application.Spec.Valkey[0] != nil {
+				valkey = application.Spec.Valkey[0].Instance
+			}
+			opensearch := "Not found"
+			if application.Spec.OpenSearch != nil {
+				valkey = application.Spec.OpenSearch.Instance
+			}
+			logger.WithFields(log.Fields{
+				"name":               "createSecret",
+				"valkeyInstance":     valkey,
+				"openSearchInstance": opensearch,
+			}).Info("Applying AivenApplication")
+		}
 		err := handler.Apply(ctx, application, secret, logger)
 		if err != nil {
 			cleanupError := c.Cleanup(ctx, secret, logger)
