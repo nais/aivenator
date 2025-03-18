@@ -101,8 +101,9 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 	if _, ok := enabled[ServiceUsersGetNotFound]; ok {
 		suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			Return(nil, aiven.Error{
-				Message: "Service user does not exist",
-				Status:  404,
+				Message:  "aiven-error",
+				MoreInfo: "aiven-more-info",
+				Status:   404,
 			})
 	}
 	if _, ok := enabled[GeneratorMakeCredStores]; ok {

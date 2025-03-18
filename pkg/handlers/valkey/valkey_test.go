@@ -278,9 +278,8 @@ var _ = Describe("valkey.Handler", func() {
 				defaultServiceManagerMock(data)
 				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 					Return(nil, aiven.Error{
-						Message:  "aiven-error",
-						MoreInfo: "aiven-more-info",
-						Status:   404,
+						Message: "Service user does not exist",
+						Status:  404,
 					})
 				mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, defaultAccessControl(data), mock.Anything).
 					Return(&aiven.ServiceUser{
