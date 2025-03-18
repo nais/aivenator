@@ -3,11 +3,12 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
-	"testing"
 )
 
 func TestManager_Apply(t *testing.T) {
@@ -91,7 +92,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 	// then
 	assert.Error(t, err)
 	assert.EqualError(t, err, handlerError.Error())
-	mockHandler.AssertCalled(t, "Cleanup",
+	failingHandler.AssertCalled(t, "Cleanup",
 		mock.Anything,
 		mock.AnythingOfType("*v1.Secret"),
 		mock.Anything)
