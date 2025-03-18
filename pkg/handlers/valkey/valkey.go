@@ -82,7 +82,7 @@ func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aive
 			return nil, err
 		}
 
-		serviceUserName = fmt.Sprintf("%s%s-%d", application.GetName(), utils.SelectSuffix(valkeySpec.Access), suffix)
+		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetName(), utils.SelectSuffix(valkeySpec.Access), suffix)
 	}
 
 	aivenUser, err = h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
