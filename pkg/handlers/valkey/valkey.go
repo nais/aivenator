@@ -128,8 +128,8 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		}
 
 		aivenUser, err := h.provideServiceUser(ctx, application, spec, serviceName, secret, logger)
-		if err != nil && !aiven.IsNotFound(err) {
-			return utils.AivenFail("GetServiceUser", application, err, false, logger)
+		if err != nil {
+			return err
 		}
 
 		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceUserAnnotation)
