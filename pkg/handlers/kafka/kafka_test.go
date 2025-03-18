@@ -426,3 +426,11 @@ func TestKafkaHandler(t *testing.T) {
 	kafkaTestSuite := new(KafkaHandlerTestSuite)
 	suite.Run(t, kafkaTestSuite)
 }
+
+func KeysFromByteMap(m map[string][]byte) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
