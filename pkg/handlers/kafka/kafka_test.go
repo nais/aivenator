@@ -218,7 +218,7 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 		KafkaCA, KafkaPrivateKey, KafkaCredStorePassword, KafkaSchemaRegistry, KafkaSchemaUser, KafkaSchemaPassword,
 		KafkaBrokers, KafkaSecretUpdated, KafkaCertificate,
 	})
-	suite.ElementsMatch(KeysFromByteMap(secret.Data), []string{KafkaKeystore, KafkaTruststore})
+	suite.ElementsMatch(keysFromByteMap(secret.Data), []string{KafkaKeystore, KafkaTruststore})
 }
 
 func (suite *KafkaHandlerTestSuite) TestSecretExists() {
@@ -427,7 +427,7 @@ func TestKafkaHandler(t *testing.T) {
 	suite.Run(t, kafkaTestSuite)
 }
 
-func KeysFromByteMap(m map[string][]byte) []string {
+func keysFromByteMap(m map[string][]byte) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
