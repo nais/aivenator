@@ -2,10 +2,7 @@ package valkey
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
-	"hash/crc32"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -52,57 +49,6 @@ type ValkeyHandler struct {
 	serviceuser serviceuser.ServiceUserManager
 	service     service.ServiceManager
 	projectName string
-}
-
-func createSuffix(application *aiven_nais_io_v1.AivenApplication) (string, error) {
-	hasher := crc32.NewIEEE()
-	basename := fmt.Sprintf("%d%s", application.Generation, os.Getenv("NAIS_CLUSTER_NAME"))
-	_, err := hasher.Write([]byte(basename))
-	if err != nil {
-		return "", err
-	}
-	bytes := make([]byte, 0, 4)
-	suffix := base64.RawURLEncoding.EncodeToString(hasher.Sum(bytes))
-	return suffix[:3], nil
-}
-
-func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
-	var aivenUser *aiven.ServiceUser
-	var err error
-
-	var serviceUserName string
-
-	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
-		serviceUserName = nameFromAnnotation
-	} else {
-		suffix, err := createSuffix(application)
-		if err != nil {
-			err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.ErrUnrecoverable)
-			utils.LocalFail("CreateSuffix", application, err, logger)
-			return nil, err
-		}
-
-		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetName(), utils.SelectSuffix(valkeySpec.Access), suffix)
-	}
-
-	aivenUser, err = h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
-	if err == nil {
-		return aivenUser, nil
-	}
-	if !aiven.IsNotFound(err) {
-		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
-	}
-	accessControl := &aiven.AccessControl{
-		ValkeyACLCategories: getValkeyACLCategories(valkeySpec.Access),
-		ValkeyACLKeys:       []string{"*"},
-		ValkeyACLChannels:   []string{"*"},
-	}
-
-	aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, accessControl, logger)
-	if err != nil {
-		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
-	}
-	return aivenUser, nil
 }
 
 func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
@@ -161,6 +107,45 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
 	return nil
+}
+
+func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+	var aivenUser *aiven.ServiceUser
+	var err error
+
+	var serviceUserName string
+
+	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
+		serviceUserName = nameFromAnnotation
+	} else {
+		suffix, err := utils.CreateSuffix(application)
+		if err != nil {
+			err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.ErrUnrecoverable)
+			utils.LocalFail("CreateSuffix", application, err, logger)
+			return nil, err
+		}
+
+		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetName(), utils.SelectSuffix(valkeySpec.Access), suffix)
+	}
+
+	aivenUser, err = h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
+	if err == nil {
+		return aivenUser, nil
+	}
+	if !aiven.IsNotFound(err) {
+		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
+	}
+	accessControl := &aiven.AccessControl{
+		ValkeyACLCategories: getValkeyACLCategories(valkeySpec.Access),
+		ValkeyACLKeys:       []string{"*"},
+		ValkeyACLChannels:   []string{"*"},
+	}
+
+	aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, accessControl, logger)
+	if err != nil {
+		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
+	}
+	return aivenUser, nil
 }
 
 func keyName(instanceName, replacement string) string {

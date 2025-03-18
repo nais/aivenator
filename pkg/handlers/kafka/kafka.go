@@ -2,10 +2,7 @@ package kafka
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
-	"hash/crc32"
-	"os"
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
@@ -44,8 +41,6 @@ const (
 	ServiceUserAnnotation = "kafka.aiven.nais.io/serviceUser"
 	PoolAnnotation        = "kafka.aiven.nais.io/pool"
 )
-
-var clusterName = ""
 
 func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry) KafkaHandler {
 	generator := certificate.NewNativeGenerator()
@@ -156,7 +151,7 @@ func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven
 	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
 		serviceUserName = nameFromAnnotation
 	} else {
-		suffix, err := createSuffix(application)
+		suffix, err := utils.CreateSuffix(application)
 		if err != nil {
 			err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.ErrUnrecoverable)
 			utils.LocalFail("CreateSuffix", application, err, logger)
@@ -184,18 +179,6 @@ func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven
 		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 	}
 	return aivenUser, nil
-}
-
-func createSuffix(application *aiven_nais_io_v1.AivenApplication) (string, error) {
-	hasher := crc32.NewIEEE()
-	basename := fmt.Sprintf("%d%s", application.Generation, clusterName)
-	_, err := hasher.Write([]byte(basename))
-	if err != nil {
-		return "", err
-	}
-	bytes := make([]byte, 0, 4)
-	suffix := base64.RawURLEncoding.EncodeToString(hasher.Sum(bytes))
-	return suffix[:3], nil
 }
 
 func (h KafkaHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
@@ -250,8 +233,4 @@ func (h *KafkaHandler) countUsers(ctx context.Context, logger *log.Entry) {
 			}
 		}
 	}
-}
-
-func init() {
-	clusterName = os.Getenv("NAIS_CLUSTER_NAME")
 }
