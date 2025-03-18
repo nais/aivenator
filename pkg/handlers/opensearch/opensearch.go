@@ -73,22 +73,9 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		return utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
 	}
 
-	serviceUserName := fmt.Sprintf("%s%s-%d", application.GetNamespace(), utils.SelectSuffix(spec.Access), application.Generation)
-
-	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
-	if err != nil && !aiven.IsNotFound(err) {
-		return utils.AivenFail("GetServiceUser", application, err, false, logger)
-	}
-
-	if aivenUser == nil {
-		aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, nil, logger)
-		if err != nil {
-			return utils.AivenFail("CreateServiceUser", application, err, false, logger)
-		}
-
-		if err = h.updateACL(ctx, serviceUserName, spec.Access, h.projectName, serviceName); err != nil {
-			return utils.AivenFail("UpdateACL", application, err, false, logger)
-		}
+	aivenUser, err := h.provideServiceUser(ctx, application, serviceName, secret, logger)
+	if err != nil {
+		return err
 	}
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
@@ -110,6 +97,45 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
 	return nil
+}
+
+func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+	var aivenUser *aiven.ServiceUser
+	var err error
+
+	var serviceUserName string
+
+	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
+		serviceUserName = nameFromAnnotation
+	} else {
+		suffix, err := utils.CreateSuffix(application)
+		if err != nil {
+			err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.ErrUnrecoverable)
+			utils.LocalFail("CreateSuffix", application, err, logger)
+			return nil, err
+		}
+
+		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetNamespace(), utils.SelectSuffix(application.Spec.OpenSearch.Access), suffix)
+	}
+
+	aivenUser, err = h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
+	if err == nil {
+		return aivenUser, nil
+	}
+	if !aiven.IsNotFound(err) {
+		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
+	}
+
+	aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, nil, logger)
+	if err != nil {
+		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
+	}
+
+	if err = h.updateACL(ctx, serviceUserName, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
+		return nil, utils.AivenFail("UpdateACL", application, err, false, logger)
+	}
+
+	return aivenUser, nil
 }
 
 func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
