@@ -2,6 +2,7 @@ package opensearch
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -176,7 +177,7 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ProjectAnnotation:     projectName,
-				ServiceNameAnnotation: instance,
+				ServiceNameAnnotation: fmt.Sprintf("opensearch-%s-%s", application.GetNamespace(), instance),
 				ServiceUserAnnotation: serviceUserName,
 			},
 			Finalizers: []string{constants.AivenatorFinalizer},
