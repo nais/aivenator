@@ -7,6 +7,9 @@
 -- This was a one-time (19-03-2025) "migration job" for adding this metadata to the secrets in order to get
 -- credentials rotation to work for valkey and opensearch
 
+
+-- Admittedely, this is rather silly haskell. Enjoy
+
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 
