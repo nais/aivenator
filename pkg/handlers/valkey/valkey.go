@@ -174,11 +174,7 @@ func getValkeyACLCategories(access string) []string {
 
 func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
 	annotations := secret.GetAnnotations()
-
 	projectName, okProjectName := annotations[ProjectAnnotation]
-	if !okProjectName {
-		return fmt.Errorf("missing annotation %s", ProjectAnnotation)
-	}
 
 	logger = logger.WithFields(log.Fields{"project": projectName})
 	for annotationKey := range annotations {
@@ -193,6 +189,10 @@ func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *l
 			if !okServiceUser {
 				logger.Errorf("missing annotation %s", serviceUserNameKey)
 				continue
+			}
+
+			if !okProjectName {
+				return fmt.Errorf("missing annotation %s", ProjectAnnotation)
 			}
 
 			if err := h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger); err != nil {
