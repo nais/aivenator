@@ -15,7 +15,7 @@ check:
 	go run golang.org/x/vuln/cmd/govulncheck ./...
 
 mocks:
-	go run github.com/vektra/mockery/v2@v2.51.1
+	go run github.com/vektra/mockery/v2@v2.53.2
 
 integration_test: kubebuilder
 	echo "*** Make sure to set the environment AIVEN_TOKEN to a valid token ***"

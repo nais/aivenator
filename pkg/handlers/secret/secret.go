@@ -3,10 +3,11 @@ package secret
 import (
 	"context"
 	"fmt"
-	"github.com/aiven/aiven-go-client/v2"
-	"github.com/nais/aivenator/pkg/aiven/project"
 	"strconv"
 	"time"
+
+	"github.com/aiven/aiven-go-client/v2"
+	"github.com/nais/aivenator/pkg/aiven/project"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"

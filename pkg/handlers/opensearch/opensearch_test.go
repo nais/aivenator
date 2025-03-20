@@ -2,11 +2,14 @@ package opensearch
 
 import (
 	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	"testing"
-	"time"
 
 	"github.com/nais/aivenator/pkg/utils"
 	v1 "k8s.io/api/core/v1"
@@ -174,8 +177,10 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ProjectAnnotation:     projectName,
+				ServiceNameAnnotation: fmt.Sprintf("opensearch-%s-%s", application.GetNamespace(), instance),
 				ServiceUserAnnotation: serviceUserName,
 			},
+			Finalizers: []string{constants.AivenatorFinalizer},
 		},
 		// Check these individually
 		Data:       secret.Data,
@@ -244,7 +249,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreateFailed() {
 			},
 		}).
 		Build()
-	username := serviceUserName + "-r"
+	username := serviceUserName + "-r-9Nv"
 
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	suite.mockServiceUsers.On("Get", mock.Anything, username, projectName, mock.Anything, mock.Anything).
@@ -275,7 +280,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreatedIfNeeded() {
 			},
 		}).
 		Build()
-	username := serviceUserName + "-r"
+	username := serviceUserName + "-r-9Nv"
 
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, OpenSearchACLGet, OpenSearchACLUpdate))
 	suite.mockServiceUsers.On("Get", mock.Anything, username, projectName, mock.Anything, mock.Anything).
@@ -306,15 +311,15 @@ func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelected() {
 	}{
 		{
 			access:   "read",
-			username: serviceUserName + "-r",
+			username: serviceUserName + "-r-9Nv",
 		},
 		{
 			access:   "readwrite",
-			username: serviceUserName + "-rw",
+			username: serviceUserName + "-rw-9Nv",
 		},
 		{
 			access:   "write",
-			username: serviceUserName + "-w",
+			username: serviceUserName + "-w-9Nv",
 		},
 		{
 			access:   "admin",

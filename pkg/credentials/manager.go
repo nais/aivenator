@@ -32,12 +32,12 @@ type Manager struct {
 func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger *log.Entry) Manager {
 	return Manager{
 		handlers: []Handler{
-			secret.NewHandler(aiven, mainProjectName),
+			influxdb.NewInfluxDBHandler(ctx, aiven, mainProjectName),
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
 			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
 			redis.NewRedisHandler(ctx, aiven, mainProjectName),
+			secret.NewHandler(aiven, mainProjectName),
 			valkey.NewValkeyHandler(ctx, aiven, mainProjectName),
-			influxdb.NewInfluxDBHandler(ctx, aiven, mainProjectName),
 		},
 	}
 }
@@ -47,10 +47,11 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 		processingStart := time.Now()
 		err := handler.Apply(ctx, application, secret, logger)
 		if err != nil {
-			cleanupError := c.Cleanup(ctx, secret, logger)
+			cleanupError := handler.Cleanup(ctx, secret, logger)
 			if cleanupError != nil {
 				return nil, fmt.Errorf("error during apply: %w, additionally, an error occured during cleanup: %v", err, cleanupError)
 			}
+
 			return nil, err
 		}
 
@@ -60,6 +61,7 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 			metrics.LabelHandler: handlerName,
 		}).Observe(used.Seconds())
 	}
+
 	return secret, nil
 }
 
@@ -70,5 +72,6 @@ func (c Manager) Cleanup(ctx context.Context, s *v1.Secret, logger *log.Entry) e
 			return err
 		}
 	}
+
 	return nil
 }
