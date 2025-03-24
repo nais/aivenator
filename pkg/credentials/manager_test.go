@@ -22,7 +22,7 @@ func TestManager_Apply(t *testing.T) {
 		On("Apply",
 			mock.Anything,
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*corev1.Secret"),
+			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(foo, nil).
 		Run(func(args mock.Arguments) {
@@ -57,7 +57,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 		On("Apply",
 			mock.Anything,
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*corev1.Secret"),
+			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
@@ -70,7 +70,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 	mockHandler.
 		On("Cleanup",
 			mock.Anything,
-			mock.AnythingOfType("*corev1.Secret"),
+			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil)
 	handlerError := fmt.Errorf("failing handler")
@@ -78,13 +78,13 @@ func TestManager_ApplyFailed(t *testing.T) {
 		On("Apply",
 			mock.Anything,
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*corev1.Secret"),
+			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil, handlerError)
 	failingHandler.
 		On("Cleanup",
 			mock.Anything,
-			mock.AnythingOfType("*corev1.Secret"),
+			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil)
 	application := aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
@@ -99,7 +99,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 	assert.EqualError(t, err, handlerError.Error())
 	failingHandler.AssertCalled(t, "Cleanup",
 		mock.Anything,
-		mock.AnythingOfType("*corev1.Secret"),
+		mock.AnythingOfType("*v1.Secret"),
 		mock.Anything)
 }
 
@@ -109,7 +109,7 @@ func TestManager_Cleanup(t *testing.T) {
 	mockHandler.
 		On("Cleanup",
 			mock.Anything,
-			mock.AnythingOfType("*corev1.Secret"),
+			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil)
 	secret := corev1.Secret{}
