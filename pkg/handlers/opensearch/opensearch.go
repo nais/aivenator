@@ -11,10 +11,14 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -34,30 +38,44 @@ const (
 	OpenSearchPort     = "OPEN_SEARCH_PORT"
 )
 
-func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string) OpenSearchHandler {
-	return OpenSearchHandler{
-		project:       project.NewManager(aiven.CA),
-		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:       service.NewManager(aiven.Services),
-		openSearchACL: aiven.OpenSearchACLs,
-		projectName:   projectName,
-	}
-}
-
 type OpenSearchHandler struct {
 	project       project.ProjectManager
 	serviceuser   serviceuser.ServiceUserManager
 	service       service.ServiceManager
 	openSearchACL opensearch.ACLManager
 	projectName   string
+	k8s           client.Client
 }
 
-func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
-	spec := application.Spec.OpenSearch
-	if spec == nil {
-		return nil
+func NewOpenSearchHandler(ctx context.Context, k8s client.Client, aiven *aiven.Client, projectName string) OpenSearchHandler {
+	return OpenSearchHandler{
+		project:       project.NewManager(aiven.CA),
+		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:       service.NewManager(aiven.Services),
+		openSearchACL: aiven.OpenSearchACLs,
+		projectName:   projectName,
+		k8s:           k8s,
 	}
-	serviceName := spec.Instance
+}
+
+func secretObjectKey(application *aiven_nais_io_v1.AivenApplication) client.ObjectKey {
+	return client.ObjectKey{
+		Namespace: application.GetNamespace(),
+		Name:      application.Spec.OpenSearch.SecretName,
+	}
+}
+
+func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]*v1.Secret, error) {
+	opensearch := application.Spec.OpenSearch
+	if opensearch == nil {
+		return nil, nil
+	}
+
+	if opensearch.SecretName != "" {
+		secret = h.initSecret(ctx, application, logger)
+	}
+
+	serviceName := opensearch.Instance
 
 	logger = logger.WithFields(log.Fields{
 		"handler": "opensearch",
@@ -67,15 +85,15 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 	if err != nil {
-		return utils.AivenFail("GetService", application, err, false, logger)
+		return nil, utils.AivenFail("GetService", application, err, false, logger)
 	}
 	if len(addresses.OpenSearch.URI) == 0 {
-		return utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
+		return nil, utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
 	}
 
 	aivenUser, err := h.provideServiceUser(ctx, application, serviceName, secret, logger)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
@@ -96,7 +114,20 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
-	return nil
+	return []*v1.Secret{secret}, nil
+}
+
+func (h OpenSearchHandler) initSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *v1.Secret {
+	secret := corev1.Secret{}
+
+	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
+		return h.k8s.Get(ctx, secretObjectKey(application), &secret)
+	})
+	if err != nil && !k8serrors.IsNotFound(err) {
+		logger.Warnf("error retrieving existing secret from cluster: %w", err)
+	}
+
+	return &secret
 }
 
 func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {

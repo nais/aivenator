@@ -153,7 +153,7 @@ func (suite *OpenSearchHandlerTestSuite) TestNoOpenSearch() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	application := suite.applicationBuilder.Build()
 	secret := &v1.Secret{}
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	_, err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.NoError(err)
 	suite.Equal(&v1.Secret{}, secret)
@@ -170,7 +170,7 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
 		}).
 		Build()
 	secret := &v1.Secret{}
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	_, err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.NoError(err)
 	expected := &v1.Secret{
@@ -210,7 +210,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceGetFailed() {
 			Status:   500,
 		})
 
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	_, err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
@@ -234,7 +234,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailed() {
 			Status:   500,
 		})
 
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	_, err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
@@ -265,7 +265,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreateFailed() {
 		}).Once()
 
 	secret := &v1.Secret{}
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	_, err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
@@ -295,7 +295,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreatedIfNeeded() {
 		}, nil).Once()
 
 	secret := &v1.Secret{}
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	_, err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.NoError(err)
 	suite.Equal(username, secret.StringData[OpenSearchUser])
@@ -344,7 +344,7 @@ func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelected() {
 				}).
 				Build()
 			secret := &v1.Secret{}
-			err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+			_, err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 			suite.NoError(err)
 			suite.Equal(t.username, secret.StringData[OpenSearchUser])

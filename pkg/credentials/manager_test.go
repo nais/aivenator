@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// TestManager_Apply
 func TestManager_Apply(t *testing.T) {
 	// given
 	mockHandler := MockHandler{}
@@ -20,9 +21,9 @@ func TestManager_Apply(t *testing.T) {
 		On("Apply",
 			mock.Anything,
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*v1.Secret"),
+			mock.AnythingOfType("*corev1.Secret"),
 			mock.Anything).
-		Return(nil).
+		Return([]*corev1.Secret{}, nil).
 		Run(func(args mock.Arguments) {
 			secret := args.Get(2).(*corev1.Secret)
 			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
@@ -35,11 +36,14 @@ func TestManager_Apply(t *testing.T) {
 
 	// when
 	secret := &corev1.Secret{}
-	secret, err := manager.CreateSecret(context.Background(), &application, secret, nil)
+	secrets := []*corev1.Secret{}
+	secrets, err := manager.CreateSecret(context.Background(), &application, secret, nil)
 
 	// then
 	assert.NoError(t, err)
-	assert.Equal(t, secret.ObjectMeta.Annotations, expectedAnnotations)
+	for _, s := range secrets {
+		assert.Equal(t, s.ObjectMeta.Annotations, expectedAnnotations)
+	}
 }
 
 func TestManager_ApplyFailed(t *testing.T) {
