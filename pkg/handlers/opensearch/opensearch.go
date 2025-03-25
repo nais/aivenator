@@ -11,6 +11,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	secretHandler "github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -72,6 +73,10 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	if opensearch.SecretName != "" {
 		secret = h.initSecret(ctx, application, logger)
+		err := secretHandler.NormalizeSecret(ctx, h.project, h.projectName, application, secret, logger)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	serviceName := opensearch.Instance

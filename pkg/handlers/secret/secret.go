@@ -38,20 +38,29 @@ func NewHandler(aiven *aiven.Client, projectName string) Handler {
 }
 
 func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]*corev1.Secret, error) {
+	err := NormalizeSecret(ctx, s.project, s.projectName, application, secret, logger)
+	if err != nil {
+		return nil, fmt.Errorf("unable to normalize secret: %w", err)
+	}
+
+	return []*corev1.Secret{secret}, nil
+}
+
+func NormalizeSecret(ctx context.Context, project project.ProjectManager, projectName string, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error {
 	secretName := application.Spec.SecretName
 
 	errors := validation.IsDNS1123Label(secretName)
 	hasErrors := len(errors) > 0
 
 	if hasErrors {
-		return nil, fmt.Errorf("invalid secret name '%s': %w", secretName, utils.ErrUnrecoverable)
+		return fmt.Errorf("invalid secret name '%s': %w", secretName, utils.ErrUnrecoverable)
 	}
 
 	updateObjectMeta(application, &secret.ObjectMeta)
 
-	projectCa, err := s.project.GetCA(ctx, s.projectName)
+	projectCa, err := project.GetCA(ctx, projectName)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get project CA: %w", err)
+		return fmt.Errorf("unable to get project CA: %w", err)
 	}
 
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
@@ -59,7 +68,7 @@ func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenA
 		AivenCAKey:            projectCa,
 	})
 
-	return nil, nil
+	return nil
 }
 
 func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *metav1.ObjectMeta) {
