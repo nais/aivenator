@@ -163,7 +163,13 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 	}
 
 	// TODO: Hvis dette feiler, så vil det ikke bli gjort noe forsøk på å fjerne service user.
+	// As such, this should be one, atomic operation. As a compromise, we delete the serviceUser if updating the acl fails (the serviceuser is not usable without them)
 	if err = h.updateACL(ctx, serviceUsername, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
+		errr := h.serviceuser.Delete(ctx, aivenUser.Username, h.projectName, serviceName, logger)
+		if errr != nil {
+			return nil, utils.AivenFail("DeleteServiceUser", application, err, false, logger)
+
+		}
 		return nil, utils.AivenFail("UpdateACL", application, err, false, logger)
 	}
 

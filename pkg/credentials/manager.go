@@ -2,7 +2,6 @@ package credentials
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -49,12 +48,6 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 		processingStart := time.Now()
 		handlerSecrets, err := handler.Apply(ctx, application, secret, logger)
 		if err != nil {
-			for _, secret := range handlerSecrets {
-				cleanupError := handler.Cleanup(ctx, secret, logger)
-				if cleanupError != nil {
-					return nil, fmt.Errorf("error during apply: %w, additionally, an error occured during cleanup: %v", err, cleanupError)
-				}
-			}
 			return nil, err
 		}
 

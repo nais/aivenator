@@ -72,7 +72,9 @@ func TestManager_ApplyFailed(t *testing.T) {
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil)
+
 	handlerError := fmt.Errorf("failing handler")
+
 	failingHandler.
 		On("Apply",
 			mock.Anything,
@@ -96,7 +98,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 	// then
 	assert.Error(t, err)
 	assert.EqualError(t, err, handlerError.Error())
-	failingHandler.AssertCalled(t, "Cleanup",
+	failingHandler.AssertNotCalled(t, "Cleanup",
 		mock.Anything,
 		mock.AnythingOfType("*v1.Secret"),
 		mock.Anything)
