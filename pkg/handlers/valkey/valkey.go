@@ -3,20 +3,22 @@ package valkey
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
-
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	redis "github.com/nais/aivenator/pkg/handlers/redis"
+	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"regexp"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"strconv"
+	"strings"
 )
 
 // Annotations
@@ -35,6 +37,13 @@ const (
 	ValkeyPort     = "VALKEY_PORT"
 )
 
+type ValkeyHandler struct {
+	serviceuser serviceuser.ServiceUserManager
+	service     service.ServiceManager
+	projectName string
+	k8s         client.Client
+}
+
 var namePattern = regexp.MustCompile("[^a-z0-9]")
 
 func NewValkeyHandler(ctx context.Context, aiven *aiven.Client, projectName string) ValkeyHandler {
@@ -45,19 +54,16 @@ func NewValkeyHandler(ctx context.Context, aiven *aiven.Client, projectName stri
 	}
 }
 
-type ValkeyHandler struct {
-	serviceuser serviceuser.ServiceUserManager
-	service     service.ServiceManager
-	projectName string
-}
-
 func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]*v1.Secret, error) {
+
 	logger = logger.WithFields(log.Fields{"handler": "valkey"})
 	if len(application.Spec.Valkey) == 0 {
 		return nil, nil
 	}
 
+	var secrets []*v1.Secret
 	for _, spec := range application.Spec.Valkey {
+
 		serviceName := fmt.Sprintf("valkey-%s-%s", application.GetNamespace(), spec.Instance)
 
 		logger = logger.WithFields(log.Fields{
@@ -73,7 +79,8 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			return nil, utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
 		}
 
-		aivenUser, err := h.provideServiceUser(ctx, application, spec, serviceName, secret, logger)
+		valkeySecret := h.initSecret(ctx, application.GetNamespace(), spec, logger)
+		aivenUser, err := h.provideServiceUser(ctx, application, spec, serviceName, valkeySecret, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +88,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceUserAnnotation)
 		serviceNameAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceNameAnnotation)
 
-		secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
+		valkeySecret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
 			serviceUserAnnotationKey: aivenUser.Username,
 			serviceNameAnnotationKey: serviceName,
 			ProjectAnnotation:        h.projectName,
@@ -90,7 +97,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		logger.Infof("Fetched service user %s", aivenUser.Username)
 
 		envVarSuffix := envVarName(spec.Instance)
-		secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
+		valkeySecret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 			fmt.Sprintf("%s_%s", ValkeyUser, envVarSuffix):          aivenUser.Username,
 			fmt.Sprintf("%s_%s", ValkeyPassword, envVarSuffix):      aivenUser.Password,
 			fmt.Sprintf("%s_%s", ValkeyURI, envVarSuffix):           addresses.Valkey.URI,
@@ -102,11 +109,12 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			fmt.Sprintf("%s_%s", redis.RedisHost, envVarSuffix):     addresses.Valkey.Host,
 			fmt.Sprintf("%s_%s", redis.RedisURI, envVarSuffix):      strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
 		})
+		secrets = append(secrets, valkeySecret)
 	}
 
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
-	return []*v1.Secret{secret}, nil
+	return secrets, nil
 }
 
 func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
@@ -170,6 +178,24 @@ func getValkeyACLCategories(access string) []string {
 		categories = append(categories, "+@read")
 	}
 	return categories
+}
+
+func (h ValkeyHandler) initSecret(ctx context.Context, namespace string, spec *aiven_nais_io_v1.ValkeySpec, logger log.FieldLogger) *v1.Secret {
+	secret := v1.Secret{}
+
+	secretObjectKey := client.ObjectKey{
+		Namespace: namespace,
+		Name:      spec.SecretName,
+	}
+
+	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
+		return h.k8s.Get(ctx, secretObjectKey, &secret)
+	})
+	if err != nil && !k8serrors.IsNotFound(err) {
+		logger.Warnf("error retrieving existing secret from cluster: %w", err)
+	}
+
+	return &secret
 }
 
 func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {

@@ -214,7 +214,7 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				_, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				secrets, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetServiceUser failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
