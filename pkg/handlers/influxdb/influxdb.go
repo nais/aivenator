@@ -2,13 +2,14 @@ package influxdb
 
 import (
 	"context"
+	"strconv"
+
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"strconv"
 )
 
 const (
@@ -76,7 +77,7 @@ func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v
 		InfluxDBName:     aivenService.ConnectionInfo.InfluxDBDatabaseName,
 	})
 
-	return nil, nil
+	return []*v1.Secret{secret}, nil
 }
 
 func (h InfluxDBHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {

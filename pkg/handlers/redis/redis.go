@@ -3,6 +3,10 @@ package redis
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -10,9 +14,6 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 // Annotations
@@ -105,7 +106,7 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		})
 	}
 
-	return nil, nil
+	return []*v1.Secret{secret}, nil
 }
 
 func keyName(instanceName, replacement string) string {

@@ -139,7 +139,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
-	return nil, nil
+	return []*v1.Secret{secret}, nil
 }
 
 func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
