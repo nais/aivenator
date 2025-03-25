@@ -135,13 +135,9 @@ func (h OpenSearchHandler) initSecret(ctx context.Context, application *aiven_na
 }
 
 func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
-	var aivenUser *aiven.ServiceUser
-	var err error
-
-	var serviceUserName string
-
+	var serviceUsername string
 	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
-		serviceUserName = nameFromAnnotation
+		serviceUsername = nameFromAnnotation
 	} else {
 		suffix, err := utils.CreateSuffix(application)
 		if err != nil {
@@ -150,10 +146,10 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 			return nil, err
 		}
 
-		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetNamespace(), utils.SelectSuffix(application.Spec.OpenSearch.Access), suffix)
+		serviceUsername = fmt.Sprintf("%s%s-%s", application.GetNamespace(), utils.SelectSuffix(application.Spec.OpenSearch.Access), suffix)
 	}
 
-	aivenUser, err = h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
+	aivenUser, err := h.serviceuser.Get(ctx, serviceUsername, h.projectName, serviceName, logger)
 	if err == nil {
 		return aivenUser, nil
 	}
@@ -161,12 +157,12 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
 	}
 
-	aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, nil, logger)
+	aivenUser, err = h.serviceuser.Create(ctx, serviceUsername, h.projectName, serviceName, nil, logger)
 	if err != nil {
 		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 	}
 
-	if err = h.updateACL(ctx, serviceUserName, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
+	if err = h.updateACL(ctx, serviceUsername, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
 		return nil, utils.AivenFail("UpdateACL", application, err, false, logger)
 	}
 
