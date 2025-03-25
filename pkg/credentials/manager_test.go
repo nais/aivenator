@@ -3,6 +3,7 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -28,9 +29,7 @@ func TestManager_Apply(t *testing.T) {
 		Run(func(args mock.Arguments) {
 			secret := args.Get(2).(*corev1.Secret)
 			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
-			for key, value := range expectedAnnotations {
-				secret.ObjectMeta.Annotations[key] = value
-			}
+			maps.Copy(secret.ObjectMeta.Annotations, expectedAnnotations)
 		})
 	application := aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
 	manager := Manager{handlers: []Handler{&mockHandler}}
@@ -62,9 +61,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 		Run(func(args mock.Arguments) {
 			secret := args.Get(2).(*corev1.Secret)
 			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
-			for key, value := range expectedAnnotations {
-				secret.ObjectMeta.Annotations[key] = value
-			}
+			maps.Copy(secret.ObjectMeta.Annotations, expectedAnnotations)
 		})
 	mockHandler.
 		On("Cleanup",

@@ -180,7 +180,8 @@ var _ = Describe("valkey.Handler", func() {
 							Instance: data.instanceName,
 							Access:   data.access,
 						},
-					}}).
+					},
+				}).
 				Build()
 		})
 
@@ -214,7 +215,7 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				secrets, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				_, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetServiceUser failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -233,7 +234,8 @@ var _ = Describe("valkey.Handler", func() {
 							Instance: data.instanceName,
 							Access:   data.access,
 						},
-					}}).
+					},
+				}).
 				Build()
 		})
 
@@ -254,7 +256,6 @@ var _ = Describe("valkey.Handler", func() {
 			Expect(secret.StringData).To(HaveKeyWithValue(data.redisUriKey, data.redisServiceURI))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.redisHostKey, data.serviceHost))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.redisPortKey, strconv.Itoa(data.servicePort)))
-
 		}
 
 		Context("and the service user already exists", func() {
