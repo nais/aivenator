@@ -16,7 +16,6 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -65,7 +64,7 @@ func secretObjectKey(application *aiven_nais_io_v1.AivenApplication) client.Obje
 	}
 }
 
-func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]*v1.Secret, error) {
+func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]*corev1.Secret, error) {
 	opensearch := application.Spec.OpenSearch
 	if opensearch == nil {
 		return nil, nil
@@ -114,10 +113,10 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
-	return []*v1.Secret{secret}, nil
+	return []*corev1.Secret{secret}, nil
 }
 
-func (h OpenSearchHandler) initSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *v1.Secret {
+func (h OpenSearchHandler) initSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *corev1.Secret {
 	secret := corev1.Secret{}
 
 	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
@@ -130,7 +129,7 @@ func (h OpenSearchHandler) initSecret(ctx context.Context, application *aiven_na
 	return &secret
 }
 
-func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	var aivenUser *aiven.ServiceUser
 	var err error
 
@@ -169,7 +168,7 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 	return aivenUser, nil
 }
 
-func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
+func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger *log.Entry) error {
 	annotations := secret.GetAnnotations()
 
 	if serviceName, okServiceName := annotations[ServiceNameAnnotation]; okServiceName {
