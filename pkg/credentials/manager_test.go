@@ -37,7 +37,6 @@ func TestManager_Apply(t *testing.T) {
 
 	// when
 	secret := &corev1.Secret{}
-	secrets := []*corev1.Secret{}
 	secrets, err := manager.CreateSecret(context.Background(), &application, secret, nil)
 
 	// then
@@ -59,7 +58,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
-		Return(nil).
+		Return([]*corev1.Secret{}, nil).
 		Run(func(args mock.Arguments) {
 			secret := args.Get(2).(*corev1.Secret)
 			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
