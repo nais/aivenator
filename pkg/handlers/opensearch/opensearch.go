@@ -162,6 +162,7 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 	}
 
+	// TODO: Hvis dette feiler, så vil det ikke bli gjort noe forsøk på å fjerne service user.
 	if err = h.updateACL(ctx, serviceUsername, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
 		return nil, utils.AivenFail("UpdateACL", application, err, false, logger)
 	}
