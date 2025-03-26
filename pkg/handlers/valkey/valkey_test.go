@@ -185,7 +185,6 @@ var _ = Describe("valkey.Handler", func() {
 					},
 				}).
 				Build()
-
 		})
 
 		Context("and the service is unavailable", func() {
@@ -315,8 +314,9 @@ var _ = Describe("valkey.Handler", func() {
 			var specs []*aiven_nais_io_v1.ValkeySpec
 			for _, data := range testInstances {
 				specs = append(specs, &aiven_nais_io_v1.ValkeySpec{
-					Instance: data.instanceName,
-					Access:   data.access,
+					Instance:   data.instanceName,
+					Access:     data.access,
+					SecretName: "foo",
 				})
 			}
 			mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})

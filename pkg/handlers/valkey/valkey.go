@@ -3,6 +3,10 @@ package valkey
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -14,11 +18,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"regexp"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"strconv"
-	"strings"
 )
 
 // Annotations
@@ -63,8 +64,7 @@ func NewValkeyHandler(ctx context.Context, k8s K8s, aiven *aiven.Client, project
 	}
 }
 
-func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]*v1.Secret, error) {
-
+func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, _ *v1.Secret, logger log.FieldLogger) ([]*v1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "valkey"})
 	if len(application.Spec.Valkey) == 0 {
 		return nil, nil
@@ -97,7 +97,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceUserAnnotation)
 		serviceNameAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceNameAnnotation)
 
-		valkeySecret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
+		valkeySecret.SetAnnotations(utils.MergeStringMap(valkeySecret.GetAnnotations(), map[string]string{
 			serviceUserAnnotationKey: aivenUser.Username,
 			serviceNameAnnotationKey: serviceName,
 			ProjectAnnotation:        h.projectName,
@@ -106,7 +106,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		logger.Infof("Fetched service user %s", aivenUser.Username)
 
 		envVarSuffix := envVarName(spec.Instance)
-		valkeySecret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
+		valkeySecret.StringData = utils.MergeStringMap(valkeySecret.StringData, map[string]string{
 			fmt.Sprintf("%s_%s", ValkeyUser, envVarSuffix):          aivenUser.Username,
 			fmt.Sprintf("%s_%s", ValkeyPassword, envVarSuffix):      aivenUser.Password,
 			fmt.Sprintf("%s_%s", ValkeyURI, envVarSuffix):           addresses.Valkey.URI,
@@ -118,10 +118,9 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			fmt.Sprintf("%s_%s", redis.RedisHost, envVarSuffix):     addresses.Valkey.Host,
 			fmt.Sprintf("%s_%s", redis.RedisURI, envVarSuffix):      strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
 		})
+		controllerutil.AddFinalizer(valkeySecret, constants.AivenatorFinalizer)
 		secrets = append(secrets, valkeySecret)
 	}
-
-	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
 	return secrets, nil
 }
