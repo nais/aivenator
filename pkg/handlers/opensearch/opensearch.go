@@ -168,7 +168,6 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 		errr := h.serviceuser.Delete(ctx, aivenUser.Username, h.projectName, serviceName, logger)
 		if errr != nil {
 			return nil, utils.AivenFail("DeleteServiceUser", application, err, false, logger)
-
 		}
 		return nil, utils.AivenFail("UpdateACL", application, err, false, logger)
 	}
