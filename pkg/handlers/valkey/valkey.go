@@ -37,20 +37,29 @@ const (
 	ValkeyPort     = "VALKEY_PORT"
 )
 
+type Secrets interface {
+	InitSecret(ctx context.Context, namespace string, spec *aiven_nais_io_v1.ValkeySpec, logger log.FieldLogger) *v1.Secret
+}
+
+type K8s struct {
+	Client client.Client
+}
+
 type ValkeyHandler struct {
 	serviceuser serviceuser.ServiceUserManager
 	service     service.ServiceManager
 	projectName string
-	k8s         client.Client
+	k8s         Secrets
 }
 
 var namePattern = regexp.MustCompile("[^a-z0-9]")
 
-func NewValkeyHandler(ctx context.Context, aiven *aiven.Client, projectName string) ValkeyHandler {
+func NewValkeyHandler(ctx context.Context, k8s K8s, aiven *aiven.Client, projectName string) ValkeyHandler {
 	return ValkeyHandler{
 		serviceuser: serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:     service.NewManager(aiven.Services),
 		projectName: projectName,
+		k8s:         k8s,
 	}
 }
 
@@ -79,7 +88,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			return nil, utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
 		}
 
-		valkeySecret := h.initSecret(ctx, application.GetNamespace(), spec, logger)
+		valkeySecret := h.k8s.InitSecret(ctx, application.GetNamespace(), spec, logger)
 		aivenUser, err := h.provideServiceUser(ctx, application, spec, serviceName, valkeySecret, logger)
 		if err != nil {
 			return nil, err
@@ -180,7 +189,7 @@ func getValkeyACLCategories(access string) []string {
 	return categories
 }
 
-func (h ValkeyHandler) initSecret(ctx context.Context, namespace string, spec *aiven_nais_io_v1.ValkeySpec, logger log.FieldLogger) *v1.Secret {
+func (k K8s) InitSecret(ctx context.Context, namespace string, spec *aiven_nais_io_v1.ValkeySpec, logger log.FieldLogger) *v1.Secret {
 	secret := v1.Secret{}
 
 	secretObjectKey := client.ObjectKey{
@@ -189,7 +198,7 @@ func (h ValkeyHandler) initSecret(ctx context.Context, namespace string, spec *a
 	}
 
 	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
-		return h.k8s.Get(ctx, secretObjectKey, &secret)
+		return k.Client.Get(ctx, secretObjectKey, &secret)
 	})
 	if err != nil && !k8serrors.IsNotFound(err) {
 		logger.Warnf("error retrieving existing secret from cluster: %w", err)

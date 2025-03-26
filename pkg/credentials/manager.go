@@ -37,7 +37,7 @@ func NewManager(ctx context.Context, k8s client.Client, aiven *aiven.Client, kaf
 			opensearch.NewOpenSearchHandler(ctx, k8s, aiven, mainProjectName),
 			redis.NewRedisHandler(ctx, aiven, mainProjectName),
 			secret.NewHandler(aiven, mainProjectName),
-			valkey.NewValkeyHandler(ctx, aiven, mainProjectName),
+			valkey.NewValkeyHandler(ctx, valkey.K8s{Client: k8s}, aiven, mainProjectName),
 		},
 	}
 }

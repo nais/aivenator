@@ -14,7 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -99,6 +99,7 @@ var testInstances = []testData{
 type mockContainer struct {
 	serviceUserManager *serviceuser.MockServiceUserManager
 	serviceManager     *service.MockServiceManager
+	initSecret         *MockSecrets
 }
 
 func TestValkey(t *testing.T) {
@@ -110,7 +111,7 @@ var _ = Describe("valkey.Handler", func() {
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var application aiven_nais_io_v1.AivenApplication
-	var secret v1.Secret
+	var secret corev1.Secret
 	var valkeyHandler ValkeyHandler
 	var mocks mockContainer
 	var ctx context.Context
@@ -126,7 +127,6 @@ var _ = Describe("valkey.Handler", func() {
 				},
 			}, nil)
 	}
-
 	defaultAccessControl := func(data testData) *aiven.AccessControl {
 		return &aiven.AccessControl{
 			ValkeyACLCategories: getValkeyACLCategories(data.access),
@@ -140,15 +140,18 @@ var _ = Describe("valkey.Handler", func() {
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
-		secret = v1.Secret{}
+		secret = corev1.Secret{}
 		mocks = mockContainer{
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
+			initSecret:         NewMockSecrets(GinkgoT()),
 		}
+
 		valkeyHandler = ValkeyHandler{
 			serviceuser: mocks.serviceUserManager,
 			service:     mocks.serviceManager,
 			projectName: projectName,
+			k8s:         mocks.initSecret,
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	})
@@ -156,7 +159,6 @@ var _ = Describe("valkey.Handler", func() {
 	AfterEach(func() {
 		cancel()
 	})
-
 	When("it receives a spec without Valkey", func() {
 		BeforeEach(func() {
 			application = applicationBuilder.Build()
@@ -165,7 +167,7 @@ var _ = Describe("valkey.Handler", func() {
 		It("ignores it", func() {
 			_, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
 			Expect(err).To(Succeed())
-			Expect(secret).To(Equal(v1.Secret{}))
+			Expect(secret).To(Equal(corev1.Secret{}))
 		})
 	})
 
@@ -183,6 +185,7 @@ var _ = Describe("valkey.Handler", func() {
 					},
 				}).
 				Build()
+
 		})
 
 		Context("and the service is unavailable", func() {
@@ -206,6 +209,8 @@ var _ = Describe("valkey.Handler", func() {
 		Context("and service users are unavailable", func() {
 			BeforeEach(func() {
 				defaultServiceManagerMock(data)
+				mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+
 				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
@@ -227,19 +232,22 @@ var _ = Describe("valkey.Handler", func() {
 		data := testInstances[0]
 
 		BeforeEach(func() {
+			mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
 						{
-							Instance: data.instanceName,
-							Access:   data.access,
+							Instance:   data.instanceName,
+							Access:     data.access,
+							SecretName: "foo",
 						},
 					},
 				}).
 				Build()
 		})
 
-		assertHappy := func(secret *v1.Secret, err error) {
+		assertHappy := func(secret *corev1.Secret, err error) {
 			GinkgoHelper()
 			Expect(err).To(Succeed())
 			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
@@ -269,14 +277,18 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("uses the existing user", func() {
-				_, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
-				assertHappy(&secret, err)
+				secrets, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				for _, secret := range secrets {
+					assertHappy(secret, err)
+				}
 			})
 		})
 
 		Context("and the service user doesn't exist", func() {
 			BeforeEach(func() {
 				defaultServiceManagerMock(data)
+				mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+
 				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 					Return(nil, aiven.Error{
 						Message: "Service user does not exist",
@@ -290,8 +302,10 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				_, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
-				assertHappy(&secret, err)
+				secrets, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				for _, secret := range secrets {
+					assertHappy(secret, err)
+				}
 			})
 		})
 	})
@@ -305,6 +319,8 @@ var _ = Describe("valkey.Handler", func() {
 					Access:   data.access,
 				})
 			}
+			mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Valkey: specs,
@@ -312,7 +328,7 @@ var _ = Describe("valkey.Handler", func() {
 				Build()
 		})
 
-		assertHappy := func(secret *v1.Secret, data testData, err error) {
+		assertHappy := func(secret *corev1.Secret, data testData, err error) {
 			GinkgoHelper()
 			Expect(err).To(Succeed())
 			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
@@ -330,6 +346,8 @@ var _ = Describe("valkey.Handler", func() {
 			BeforeEach(func() {
 				for _, data := range testInstances {
 					defaultServiceManagerMock(data)
+					mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+
 					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 						Return(&aiven.ServiceUser{
 							Username: data.username,
@@ -339,9 +357,11 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("uses the existing user", func() {
-				_, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				secrets, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
 				for _, data := range testInstances {
-					assertHappy(&secret, data, err)
+					for _, secret := range secrets {
+						assertHappy(secret, data, err)
+					}
 				}
 			})
 		})
@@ -350,6 +370,8 @@ var _ = Describe("valkey.Handler", func() {
 			BeforeEach(func() {
 				for _, data := range testInstances {
 					defaultServiceManagerMock(data)
+					mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+
 					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 						Return(nil, aiven.Error{
 							Message:  "aiven-error",
@@ -365,9 +387,11 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				_, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				secrets, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
 				for _, data := range testInstances {
-					assertHappy(&secret, data, err)
+					for _, secret := range secrets {
+						assertHappy(secret, data, err)
+					}
 				}
 			})
 		})
