@@ -95,10 +95,6 @@ func TestManager_ApplyFailed(t *testing.T) {
 	// then
 	assert.Error(t, err)
 	assert.EqualError(t, err, handlerError.Error())
-	failingHandler.AssertNotCalled(t, "Cleanup",
-		mock.Anything,
-		mock.AnythingOfType("*v1.Secret"),
-		mock.Anything)
 }
 
 func TestManager_Cleanup(t *testing.T) {

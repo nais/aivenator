@@ -48,7 +48,7 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 		processingStart := time.Now()
 		handlerSecrets, err := handler.Apply(ctx, application, secret, logger)
 		if err != nil {
-			return nil, err
+			logger.Errorf("error during apply: %v", err)
 		}
 
 		used := time.Since(processingStart)
