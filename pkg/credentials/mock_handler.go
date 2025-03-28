@@ -28,21 +28,33 @@ func (_m *MockHandler) EXPECT() *MockHandler_Expecter {
 }
 
 // Apply provides a mock function with given fields: ctx, application, secret, logger
-func (_m *MockHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger logrus.FieldLogger) error {
+func (_m *MockHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger logrus.FieldLogger) ([]*v1.Secret, error) {
 	ret := _m.Called(ctx, application, secret, logger)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Apply")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *aiven_nais_io_v1.AivenApplication, *v1.Secret, logrus.FieldLogger) error); ok {
+	var r0 []*v1.Secret
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *aiven_nais_io_v1.AivenApplication, *v1.Secret, logrus.FieldLogger) ([]*v1.Secret, error)); ok {
+		return rf(ctx, application, secret, logger)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *aiven_nais_io_v1.AivenApplication, *v1.Secret, logrus.FieldLogger) []*v1.Secret); ok {
 		r0 = rf(ctx, application, secret, logger)
 	} else {
-		r0 = ret.Error(0)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*v1.Secret)
+		}
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, *aiven_nais_io_v1.AivenApplication, *v1.Secret, logrus.FieldLogger) error); ok {
+		r1 = rf(ctx, application, secret, logger)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockHandler_Apply_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Apply'
@@ -66,12 +78,12 @@ func (_c *MockHandler_Apply_Call) Run(run func(ctx context.Context, application 
 	return _c
 }
 
-func (_c *MockHandler_Apply_Call) Return(_a0 error) *MockHandler_Apply_Call {
-	_c.Call.Return(_a0)
+func (_c *MockHandler_Apply_Call) Return(_a0 []*v1.Secret, _a1 error) *MockHandler_Apply_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockHandler_Apply_Call) RunAndReturn(run func(context.Context, *aiven_nais_io_v1.AivenApplication, *v1.Secret, logrus.FieldLogger) error) *MockHandler_Apply_Call {
+func (_c *MockHandler_Apply_Call) RunAndReturn(run func(context.Context, *aiven_nais_io_v1.AivenApplication, *v1.Secret, logrus.FieldLogger) ([]*v1.Secret, error)) *MockHandler_Apply_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -134,7 +134,7 @@ var _ = Describe("redis.Handler", func() {
 		})
 
 		It("ignores it", func() {
-			err := redisHandler.Apply(ctx, &application, &secret, logger)
+			_, err := redisHandler.Apply(ctx, &application, &secret, logger)
 			Expect(err).To(Succeed())
 			Expect(secret).To(Equal(v1.Secret{}))
 		})
@@ -166,7 +166,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetService failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -185,7 +185,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetServiceUser failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -232,7 +232,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("uses the existing user", func() {
-				err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
 				assertHappy(&secret, err)
 			})
 		})
@@ -258,7 +258,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
 				assertHappy(&secret, err)
 			})
 		})
@@ -306,7 +306,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("uses the existing user", func() {
-				err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
 				for _, data := range testInstances {
 					assertHappy(&secret, data, err)
 				}
@@ -336,7 +336,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
 				for _, data := range testInstances {
 					assertHappy(&secret, data, err)
 				}

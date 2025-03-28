@@ -11,10 +11,14 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	secretHandler "github.com/nais/aivenator/pkg/handlers/secret"
+	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -34,30 +38,48 @@ const (
 	OpenSearchPort     = "OPEN_SEARCH_PORT"
 )
 
-func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string) OpenSearchHandler {
-	return OpenSearchHandler{
-		project:       project.NewManager(aiven.CA),
-		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:       service.NewManager(aiven.Services),
-		openSearchACL: aiven.OpenSearchACLs,
-		projectName:   projectName,
-	}
-}
-
 type OpenSearchHandler struct {
 	project       project.ProjectManager
 	serviceuser   serviceuser.ServiceUserManager
 	service       service.ServiceManager
 	openSearchACL opensearch.ACLManager
 	projectName   string
+	k8s           client.Client
 }
 
-func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
-	spec := application.Spec.OpenSearch
-	if spec == nil {
-		return nil
+func NewOpenSearchHandler(ctx context.Context, k8s client.Client, aiven *aiven.Client, projectName string) OpenSearchHandler {
+	return OpenSearchHandler{
+		project:       project.NewManager(aiven.CA),
+		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:       service.NewManager(aiven.Services),
+		openSearchACL: aiven.OpenSearchACLs,
+		projectName:   projectName,
+		k8s:           k8s,
 	}
-	serviceName := spec.Instance
+}
+
+func secretObjectKey(application *aiven_nais_io_v1.AivenApplication) client.ObjectKey {
+	return client.ObjectKey{
+		Namespace: application.GetNamespace(),
+		Name:      application.Spec.OpenSearch.SecretName,
+	}
+}
+
+func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]*corev1.Secret, error) {
+	opensearch := application.Spec.OpenSearch
+	if opensearch == nil {
+		return nil, nil
+	}
+
+	if opensearch.SecretName != "" {
+		secret = h.initSecret(ctx, application, logger)
+		err := secretHandler.NormalizeSecret(ctx, h.project, h.projectName, application, secret, logger)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	serviceName := opensearch.Instance
 
 	logger = logger.WithFields(log.Fields{
 		"handler": "opensearch",
@@ -67,15 +89,15 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 	if err != nil {
-		return utils.AivenFail("GetService", application, err, false, logger)
+		return nil, utils.AivenFail("GetService", application, err, false, logger)
 	}
 	if len(addresses.OpenSearch.URI) == 0 {
-		return utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
+		return nil, utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
 	}
 
 	aivenUser, err := h.provideServiceUser(ctx, application, serviceName, secret, logger)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
@@ -96,17 +118,26 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
-	return nil
+	return []*corev1.Secret{secret}, nil
 }
 
-func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
-	var aivenUser *aiven.ServiceUser
-	var err error
+func (h OpenSearchHandler) initSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *corev1.Secret {
+	secret := corev1.Secret{}
 
-	var serviceUserName string
+	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
+		return h.k8s.Get(ctx, secretObjectKey(application), &secret)
+	})
+	if err != nil && !k8serrors.IsNotFound(err) {
+		logger.Warnf("error retrieving existing secret from cluster: %w", err)
+	}
 
+	return &secret
+}
+
+func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+	var serviceUsername string
 	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
-		serviceUserName = nameFromAnnotation
+		serviceUsername = nameFromAnnotation
 	} else {
 		suffix, err := utils.CreateSuffix(application)
 		if err != nil {
@@ -115,10 +146,10 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 			return nil, err
 		}
 
-		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetNamespace(), utils.SelectSuffix(application.Spec.OpenSearch.Access), suffix)
+		serviceUsername = fmt.Sprintf("%s%s-%s", application.GetNamespace(), utils.SelectSuffix(application.Spec.OpenSearch.Access), suffix)
 	}
 
-	aivenUser, err = h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
+	aivenUser, err := h.serviceuser.Get(ctx, serviceUsername, h.projectName, serviceName, logger)
 	if err == nil {
 		return aivenUser, nil
 	}
@@ -126,19 +157,25 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
 	}
 
-	aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, nil, logger)
+	aivenUser, err = h.serviceuser.Create(ctx, serviceUsername, h.projectName, serviceName, nil, logger)
 	if err != nil {
 		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 	}
 
-	if err = h.updateACL(ctx, serviceUserName, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
+	// TODO: Hvis dette feiler, så vil det ikke bli gjort noe forsøk på å fjerne service user.
+	// As such, this should be one, atomic operation. As a compromise, we delete the serviceUser if updating the acl fails (the serviceuser is not usable without them)
+	if err = h.updateACL(ctx, serviceUsername, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
+		errr := h.serviceuser.Delete(ctx, aivenUser.Username, h.projectName, serviceName, logger)
+		if errr != nil {
+			return nil, utils.AivenFail("DeleteServiceUser", application, err, false, logger)
+		}
 		return nil, utils.AivenFail("UpdateACL", application, err, false, logger)
 	}
 
 	return aivenUser, nil
 }
 
-func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
+func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger *log.Entry) error {
 	annotations := secret.GetAnnotations()
 
 	if serviceName, okServiceName := annotations[ServiceNameAnnotation]; okServiceName {

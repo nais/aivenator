@@ -3,6 +3,10 @@ package redis
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -10,9 +14,6 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 // Annotations
@@ -46,10 +47,10 @@ type RedisHandler struct {
 	projectName string
 }
 
-func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
+func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]*v1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "redis"})
 	if len(application.Spec.Redis) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	for _, spec := range application.Spec.Redis {
@@ -62,10 +63,10 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 		addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 		if err != nil {
-			return utils.AivenFail("GetService", application, err, true, logger)
+			return nil, utils.AivenFail("GetService", application, err, true, logger)
 		}
 		if len(addresses.Redis.URI) == 0 {
-			return utils.AivenFail("GetService", application, fmt.Errorf("no Redis service found"), true, logger)
+			return nil, utils.AivenFail("GetService", application, fmt.Errorf("no Redis service found"), true, logger)
 		}
 
 		serviceUserName := fmt.Sprintf("%s%s", application.GetName(), utils.SelectSuffix(spec.Access))
@@ -80,10 +81,10 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 				}
 				aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, accessControl, logger)
 				if err != nil {
-					return utils.AivenFail("CreateServiceUser", application, err, false, logger)
+					return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 				}
 			} else {
-				return utils.AivenFail("GetServiceUser", application, err, false, logger)
+				return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
 			}
 		}
 
@@ -105,7 +106,7 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		})
 	}
 
-	return nil
+	return []*v1.Secret{secret}, nil
 }
 
 func keyName(instanceName, replacement string) string {
