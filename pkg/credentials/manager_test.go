@@ -3,7 +3,6 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"maps"
 	"testing"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -19,19 +18,13 @@ func TestManager_Apply(t *testing.T) {
 	mockHandler := MockHandler{}
 	expectedAnnotations := make(map[string]string)
 	expectedAnnotations["one"] = "1"
-	foo := []*corev1.Secret{}
+	appliedSecrets := []*corev1.Secret{}
 	mockHandler.
 		On("Apply",
 			mock.Anything,
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
-		Return(foo, nil).
-		Run(func(args mock.Arguments) {
-			secret := args.Get(2).(*corev1.Secret)
-			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
-			maps.Copy(secret.ObjectMeta.Annotations, expectedAnnotations)
-		})
+		Return(appliedSecrets, nil)
 	application := aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
 	manager := Manager{handlers: []Handler{&mockHandler}}
 
@@ -42,6 +35,7 @@ func TestManager_Apply(t *testing.T) {
 
 	// then
 	assert.NoError(t, err)
+	assert.NotEmpty(t, secrets)
 	for _, s := range secrets {
 		assert.Equal(t, s.ObjectMeta.Annotations, expectedAnnotations)
 	}
@@ -57,14 +51,8 @@ func TestManager_ApplyFailed(t *testing.T) {
 		On("Apply",
 			mock.Anything,
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
-		Return([]*corev1.Secret{}, nil).
-		Run(func(args mock.Arguments) {
-			secret := args.Get(2).(*corev1.Secret)
-			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
-			maps.Copy(secret.ObjectMeta.Annotations, expectedAnnotations)
-		})
+		Return([]*corev1.Secret{}, nil)
 	mockHandler.
 		On("Cleanup",
 			mock.Anything,
@@ -78,7 +66,6 @@ func TestManager_ApplyFailed(t *testing.T) {
 		On("Apply",
 			mock.Anything,
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
 		Return(nil, handlerError)
 	failingHandler.

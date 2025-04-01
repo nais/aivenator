@@ -2,12 +2,13 @@ package redis
 
 import (
 	"context"
-	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	"k8s.io/apimachinery/pkg/api/validation"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -134,7 +135,7 @@ var _ = Describe("redis.Handler", func() {
 		})
 
 		It("ignores it", func() {
-			_, err := redisHandler.Apply(ctx, &application, &secret, logger)
+			_, err := redisHandler.Apply(ctx, &application, logger)
 			Expect(err).To(Succeed())
 			Expect(secret).To(Equal(v1.Secret{}))
 		})
@@ -151,7 +152,8 @@ var _ = Describe("redis.Handler", func() {
 							Instance: data.instanceName,
 							Access:   data.access,
 						},
-					}}).
+					},
+				}).
 				Build()
 		})
 
@@ -166,7 +168,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetService failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -185,7 +187,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetServiceUser failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -204,7 +206,8 @@ var _ = Describe("redis.Handler", func() {
 							Instance: data.instanceName,
 							Access:   data.access,
 						},
-					}}).
+					},
+				}).
 				Build()
 		})
 
@@ -232,7 +235,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("uses the existing user", func() {
-				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, logger)
 				assertHappy(&secret, err)
 			})
 		})
@@ -258,7 +261,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, logger)
 				assertHappy(&secret, err)
 			})
 		})
@@ -306,7 +309,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("uses the existing user", func() {
-				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, logger)
 				for _, data := range testInstances {
 					assertHappy(&secret, data, err)
 				}
@@ -336,7 +339,7 @@ var _ = Describe("redis.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				_, err := redisHandler.Apply(ctx, &application, &secret, logger)
+				_, err := redisHandler.Apply(ctx, &application, logger)
 				for _, data := range testInstances {
 					assertHappy(&secret, data, err)
 				}

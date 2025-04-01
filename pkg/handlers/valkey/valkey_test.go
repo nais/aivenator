@@ -9,7 +9,6 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 
-	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/handlers/secret"
@@ -296,7 +295,6 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("uses the existing user", func() {
-
 				secrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				fmt.Fprintf(GinkgoWriter, "secrtes %v", secrets)
 				assertHappy(secrets[0], testInstances["foo"], err)
@@ -379,7 +377,6 @@ var _ = Describe("valkey.Handler", func() {
 			It("uses the existing user", func() {
 				secrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				assertHappy(secrets[0], testInstances["foo"], err)
-
 			})
 		})
 

@@ -2,11 +2,12 @@ package influxdb
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"testing"
-	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -80,7 +81,7 @@ var _ = Describe("influxdb.Handler", func() {
 		})
 
 		It("ignores it", func() {
-			_, err := influxdbHandler.Apply(ctx, &application, &secret, logger)
+			_, err := influxdbHandler.Apply(ctx, &application, logger)
 			Expect(err).To(Succeed())
 			Expect(secret).To(Equal(v1.Secret{}))
 		})
@@ -92,7 +93,8 @@ var _ = Describe("influxdb.Handler", func() {
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					InfluxDB: &aiven_nais_io_v1.InfluxDBSpec{
 						Instance: instanceName,
-					}}).
+					},
+				}).
 				Build()
 		})
 
@@ -107,7 +109,7 @@ var _ = Describe("influxdb.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				_, err := influxdbHandler.Apply(ctx, &application, &secret, logger)
+				_, err := influxdbHandler.Apply(ctx, &application, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetService failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -134,7 +136,7 @@ var _ = Describe("influxdb.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				_, err := influxdbHandler.Apply(ctx, &application, &secret, logger)
+				_, err := influxdbHandler.Apply(ctx, &application, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetService failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -148,7 +150,8 @@ var _ = Describe("influxdb.Handler", func() {
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					InfluxDB: &aiven_nais_io_v1.InfluxDBSpec{
 						Instance: instanceName,
-					}}).
+					},
+				}).
 				Build()
 
 			mocks.serviceManager.On("Get", mock.Anything, projectName, instanceName).
@@ -171,7 +174,7 @@ var _ = Describe("influxdb.Handler", func() {
 		})
 
 		It("uses the avnadmin user", func() {
-			_, err := influxdbHandler.Apply(ctx, &application, &secret, logger)
+			_, err := influxdbHandler.Apply(ctx, &application, logger)
 
 			Expect(err).To(Succeed())
 			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
