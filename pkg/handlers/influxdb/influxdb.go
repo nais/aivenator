@@ -39,7 +39,7 @@ func NewInfluxDBHandler(ctx context.Context, aiven *aiven.Client, secretHandler 
 type InfluxDBHandler struct {
 	service        service.ServiceManager
 	projectName    string
-	secretsHandler *secret.Handler
+	secretsHandler secret.Secrets
 }
 
 func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]*v1.Secret, error) {

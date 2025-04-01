@@ -40,7 +40,7 @@ type ValkeyHandler struct {
 	serviceuser    serviceuser.ServiceUserManager
 	service        service.ServiceManager
 	projectName    string
-	secretsHandler *secret.Handler
+	secretsHandler secret.Secrets
 }
 
 var namePattern = regexp.MustCompile("[^a-z0-9]")

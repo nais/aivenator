@@ -26,7 +26,8 @@ type Handler interface {
 }
 
 type Manager struct {
-	handlers []Handler
+	handlers       []Handler
+	secretsHandler *secret.Handler
 }
 
 func NewManager(ctx context.Context, k8s client.Client, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger) Manager {
@@ -39,6 +40,7 @@ func NewManager(ctx context.Context, k8s client.Client, aiven *aiven.Client, kaf
 			redis.NewRedisHandler(ctx, aiven, &secretHandler, mainProjectName),
 			valkey.NewValkeyHandler(ctx, aiven, &secretHandler, mainProjectName),
 		},
+		secretsHandler: &secretHandler,
 	}
 }
 

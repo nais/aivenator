@@ -11,7 +11,6 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/handlers/secret"
-	secretHandler "github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
@@ -41,7 +40,7 @@ type OpenSearchHandler struct {
 	service        service.ServiceManager
 	openSearchACL  opensearch.ACLManager
 	projectName    string
-	secretsHandler *secret.Handler
+	secretsHandler secret.Secrets
 }
 
 func NewOpenSearchHandler(ctx context.Context, k8s client.Client, aiven *aiven.Client, secretHandler *secret.Handler, projectName string) OpenSearchHandler {
@@ -75,7 +74,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	} else {
 		secret = h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
 	}
-	err := secretHandler.NormalizeSecret(ctx, h.project, h.projectName, application, &secret, logger)
+	err := h.secretsHandler.NormalizeSecret(ctx, application, &secret, logger)
 	if err != nil {
 		return nil, err
 	}

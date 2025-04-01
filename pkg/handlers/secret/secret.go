@@ -31,6 +31,7 @@ const (
 
 type Secrets interface {
 	GetOrInitSecret(ctx context.Context, namespace, secretName string, logger log.FieldLogger) corev1.Secret
+	NormalizeSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error
 }
 
 type Handler struct {
@@ -48,7 +49,7 @@ func NewHandler(aiven *aiven.Client, k8s client.Client, projectName string) Hand
 }
 
 func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]*corev1.Secret, error) {
-	err := NormalizeSecret(ctx, s.project, s.projectName, application, secret, logger)
+	err := s.NormalizeSecret(ctx, application, secret, logger)
 	if err != nil {
 		return nil, fmt.Errorf("unable to normalize secret: %w", err)
 	}
@@ -56,7 +57,7 @@ func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenA
 	return []*corev1.Secret{secret}, nil
 }
 
-func NormalizeSecret(ctx context.Context, project project.ProjectManager, projectName string, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error {
+func (h Handler) NormalizeSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error {
 	secretName := application.Spec.SecretName
 
 	errors := validation.IsDNS1123Label(secretName)
@@ -67,9 +68,9 @@ func NormalizeSecret(ctx context.Context, project project.ProjectManager, projec
 	}
 
 	updateObjectMeta(application, &secret.ObjectMeta)
-	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
+	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer) // TODO: Check if redundant due to call in GetOrInitSecret()
 
-	projectCa, err := project.GetCA(ctx, projectName)
+	projectCa, err := h.project.GetCA(ctx, h.projectName)
 	if err != nil {
 		return fmt.Errorf("unable to get project CA: %w", err)
 	}
