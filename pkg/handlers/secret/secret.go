@@ -68,7 +68,6 @@ func (h Handler) NormalizeSecret(ctx context.Context, application *aiven_nais_io
 	}
 
 	updateObjectMeta(application, &secret.ObjectMeta)
-	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer) // TODO: Check if redundant due to call in GetOrInitSecret()
 
 	projectCa, err := h.project.GetCA(ctx, h.projectName)
 	if err != nil {
