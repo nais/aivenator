@@ -37,20 +37,20 @@ const (
 )
 
 type ValkeyHandler struct {
-	serviceuser   serviceuser.ServiceUserManager
-	service       service.ServiceManager
-	projectName   string
-	secretHandler *secret.Handler
+	serviceuser    serviceuser.ServiceUserManager
+	service        service.ServiceManager
+	projectName    string
+	secretsHandler *secret.Handler
 }
 
 var namePattern = regexp.MustCompile("[^a-z0-9]")
 
 func NewValkeyHandler(ctx context.Context, aiven *aiven.Client, secretHandler *secret.Handler, projectName string) ValkeyHandler {
 	return ValkeyHandler{
-		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:       service.NewManager(aiven.Services),
-		projectName:   projectName,
-		secretHandler: secretHandler,
+		serviceuser:    serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:        service.NewManager(aiven.Services),
+		projectName:    projectName,
+		secretsHandler: secretHandler,
 	}
 }
 
@@ -78,7 +78,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			return nil, utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
 		}
 
-		valkeySecret := h.secretHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), spec.SecretName, logger)
+		valkeySecret := h.secretsHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), spec.SecretName, logger)
 		serviceUser, err := h.provideServiceUser(ctx, application, spec, serviceName, &valkeySecret, logger)
 		if err != nil {
 			return nil, err

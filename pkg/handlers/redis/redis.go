@@ -36,18 +36,18 @@ var namePattern = regexp.MustCompile("[^a-z0-9]")
 
 func NewRedisHandler(ctx context.Context, aiven *aiven.Client, secretHandler *secret.Handler, projectName string) RedisHandler {
 	return RedisHandler{
-		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:       service.NewManager(aiven.Services),
-		projectName:   projectName,
-		secretHandler: secretHandler,
+		serviceuser:    serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:        service.NewManager(aiven.Services),
+		projectName:    projectName,
+		secretsHandler: secretHandler,
 	}
 }
 
 type RedisHandler struct {
-	serviceuser   serviceuser.ServiceUserManager
-	service       service.ServiceManager
-	projectName   string
-	secretHandler *secret.Handler
+	serviceuser    serviceuser.ServiceUserManager
+	service        service.ServiceManager
+	projectName    string
+	secretsHandler *secret.Handler
 }
 
 func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]*v1.Secret, error) {
@@ -94,7 +94,7 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceUserAnnotation)
 
-		secret = h.secretHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
+		secret = h.secretsHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
 		secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
 			serviceUserAnnotationKey: aivenUser.Username,
 			ProjectAnnotation:        h.projectName,

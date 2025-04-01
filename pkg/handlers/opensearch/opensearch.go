@@ -36,22 +36,22 @@ const (
 )
 
 type OpenSearchHandler struct {
-	project       project.ProjectManager
-	serviceuser   serviceuser.ServiceUserManager
-	service       service.ServiceManager
-	openSearchACL opensearch.ACLManager
-	projectName   string
-	secretHandler *secret.Handler
+	project        project.ProjectManager
+	serviceuser    serviceuser.ServiceUserManager
+	service        service.ServiceManager
+	openSearchACL  opensearch.ACLManager
+	projectName    string
+	secretsHandler *secret.Handler
 }
 
 func NewOpenSearchHandler(ctx context.Context, k8s client.Client, aiven *aiven.Client, secretHandler *secret.Handler, projectName string) OpenSearchHandler {
 	return OpenSearchHandler{
-		project:       project.NewManager(aiven.CA),
-		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:       service.NewManager(aiven.Services),
-		openSearchACL: aiven.OpenSearchACLs,
-		projectName:   projectName,
-		secretHandler: secretHandler,
+		project:        project.NewManager(aiven.CA),
+		serviceuser:    serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:        service.NewManager(aiven.Services),
+		openSearchACL:  aiven.OpenSearchACLs,
+		projectName:    projectName,
+		secretsHandler: secretHandler,
 	}
 }
 
@@ -71,9 +71,9 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	var secret corev1.Secret
 	usesNewStyleSecret := opensearch.SecretName != ""
 	if usesNewStyleSecret {
-		secret = h.secretHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.OpenSearch.SecretName, logger)
+		secret = h.secretsHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.OpenSearch.SecretName, logger)
 	} else {
-		secret = h.secretHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
+		secret = h.secretsHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
 	}
 	err := secretHandler.NormalizeSecret(ctx, h.project, h.projectName, application, &secret, logger)
 	if err != nil {

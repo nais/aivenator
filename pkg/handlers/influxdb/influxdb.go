@@ -30,16 +30,16 @@ const (
 
 func NewInfluxDBHandler(ctx context.Context, aiven *aiven.Client, secretHandler *secret.Handler, projectName string) InfluxDBHandler {
 	return InfluxDBHandler{
-		service:       service.NewManager(aiven.Services),
-		projectName:   projectName,
-		secretHandler: secretHandler,
+		service:        service.NewManager(aiven.Services),
+		projectName:    projectName,
+		secretsHandler: secretHandler,
 	}
 }
 
 type InfluxDBHandler struct {
-	service       service.ServiceManager
-	projectName   string
-	secretHandler *secret.Handler
+	service        service.ServiceManager
+	projectName    string
+	secretsHandler *secret.Handler
 }
 
 func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]*v1.Secret, error) {
@@ -66,7 +66,7 @@ func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v
 		return nil, utils.AivenFail("GetService", application, err, true, logger)
 	}
 
-	secret := h.secretHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
+	secret := h.secretsHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenService.ConnectionInfo.InfluxDBUsername,
 		ProjectAnnotation:     h.projectName,
