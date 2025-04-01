@@ -44,7 +44,7 @@ func NewReconciler(mgr manager.Manager, logger *log.Logger, credentialsManager c
 
 type AivenApplicationReconciler struct {
 	client.Client
-	Logger     *log.Entry
+	Logger     log.FieldLogger
 	Manager    credentials.Manager
 	appChanges chan<- aiven_nais_io_v1.AivenApplication
 }
@@ -199,7 +199,7 @@ func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application
 	return &secret
 }
 
-func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) (bool, error) {
+func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) (bool, error) {
 	if application.Spec.ExpiresAt == nil {
 		return false, nil
 	}
@@ -222,7 +222,7 @@ func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.C
 	return true, nil
 }
 
-func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger *log.Entry) error {
+func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) error {
 	err := r.Delete(ctx, &application)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -270,7 +270,7 @@ func (r *AivenApplicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *corev1.Secret, logger *log.Entry) error {
+func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
 	key := client.ObjectKey{
 		Namespace: secret.Namespace,
 		Name:      secret.Name,
@@ -309,7 +309,7 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 	return err
 }
 
-func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, application aiven_nais_io_v1.AivenApplication, hash string, logger *log.Entry) (bool, error) {
+func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, application aiven_nais_io_v1.AivenApplication, hash string, logger log.FieldLogger) (bool, error) {
 	if application.Status.SynchronizationHash != hash {
 		logger.Infof("Hash changed; needs synchronization")
 		metrics.ProcessingReason.WithLabelValues(metrics.HashChanged.String()).Inc()

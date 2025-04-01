@@ -42,7 +42,7 @@ const (
 	PoolAnnotation        = "kafka.aiven.nais.io/pool"
 )
 
-func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger *log.Entry) KafkaHandler {
+func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger log.FieldLogger) KafkaHandler {
 	generator := certificate.NewNativeGenerator()
 	handler := KafkaHandler{
 		project:      project.NewManager(aiven.CA),
@@ -181,7 +181,7 @@ func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven
 	return aivenUser, nil
 }
 
-func (h KafkaHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
+func (h KafkaHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error {
 	annotations := secret.GetAnnotations()
 	if serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]; okServiceUser {
 		if projectName, okPool := annotations[PoolAnnotation]; okPool {
@@ -210,11 +210,11 @@ func (h KafkaHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *lo
 	return nil
 }
 
-func (h *KafkaHandler) StartUserCounter(ctx context.Context, logger *log.Entry) {
+func (h *KafkaHandler) StartUserCounter(ctx context.Context, logger log.FieldLogger) {
 	go h.countUsers(ctx, logger)
 }
 
-func (h *KafkaHandler) countUsers(ctx context.Context, logger *log.Entry) {
+func (h *KafkaHandler) countUsers(ctx context.Context, logger log.FieldLogger) {
 	ticker := time.NewTicker(h.serviceuser.GetCacheExpiration())
 	defer ticker.Stop()
 

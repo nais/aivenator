@@ -133,6 +133,6 @@ func getRedisACLCategories(access string) []string {
 	return categories
 }
 
-func (h RedisHandler) Cleanup(_ context.Context, _ *v1.Secret, _ *log.Entry) error {
+func (h RedisHandler) Cleanup(_ context.Context, _ *v1.Secret, _ log.FieldLogger) error {
 	return nil
 }

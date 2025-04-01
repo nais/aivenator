@@ -23,7 +23,7 @@ import (
 
 type Cleaner struct {
 	Client
-	Logger *log.Entry
+	Logger log.FieldLogger
 }
 
 type counters struct {

@@ -54,7 +54,7 @@ func enabled(elements ...int) map[int]struct{} {
 type OpenSearchHandlerTestSuite struct {
 	suite.Suite
 
-	logger             *log.Entry
+	logger             log.FieldLogger
 	mockServiceUsers   *serviceuser.MockServiceUserManager
 	mockServices       *service.MockServiceManager
 	mockOpenSearchACL  *opensearch.MockACLManager

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	test_logger "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
@@ -36,7 +37,8 @@ func TestManager_Apply(t *testing.T) {
 
 	// when
 	secret := &corev1.Secret{}
-	secrets, err := manager.CreateSecret(context.Background(), &application, secret, nil)
+	logger, _ := test_logger.NewNullLogger()
+	secrets, err := manager.CreateSecret(context.Background(), &application, secret, logger)
 
 	// then
 	assert.NoError(t, err)
@@ -90,7 +92,8 @@ func TestManager_ApplyFailed(t *testing.T) {
 
 	// when
 	secret := &corev1.Secret{}
-	_, err := manager.CreateSecret(context.Background(), &application, secret, nil)
+	logger, _ := test_logger.NewNullLogger()
+	_, err := manager.CreateSecret(context.Background(), &application, secret, logger)
 
 	// then
 	assert.Error(t, err)

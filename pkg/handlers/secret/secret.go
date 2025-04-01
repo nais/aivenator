@@ -106,6 +106,6 @@ func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[strin
 	return annotations
 }
 
-func (s Handler) Cleanup(ctx context.Context, secret *corev1.Secret, logger *log.Entry) error {
+func (s Handler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
 	return nil
 }

@@ -48,7 +48,7 @@ const (
 type JanitorTestSuite struct {
 	suite.Suite
 
-	logger        *log.Entry
+	logger        log.FieldLogger
 	ctx           context.Context
 	clientBuilder *fake.ClientBuilder
 }

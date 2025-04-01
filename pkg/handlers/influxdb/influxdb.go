@@ -80,6 +80,6 @@ func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v
 	return []*v1.Secret{secret}, nil
 }
 
-func (h InfluxDBHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
+func (h InfluxDBHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error {
 	return nil
 }

@@ -175,7 +175,7 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 	return aivenUser, nil
 }
 
-func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger *log.Entry) error {
+func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
 	annotations := secret.GetAnnotations()
 
 	if serviceName, okServiceName := annotations[ServiceNameAnnotation]; okServiceName {

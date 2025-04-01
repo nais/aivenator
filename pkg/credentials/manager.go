@@ -22,14 +22,14 @@ import (
 
 type Handler interface {
 	Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]*corev1.Secret, error)
-	Cleanup(ctx context.Context, secret *corev1.Secret, logger *log.Entry) error
+	Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error
 }
 
 type Manager struct {
 	handlers []Handler
 }
 
-func NewManager(ctx context.Context, k8s client.Client, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger *log.Entry) Manager {
+func NewManager(ctx context.Context, k8s client.Client, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger) Manager {
 	return Manager{
 		handlers: []Handler{
 			influxdb.NewInfluxDBHandler(ctx, aiven, mainProjectName),
@@ -42,7 +42,8 @@ func NewManager(ctx context.Context, k8s client.Client, aiven *aiven.Client, kaf
 	}
 }
 
-func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger *log.Entry) ([]*corev1.Secret, error) {
+func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]*corev1.Secret, error) {
+	logger.Info("hey")
 	var secrets []*corev1.Secret
 	for _, handler := range c.handlers {
 		processingStart := time.Now()
@@ -62,7 +63,7 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 	return secrets, nil
 }
 
-func (c Manager) Cleanup(ctx context.Context, s *corev1.Secret, logger *log.Entry) error {
+func (c Manager) Cleanup(ctx context.Context, s *corev1.Secret, logger log.FieldLogger) error {
 	for _, handler := range c.handlers {
 		err := handler.Cleanup(ctx, s, logger)
 		if err != nil {

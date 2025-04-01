@@ -211,7 +211,7 @@ func (k K8s) InitSecret(ctx context.Context, namespace string, spec *aiven_nais_
 	return &secret
 }
 
-func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
+func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error {
 	annotations := secret.GetAnnotations()
 	projectName, okProjectName := annotations[ProjectAnnotation]
 	if !okProjectName {

@@ -54,7 +54,7 @@ func enabled(elements ...int) map[int]struct{} {
 type KafkaHandlerTestSuite struct {
 	suite.Suite
 
-	logger             *log.Entry
+	logger             log.FieldLogger
 	mockProjects       *project.MockProjectManager
 	mockServiceUsers   *serviceuser.MockServiceUserManager
 	mockServices       *service.MockServiceManager
