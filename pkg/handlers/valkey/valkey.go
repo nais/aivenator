@@ -36,10 +36,6 @@ const (
 	ValkeyPort     = "VALKEY_PORT"
 )
 
-type Secrets interface {
-	InitSecret(ctx context.Context, namespace string, spec *aiven_nais_io_v1.ValkeySpec, logger log.FieldLogger) *v1.Secret
-}
-
 type ValkeyHandler struct {
 	serviceuser   serviceuser.ServiceUserManager
 	service       service.ServiceManager

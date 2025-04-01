@@ -29,6 +29,10 @@ const (
 	AivenCAKey            = "AIVEN_CA"
 )
 
+type Secrets interface {
+	GetOrInitSecret(ctx context.Context, namespace, secretName string, logger log.FieldLogger) corev1.Secret
+}
+
 type Handler struct {
 	project     project.ProjectManager
 	projectName string

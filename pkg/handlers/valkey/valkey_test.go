@@ -8,8 +8,12 @@ import (
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
+
+	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"github.com/nais/aivenator/pkg/handlers/secret"
+	sechand "github.com/nais/aivenator/pkg/handlers/secret"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -103,7 +107,7 @@ var testInstances = map[string]testData{
 type mockContainer struct {
 	serviceUserManager *serviceuser.MockServiceUserManager
 	serviceManager     *service.MockServiceManager
-	initSecret         *MockSecrets
+	secretsHandler     *secret.MockSecrets
 }
 
 func TestValkey(t *testing.T) {
@@ -120,6 +124,11 @@ var _ = Describe("valkey.Handler", func() {
 	var mocks mockContainer
 	var ctx context.Context
 	var cancel context.CancelFunc
+
+	getSecretMock := func(data testData) {
+		mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, namespace, data.secretName, mock.Anything).
+			Return(corev1.Secret{})
+	}
 
 	defaultServiceManagerMock := func(data testData) {
 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
@@ -143,19 +152,21 @@ var _ = Describe("valkey.Handler", func() {
 		root := log.New()
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
+
+		getSecretMock(testInstances["foo"])
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
 		secret = corev1.Secret{}
 		mocks = mockContainer{
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
-			initSecret:         NewMockSecrets(GinkgoT()),
+			secretsHandler:     sechand.NewMockSecrets(GinkgoT()),
 		}
 
 		valkeyHandler = ValkeyHandler{
-			serviceuser: mocks.serviceUserManager,
-			service:     mocks.serviceManager,
-			projectName: projectName,
-			k8s:         mocks.initSecret,
+			serviceuser:   mocks.serviceUserManager,
+			service:       mocks.serviceManager,
+			projectName:   projectName,
+			secretHandler: mocks.secretsHandler,
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	})
@@ -169,7 +180,7 @@ var _ = Describe("valkey.Handler", func() {
 		})
 
 		It("ignores it", func() {
-			_, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+			_, err := valkeyHandler.Apply(ctx, &application, logger)
 			Expect(err).To(Succeed())
 			Expect(secret).To(Equal(corev1.Secret{}))
 		})
@@ -207,7 +218,7 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				_, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				_, err := valkeyHandler.Apply(ctx, &application, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetService failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -228,7 +239,7 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				_, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				_, err := valkeyHandler.Apply(ctx, &application, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetServiceUser failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -286,7 +297,7 @@ var _ = Describe("valkey.Handler", func() {
 
 			It("uses the existing user", func() {
 
-				secrets, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				secrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				fmt.Fprintf(GinkgoWriter, "secrtes %v", secrets)
 				assertHappy(secrets[0], testInstances["foo"], err)
 			})
@@ -310,7 +321,7 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				secrets, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				secrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				fmt.Fprintf(GinkgoWriter, "secretsII: %v", secrets)
 				assertHappy(secrets[0], testInstances["foo"], err)
 			})
@@ -366,7 +377,7 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("uses the existing user", func() {
-				secrets, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				secrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				assertHappy(secrets[0], testInstances["foo"], err)
 
 			})
@@ -393,7 +404,7 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				secrets, err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				secrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				for _, data := range testInstances {
 					for _, secret := range secrets {
 						assertHappy(secret, data, err)
