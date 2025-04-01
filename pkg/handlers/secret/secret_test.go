@@ -44,6 +44,7 @@ var _ = Describe("secret.Handler", func() {
 	applicationWithGeneration.Labels = map[string]string{constants.GenerationLabel: secretGeneration}
 	var handler Handler
 	var mockProjects *project.MockProjectManager
+	var mockK8s K8s
 	var ctx context.Context
 	var cancel context.CancelFunc
 
@@ -59,6 +60,7 @@ var _ = Describe("secret.Handler", func() {
 		handler = Handler{
 			mockProjects,
 			projectName,
+			mockK8s,
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	})

@@ -8,18 +8,15 @@ import (
 	"strings"
 
 	"github.com/aiven/aiven-go-client/v2"
-	"github.com/nais/aivenator/constants"
+
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	redis "github.com/nais/aivenator/pkg/handlers/redis"
-	"github.com/nais/aivenator/pkg/metrics"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Annotations
@@ -43,29 +40,25 @@ type Secrets interface {
 	InitSecret(ctx context.Context, namespace string, spec *aiven_nais_io_v1.ValkeySpec, logger log.FieldLogger) *v1.Secret
 }
 
-type K8s struct {
-	Client client.Client
-}
-
 type ValkeyHandler struct {
-	serviceuser serviceuser.ServiceUserManager
-	service     service.ServiceManager
-	projectName string
-	k8s         Secrets
+	serviceuser   serviceuser.ServiceUserManager
+	service       service.ServiceManager
+	projectName   string
+	secretHandler *secret.Handler
 }
 
 var namePattern = regexp.MustCompile("[^a-z0-9]")
 
-func NewValkeyHandler(ctx context.Context, k8s K8s, aiven *aiven.Client, projectName string) ValkeyHandler {
+func NewValkeyHandler(ctx context.Context, aiven *aiven.Client, secretHandler *secret.Handler, projectName string) ValkeyHandler {
 	return ValkeyHandler{
-		serviceuser: serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:     service.NewManager(aiven.Services),
-		projectName: projectName,
-		k8s:         k8s,
+		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:       service.NewManager(aiven.Services),
+		projectName:   projectName,
+		secretHandler: secretHandler,
 	}
 }
 
-func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, _ *v1.Secret, logger log.FieldLogger) ([]*v1.Secret, error) {
+func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]*v1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "valkey"})
 	if len(application.Spec.Valkey) == 0 {
 		return nil, nil
@@ -89,8 +82,8 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			return nil, utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
 		}
 
-		valkeySecret := h.k8s.InitSecret(ctx, application.GetNamespace(), spec, logger)
-		serviceUser, err := h.provideServiceUser(ctx, application, spec, serviceName, valkeySecret, logger)
+		valkeySecret := h.secretHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), spec.SecretName, logger)
+		serviceUser, err := h.provideServiceUser(ctx, application, spec, serviceName, &valkeySecret, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -123,8 +116,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			fmt.Sprintf("%s_%s", redis.RedisHost, envVarSuffix):     addresses.Valkey.Host,
 			fmt.Sprintf("%s_%s", redis.RedisURI, envVarSuffix):      strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
 		})
-		controllerutil.AddFinalizer(valkeySecret, constants.AivenatorFinalizer)
-		secrets = append(secrets, valkeySecret)
+		secrets = append(secrets, &valkeySecret)
 	}
 
 	return secrets, nil
@@ -191,24 +183,6 @@ func getValkeyACLCategories(access string) []string {
 		categories = append(categories, "+@read")
 	}
 	return categories
-}
-
-func (k K8s) InitSecret(ctx context.Context, namespace string, spec *aiven_nais_io_v1.ValkeySpec, logger log.FieldLogger) *v1.Secret {
-	secret := v1.Secret{}
-
-	secretObjectKey := client.ObjectKey{
-		Namespace: namespace,
-		Name:      spec.SecretName,
-	}
-
-	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
-		return k.Client.Get(ctx, secretObjectKey, &secret)
-	})
-	if err != nil && !k8serrors.IsNotFound(err) {
-		logger.Warnf("error retrieving existing secret from cluster: %w", err)
-	}
-
-	return &secret
 }
 
 func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error {

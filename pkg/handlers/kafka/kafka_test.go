@@ -185,7 +185,6 @@ func (suite *KafkaHandlerTestSuite) TestNoKafka() {
 	secrets, err := suite.kafkaHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.NoError(err)
-	// TODO: Kafka just returns an empty list of secrets to satisfy the interface
 	suite.Equal(0, len(secrets))
 }
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
@@ -27,19 +28,21 @@ const (
 	InfluxDBName     = "INFLUXDB_NAME"
 )
 
-func NewInfluxDBHandler(ctx context.Context, aiven *aiven.Client, projectName string) InfluxDBHandler {
+func NewInfluxDBHandler(ctx context.Context, aiven *aiven.Client, secretHandler *secret.Handler, projectName string) InfluxDBHandler {
 	return InfluxDBHandler{
-		service:     service.NewManager(aiven.Services),
-		projectName: projectName,
+		service:       service.NewManager(aiven.Services),
+		projectName:   projectName,
+		secretHandler: secretHandler,
 	}
 }
 
 type InfluxDBHandler struct {
-	service     service.ServiceManager
-	projectName string
+	service       service.ServiceManager
+	projectName   string
+	secretHandler *secret.Handler
 }
 
-func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]*v1.Secret, error) {
+func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]*v1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "influxdb"})
 	if application.Spec.InfluxDB == nil {
 		return nil, nil
@@ -63,6 +66,7 @@ func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v
 		return nil, utils.AivenFail("GetService", application, err, true, logger)
 	}
 
+	secret := h.secretHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenService.ConnectionInfo.InfluxDBUsername,
 		ProjectAnnotation:     h.projectName,
@@ -77,7 +81,7 @@ func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v
 		InfluxDBName:     aivenService.ConnectionInfo.InfluxDBDatabaseName,
 	})
 
-	return []*v1.Secret{secret}, nil
+	return []*v1.Secret{&secret}, nil
 }
 
 func (h InfluxDBHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error {

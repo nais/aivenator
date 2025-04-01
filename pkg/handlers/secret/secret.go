@@ -8,11 +8,15 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/project"
+	"github.com/nais/aivenator/pkg/metrics"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 
@@ -28,12 +32,18 @@ const (
 type Handler struct {
 	project     project.ProjectManager
 	projectName string
+	K8s         K8s
 }
 
-func NewHandler(aiven *aiven.Client, projectName string) Handler {
+type K8s struct {
+	Client client.Client
+}
+
+func NewHandler(aiven *aiven.Client, k8s K8s, projectName string) Handler {
 	return Handler{
 		project:     project.NewManager(aiven.CA),
 		projectName: projectName,
+		K8s:         k8s,
 	}
 }
 
@@ -57,6 +67,7 @@ func NormalizeSecret(ctx context.Context, project project.ProjectManager, projec
 	}
 
 	updateObjectMeta(application, &secret.ObjectMeta)
+	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
 	projectCa, err := project.GetCA(ctx, projectName)
 	if err != nil {
@@ -108,4 +119,23 @@ func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[strin
 
 func (s Handler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
 	return nil
+}
+
+func (k K8s) GetOrInitSecret(ctx context.Context, namespace, secretName string, logger log.FieldLogger) corev1.Secret {
+	secret := corev1.Secret{}
+
+	secretObjectKey := client.ObjectKey{
+		Namespace: namespace,
+		Name:      secretName,
+	}
+
+	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
+		return k.Client.Get(ctx, secretObjectKey, &secret)
+	})
+	if err != nil && !k8serrors.IsNotFound(err) {
+		logger.Warnf("error retrieving existing secret from cluster: %w", err)
+	}
+	controllerutil.AddFinalizer(&secret, constants.AivenatorFinalizer)
+
+	return secret
 }

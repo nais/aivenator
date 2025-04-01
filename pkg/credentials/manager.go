@@ -21,7 +21,7 @@ import (
 )
 
 type Handler interface {
-	Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]*corev1.Secret, error)
+	Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]*corev1.Secret, error)
 	Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error
 }
 
@@ -30,14 +30,14 @@ type Manager struct {
 }
 
 func NewManager(ctx context.Context, k8s client.Client, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger) Manager {
+	secretHandler := secret.NewHandler(aiven, secret.K8s{Client: k8s}, mainProjectName)
 	return Manager{
 		handlers: []Handler{
-			influxdb.NewInfluxDBHandler(ctx, aiven, mainProjectName),
-			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
-			opensearch.NewOpenSearchHandler(ctx, k8s, aiven, mainProjectName),
-			redis.NewRedisHandler(ctx, aiven, mainProjectName),
-			secret.NewHandler(aiven, mainProjectName),
-			valkey.NewValkeyHandler(ctx, valkey.K8s{Client: k8s}, aiven, mainProjectName),
+			influxdb.NewInfluxDBHandler(ctx, aiven, &secretHandler, mainProjectName),
+			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, &secretHandler, logger),
+			opensearch.NewOpenSearchHandler(ctx, k8s, aiven, &secretHandler, mainProjectName),
+			redis.NewRedisHandler(ctx, aiven, &secretHandler, mainProjectName),
+			valkey.NewValkeyHandler(ctx, aiven, &secretHandler, mainProjectName),
 		},
 	}
 }
@@ -47,7 +47,7 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 	var secrets []*corev1.Secret
 	for _, handler := range c.handlers {
 		processingStart := time.Now()
-		handlerSecrets, err := handler.Apply(ctx, application, secret, logger)
+		handlerSecrets, err := handler.Apply(ctx, application, logger)
 		if err != nil {
 			return nil, err
 		}

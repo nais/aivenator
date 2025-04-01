@@ -10,6 +10,7 @@ import (
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
@@ -33,26 +34,29 @@ const (
 
 var namePattern = regexp.MustCompile("[^a-z0-9]")
 
-func NewRedisHandler(ctx context.Context, aiven *aiven.Client, projectName string) RedisHandler {
+func NewRedisHandler(ctx context.Context, aiven *aiven.Client, secretHandler *secret.Handler, projectName string) RedisHandler {
 	return RedisHandler{
-		serviceuser: serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:     service.NewManager(aiven.Services),
-		projectName: projectName,
+		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:       service.NewManager(aiven.Services),
+		projectName:   projectName,
+		secretHandler: secretHandler,
 	}
 }
 
 type RedisHandler struct {
-	serviceuser serviceuser.ServiceUserManager
-	service     service.ServiceManager
-	projectName string
+	serviceuser   serviceuser.ServiceUserManager
+	service       service.ServiceManager
+	projectName   string
+	secretHandler *secret.Handler
 }
 
-func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]*v1.Secret, error) {
+func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]*v1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "redis"})
 	if len(application.Spec.Redis) == 0 {
 		return nil, nil
 	}
 
+	var secret v1.Secret
 	for _, spec := range application.Spec.Redis {
 		serviceName := fmt.Sprintf("redis-%s-%s", application.GetNamespace(), spec.Instance)
 
@@ -90,6 +94,7 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceUserAnnotation)
 
+		secret = h.secretHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
 		secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
 			serviceUserAnnotationKey: aivenUser.Username,
 			ProjectAnnotation:        h.projectName,
@@ -106,7 +111,7 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		})
 	}
 
-	return []*v1.Secret{secret}, nil
+	return []*v1.Secret{&secret}, nil
 }
 
 func keyName(instanceName, replacement string) string {
