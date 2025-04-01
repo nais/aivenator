@@ -66,7 +66,7 @@ func (h InfluxDBHandler) Apply(ctx context.Context, application *aiven_nais_io_v
 		return nil, utils.AivenFail("GetService", application, err, true, logger)
 	}
 
-	secret := h.secretsHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
+	secret := h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenService.ConnectionInfo.InfluxDBUsername,
 		ProjectAnnotation:     h.projectName,

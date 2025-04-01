@@ -30,7 +30,7 @@ type Manager struct {
 }
 
 func NewManager(ctx context.Context, k8s client.Client, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger) Manager {
-	secretHandler := secret.NewHandler(aiven, secret.K8s{Client: k8s}, mainProjectName)
+	secretHandler := secret.NewHandler(aiven, k8s, mainProjectName)
 	return Manager{
 		handlers: []Handler{
 			influxdb.NewInfluxDBHandler(ctx, aiven, &secretHandler, mainProjectName),

@@ -3,6 +3,9 @@ package secret
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/utils"
@@ -15,8 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"testing"
-	"time"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -44,7 +46,7 @@ var _ = Describe("secret.Handler", func() {
 	applicationWithGeneration.Labels = map[string]string{constants.GenerationLabel: secretGeneration}
 	var handler Handler
 	var mockProjects *project.MockProjectManager
-	var mockK8s K8s
+	var mockK8s client.Client
 	var ctx context.Context
 	var cancel context.CancelFunc
 
@@ -70,8 +72,9 @@ var _ = Describe("secret.Handler", func() {
 	})
 
 	DescribeTable("correctly handles", func(args args) {
-		_, err := handler.Apply(ctx, &args.application, &args.secret, nil)
+		secrets, err := handler.Apply(ctx, &args.application, &args.secret, nil)
 		Expect(err).To(Succeed())
+		Expect(secrets).ToNot(Succeed())
 
 		args.assert(args)
 	},
@@ -149,8 +152,9 @@ var _ = Describe("secret.Handler", func() {
 
 	It("adds correct timestamp to secret data", func() {
 		s := corev1.Secret{}
-		_, err := handler.Apply(ctx, &exampleAivenApplication, &s, nil)
+		secrets, err := handler.Apply(ctx, &exampleAivenApplication, &s, nil)
 		Expect(err).To(Succeed())
+		Expect(secrets).ToNot(BeEmpty())
 		value := s.StringData[AivenSecretUpdatedKey]
 		timestamp, err := time.Parse(time.RFC3339, value)
 		Expect(err).To(Succeed())
@@ -160,8 +164,9 @@ var _ = Describe("secret.Handler", func() {
 
 	It("adds project CA to secret data", func() {
 		s := corev1.Secret{}
-		_, err := handler.Apply(ctx, &exampleAivenApplication, &s, nil)
+		secrets, err := handler.Apply(ctx, &exampleAivenApplication, &s, nil)
 		Expect(err).To(Succeed())
+		Expect(secrets).ToNot(BeEmpty())
 		value := s.StringData[AivenCAKey]
 
 		Expect(value).To(Equal(projectCA))

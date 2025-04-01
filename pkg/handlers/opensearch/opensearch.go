@@ -71,9 +71,9 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	var secret corev1.Secret
 	usesNewStyleSecret := opensearch.SecretName != ""
 	if usesNewStyleSecret {
-		secret = h.secretsHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.OpenSearch.SecretName, logger)
+		secret = h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.OpenSearch.SecretName, logger)
 	} else {
-		secret = h.secretsHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
+		secret = h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
 	}
 	err := secretHandler.NormalizeSecret(ctx, h.project, h.projectName, application, &secret, logger)
 	if err != nil {

@@ -78,7 +78,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			return nil, utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
 		}
 
-		valkeySecret := h.secretsHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), spec.SecretName, logger)
+		valkeySecret := h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), spec.SecretName, logger)
 		serviceUser, err := h.provideServiceUser(ctx, application, spec, serviceName, &valkeySecret, logger)
 		if err != nil {
 			return nil, err

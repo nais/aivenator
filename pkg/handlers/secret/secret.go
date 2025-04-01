@@ -36,18 +36,14 @@ type Secrets interface {
 type Handler struct {
 	project     project.ProjectManager
 	projectName string
-	K8s         K8s
+	k8s         client.Client
 }
 
-type K8s struct {
-	Client client.Client
-}
-
-func NewHandler(aiven *aiven.Client, k8s K8s, projectName string) Handler {
+func NewHandler(aiven *aiven.Client, k8s client.Client, projectName string) Handler {
 	return Handler{
 		project:     project.NewManager(aiven.CA),
 		projectName: projectName,
-		K8s:         k8s,
+		k8s:         k8s,
 	}
 }
 
@@ -125,7 +121,7 @@ func (s Handler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.
 	return nil
 }
 
-func (k K8s) GetOrInitSecret(ctx context.Context, namespace, secretName string, logger log.FieldLogger) corev1.Secret {
+func (h Handler) GetOrInitSecret(ctx context.Context, namespace, secretName string, logger log.FieldLogger) corev1.Secret {
 	secret := corev1.Secret{}
 
 	secretObjectKey := client.ObjectKey{
@@ -134,7 +130,7 @@ func (k K8s) GetOrInitSecret(ctx context.Context, namespace, secretName string, 
 	}
 
 	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
-		return k.Client.Get(ctx, secretObjectKey, &secret)
+		return h.k8s.Get(ctx, secretObjectKey, &secret)
 	})
 	if err != nil && !k8serrors.IsNotFound(err) {
 		logger.Warnf("error retrieving existing secret from cluster: %w", err)

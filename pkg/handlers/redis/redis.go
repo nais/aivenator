@@ -94,7 +94,7 @@ func (h RedisHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceUserAnnotation)
 
-		secret = h.secretsHandler.K8s.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
+		secret = h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
 		secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
 			serviceUserAnnotationKey: aivenUser.Username,
 			ProjectAnnotation:        h.projectName,
