@@ -17,7 +17,9 @@
       {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
+            delve
             go
+            ginkgo
             postgresql
           ];
         };
