@@ -11,11 +11,12 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -38,6 +39,7 @@ const (
 
 type mockContainer struct {
 	serviceManager *service.MockServiceManager
+	secretsHandler *secret.MockSecrets
 }
 
 func TestInfluxDB(t *testing.T) {
@@ -49,7 +51,7 @@ var _ = Describe("influxdb.Handler", func() {
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var application aiven_nais_io_v1.AivenApplication
-	var secret v1.Secret
+	var emptySecret corev1.Secret
 	var influxdbHandler InfluxDBHandler
 	var mocks mockContainer
 	var ctx context.Context
@@ -60,13 +62,15 @@ var _ = Describe("influxdb.Handler", func() {
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
-		secret = v1.Secret{}
+		emptySecret = corev1.Secret{}
 		mocks = mockContainer{
 			serviceManager: service.NewMockServiceManager(GinkgoT()),
+			secretsHandler: secret.NewMockSecrets(GinkgoT()),
 		}
 		influxdbHandler = InfluxDBHandler{
-			service:     mocks.serviceManager,
-			projectName: projectName,
+			service:        mocks.serviceManager,
+			projectName:    projectName,
+			secretsHandler: mocks.secretsHandler,
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	})
@@ -83,7 +87,7 @@ var _ = Describe("influxdb.Handler", func() {
 		It("ignores it", func() {
 			_, err := influxdbHandler.Apply(ctx, &application, logger)
 			Expect(err).To(Succeed())
-			Expect(secret).To(Equal(v1.Secret{}))
+			Expect(emptySecret).To(Equal(corev1.Secret{}))
 		})
 	})
 
@@ -171,19 +175,22 @@ var _ = Describe("influxdb.Handler", func() {
 						Port: servicePort,
 					},
 				}, nil)
+			mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
+
 		})
 
 		It("uses the avnadmin user", func() {
-			_, err := influxdbHandler.Apply(ctx, &application, logger)
+
+			secrets, err := influxdbHandler.Apply(ctx, &application, logger)
 
 			Expect(err).To(Succeed())
-			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(serviceUserAnnotationKey, serviceUserName))
-			Expect(secret.StringData).To(HaveKeyWithValue(usernameKey, serviceUserName))
-			Expect(secret.StringData).To(HaveKeyWithValue(passwordKey, servicePassword))
-			Expect(secret.StringData).To(HaveKeyWithValue(uriKey, serviceURI))
-			Expect(secret.StringData).To(HaveKeyWithValue(dbnameKey, serviceDbName))
+			Expect(validation.ValidateAnnotations(emptySecret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
+			Expect(secrets[0].GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
+			Expect(secrets[0].GetAnnotations()).To(HaveKeyWithValue(serviceUserAnnotationKey, serviceUserName))
+			Expect(secrets[0].StringData).To(HaveKeyWithValue(usernameKey, serviceUserName))
+			Expect(secrets[0].StringData).To(HaveKeyWithValue(passwordKey, servicePassword))
+			Expect(secrets[0].StringData).To(HaveKeyWithValue(uriKey, serviceURI))
+			Expect(secrets[0].StringData).To(HaveKeyWithValue(dbnameKey, serviceDbName))
 		})
 	})
 })
