@@ -226,12 +226,21 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 	result, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
 
 	suite.NoError(err)
-	result[0].StringData[KafkaSecretUpdated] = emptyString
-	suite.Equal(&expected, result[0])
 
+	// Handle Go timestamps...
+	timeStamp, err := time.Parse("2006-01-02T15:04:05-07:00", result[0].StringData[KafkaSecretUpdated])
+	if err != nil {
+		panic("This should not fail")
+	}
+	suite.True(time.Now().After(timeStamp))
+	suite.True(timeStamp.After(time.Now().Add(-2 * time.Second))) // Within the time it took to run the test
+	delete(result[0].StringData, KafkaSecretUpdated)
+
+	// Continue assertions
+	suite.Equal(&expected, result[0])
 	suite.ElementsMatch(utils.KeysFromStringMap(expected.StringData), []string{
-		KafkaCA, KafkaPrivateKey, KafkaSecretUpdated, KafkaCredStorePassword, KafkaSchemaRegistry, KafkaSchemaUser, KafkaSchemaPassword,
-		KafkaBrokers, KafkaCertificate,
+		KafkaBrokers, KafkaCA, KafkaCertificate, KafkaCredStorePassword,
+		KafkaPrivateKey, KafkaSchemaPassword, KafkaSchemaRegistry, KafkaSchemaUser,
 	})
 	suite.ElementsMatch(keysFromByteMap(expected.Data), []string{KafkaKeystore, KafkaTruststore})
 }
