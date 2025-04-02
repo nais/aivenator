@@ -62,7 +62,7 @@ type KafkaHandler struct {
 	generator      certificate.Generator
 	nameResolver   liberator_service.NameResolver
 	projects       []string
-	secretsHandler *secret.Handler
+	secretsHandler secret.Secrets
 }
 
 func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]*v1.Secret, error) {

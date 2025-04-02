@@ -13,13 +13,14 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/certificate"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -27,7 +28,9 @@ import (
 
 const (
 	serviceUserName = "service-user-name"
+	emptyString     = ""
 	credStoreSecret = "my-secret"
+	kafkaBrokerURI  = "http://example.com"
 	serviceURI      = "http://example.com"
 	ca              = "my-ca"
 	pool            = "my-testing-pool"
@@ -60,6 +63,7 @@ type KafkaHandlerTestSuite struct {
 	mockServices       *service.MockServiceManager
 	mockGenerator      *certificate.MockGenerator
 	mockNameResolver   *liberator_service.MockNameResolver
+	mockSecretsHandler *secret.MockSecrets
 	kafkaHandler       KafkaHandler
 	applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	ctx                context.Context
@@ -121,15 +125,17 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 	suite.mockServices = &service.MockServiceManager{}
 	suite.mockProjects = &project.MockProjectManager{}
 	suite.mockGenerator = &certificate.MockGenerator{}
+	suite.mockSecretsHandler = &secret.MockSecrets{}
 	suite.mockNameResolver = liberator_service.NewMockNameResolver(suite.T())
 	suite.mockNameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Maybe().Return("kafka", nil)
 	suite.kafkaHandler = KafkaHandler{
-		project:      suite.mockProjects,
-		serviceuser:  suite.mockServiceUsers,
-		service:      suite.mockServices,
-		generator:    suite.mockGenerator,
-		nameResolver: suite.mockNameResolver,
-		projects:     []string{"dev-nais-dev", "my-testing-pool"},
+		project:        suite.mockProjects,
+		serviceuser:    suite.mockServiceUsers,
+		service:        suite.mockServices,
+		generator:      suite.mockGenerator,
+		nameResolver:   suite.mockNameResolver,
+		secretsHandler: suite.mockSecretsHandler,
+		projects:       []string{"dev-nais-dev", "my-testing-pool"},
 	}
 	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
 	suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -140,14 +146,14 @@ func (suite *KafkaHandlerTestSuite) TearDownTest() {
 }
 
 func (suite *KafkaHandlerTestSuite) TestCleanupNoKafka() {
-	secret := &v1.Secret{}
+	secret := &corev1.Secret{}
 	err := suite.kafkaHandler.Cleanup(suite.ctx, secret, suite.logger)
 
 	suite.NoError(err)
 }
 
 func (suite *KafkaHandlerTestSuite) TestCleanupServiceUser() {
-	secret := &v1.Secret{}
+	secret := &corev1.Secret{}
 	secret.SetAnnotations(map[string]string{
 		ServiceUserAnnotation: serviceUserName,
 		PoolAnnotation:        pool,
@@ -162,7 +168,7 @@ func (suite *KafkaHandlerTestSuite) TestCleanupServiceUser() {
 }
 
 func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
-	secret := &v1.Secret{}
+	secret := &corev1.Secret{}
 	secret.SetAnnotations(map[string]string{
 		ServiceUserAnnotation: serviceUserName,
 		PoolAnnotation:        pool,
@@ -196,11 +202,7 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 			},
 		}).
 		Build()
-	secret := &v1.Secret{}
-	_, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
-
-	suite.NoError(err)
-	expected := &v1.Secret{
+	expected := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -209,16 +211,22 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 			Finalizers: []string{constants.AivenatorFinalizer},
 		},
 		// Check these individually
-		Data:       secret.Data,
-		StringData: secret.StringData,
+		Data:       map[string][]uint8{KafkaKeystore: []uint8{0x6d, 0x79, 0x2d, 0x6b, 0x65, 0x79, 0x73, 0x74, 0x6f, 0x72, 0x65}, KafkaTruststore: []uint8{0x6d, 0x79, 0x2d, 0x74, 0x72, 0x75, 0x73, 0x74, 0x73, 0x74, 0x6f, 0x72, 0x65}},
+		StringData: map[string]string{KafkaBrokers: kafkaBrokerURI, KafkaCA: ca, KafkaCertificate: emptyString, KafkaCredStorePassword: credStoreSecret, KafkaPrivateKey: emptyString, KafkaSchemaRegistry: emptyString, KafkaSchemaPassword: emptyString, KafkaSecretUpdated: emptyString, KafkaSchemaUser: serviceUserName},
 	}
-	suite.Equal(expected, secret)
+	suite.mockSecretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(expected)
 
-	suite.ElementsMatch(utils.KeysFromStringMap(secret.StringData), []string{
-		KafkaCA, KafkaPrivateKey, KafkaCredStorePassword, KafkaSchemaRegistry, KafkaSchemaUser, KafkaSchemaPassword,
-		KafkaBrokers, KafkaSecretUpdated, KafkaCertificate,
+	result, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
+
+	suite.NoError(err)
+	result[0].StringData[KafkaSecretUpdated] = emptyString
+	suite.Equal(&expected, result[0])
+
+	suite.ElementsMatch(utils.KeysFromStringMap(expected.StringData), []string{
+		KafkaCA, KafkaPrivateKey, KafkaSecretUpdated, KafkaCredStorePassword, KafkaSchemaRegistry, KafkaSchemaUser, KafkaSchemaPassword,
+		KafkaBrokers, KafkaCertificate,
 	})
-	suite.ElementsMatch(keysFromByteMap(secret.Data), []string{KafkaKeystore, KafkaTruststore})
+	suite.ElementsMatch(keysFromByteMap(expected.Data), []string{KafkaKeystore, KafkaTruststore})
 }
 
 func (suite *KafkaHandlerTestSuite) TestSecretExists() {
@@ -229,7 +237,7 @@ func (suite *KafkaHandlerTestSuite) TestSecretExists() {
 			},
 		}).
 		Build()
-	secret := &v1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -322,7 +330,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserNotFound() {
 			},
 		}).
 		Build()
-	secret := &v1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -334,7 +342,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserNotFound() {
 	_, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
 
 	suite.NoError(err)
-	expected := &v1.Secret{
+	expected := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -356,7 +364,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
 			},
 		}).
 		Build()
-	secret := &v1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{},
 		},
@@ -371,7 +379,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
 
 	suite.mockServiceUsers.AssertNotCalled(suite.T(), "Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	suite.NoError(err)
-	expected := &v1.Secret{
+	expected := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -413,6 +421,8 @@ func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 		Build()
 
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, ServiceUsersGetNotFound))
+	suite.mockSecretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
+
 	suite.mockGenerator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("local-fail"))
 
