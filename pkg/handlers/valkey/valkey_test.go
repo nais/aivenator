@@ -12,7 +12,6 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/handlers/secret"
-	sechand "github.com/nais/aivenator/pkg/handlers/secret"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -118,16 +117,10 @@ var _ = Describe("valkey.Handler", func() {
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var application aiven_nais_io_v1.AivenApplication
-	var secret corev1.Secret
 	var valkeyHandler ValkeyHandler
 	var mocks mockContainer
 	var ctx context.Context
 	var cancel context.CancelFunc
-
-	getSecretMock := func(data testData) {
-		mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, namespace, data.secretName, mock.Anything).
-			Return(corev1.Secret{})
-	}
 
 	defaultServiceManagerMock := func(data testData) {
 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
@@ -151,21 +144,18 @@ var _ = Describe("valkey.Handler", func() {
 		root := log.New()
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
-
-		getSecretMock(testInstances["foo"])
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
-		secret = corev1.Secret{}
 		mocks = mockContainer{
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
-			secretsHandler:     sechand.NewMockSecrets(GinkgoT()),
+			secretsHandler:     secret.NewMockSecrets(GinkgoT()),
 		}
 
 		valkeyHandler = ValkeyHandler{
-			serviceuser:   mocks.serviceUserManager,
-			service:       mocks.serviceManager,
-			projectName:   projectName,
-			secretHandler: mocks.secretsHandler,
+			serviceuser:    mocks.serviceUserManager,
+			service:        mocks.serviceManager,
+			projectName:    projectName,
+			secretsHandler: mocks.secretsHandler,
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	})
@@ -179,9 +169,12 @@ var _ = Describe("valkey.Handler", func() {
 		})
 
 		It("ignores it", func() {
-			_, err := valkeyHandler.Apply(ctx, &application, logger)
+			var typedNil []*corev1.Secret
+
+			Expect(true).To(Equal(true))
+			result, err := valkeyHandler.Apply(ctx, &application, logger)
 			Expect(err).To(Succeed())
-			Expect(secret).To(Equal(corev1.Secret{}))
+			Expect(result).To(Equal(typedNil))
 		})
 	})
 
@@ -189,6 +182,7 @@ var _ = Describe("valkey.Handler", func() {
 		data := testInstances["foo"]
 
 		BeforeEach(func() {
+
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
@@ -208,6 +202,7 @@ var _ = Describe("valkey.Handler", func() {
 
 		Context("and the service is unavailable", func() {
 			BeforeEach(func() {
+
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
@@ -227,14 +222,14 @@ var _ = Describe("valkey.Handler", func() {
 		Context("and service users are unavailable", func() {
 			BeforeEach(func() {
 				defaultServiceManagerMock(data)
-				mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
-
 				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
 						MoreInfo: "aiven-more-info",
 						Status:   500,
 					})
+				mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
+
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -250,7 +245,7 @@ var _ = Describe("valkey.Handler", func() {
 		data := testInstances
 
 		BeforeEach(func() {
-			mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+			mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
 
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
@@ -304,7 +299,7 @@ var _ = Describe("valkey.Handler", func() {
 		Context("and the service user doesn't exist", func() {
 			BeforeEach(func() {
 				defaultServiceManagerMock(data["foo"])
-				mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+				mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
 
 				mocks.serviceUserManager.On("Get", mock.Anything, data["foo"].username, projectName, data["foo"].serviceName, mock.Anything).
 					Return(nil, aiven.Error{
@@ -336,7 +331,7 @@ var _ = Describe("valkey.Handler", func() {
 					SecretName: data.secretName,
 				})
 			}
-			mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+			mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
 
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
@@ -364,7 +359,7 @@ var _ = Describe("valkey.Handler", func() {
 			BeforeEach(func() {
 				for _, data := range testInstances {
 					defaultServiceManagerMock(data)
-					mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+					mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
 
 					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 						Return(&aiven.ServiceUser{
@@ -384,7 +379,7 @@ var _ = Describe("valkey.Handler", func() {
 			BeforeEach(func() {
 				for _, data := range testInstances {
 					defaultServiceManagerMock(data)
-					mocks.initSecret.On("InitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&corev1.Secret{})
+					mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
 
 					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 						Return(nil, aiven.Error{
