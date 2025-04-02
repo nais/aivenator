@@ -35,6 +35,8 @@ const (
 	ca              = "my-ca"
 	pool            = "my-testing-pool"
 	invalidPool     = "not-my-testing-pool"
+	keyStoreVal     = "my-keystore"
+	trustStoreVal   = "my-truststore"
 )
 
 const (
@@ -113,8 +115,8 @@ func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
 	if _, ok := enabled[GeneratorMakeCredStores]; ok {
 		suite.mockGenerator.Mock.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 			Return(&certificate.CredStoreData{
-				Keystore:   []byte("my-keystore"),
-				Truststore: []byte("my-truststore"),
+				Keystore:   []byte(keyStoreVal),
+				Truststore: []byte(trustStoreVal),
 				Secret:     credStoreSecret,
 			}, nil)
 	}
@@ -211,8 +213,13 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 			Finalizers: []string{constants.AivenatorFinalizer},
 		},
 		// Check these individually
-		Data:       map[string][]uint8{KafkaKeystore: []uint8{0x6d, 0x79, 0x2d, 0x6b, 0x65, 0x79, 0x73, 0x74, 0x6f, 0x72, 0x65}, KafkaTruststore: []uint8{0x6d, 0x79, 0x2d, 0x74, 0x72, 0x75, 0x73, 0x74, 0x73, 0x74, 0x6f, 0x72, 0x65}},
-		StringData: map[string]string{KafkaBrokers: kafkaBrokerURI, KafkaCA: ca, KafkaCertificate: emptyString, KafkaCredStorePassword: credStoreSecret, KafkaPrivateKey: emptyString, KafkaSchemaRegistry: emptyString, KafkaSchemaPassword: emptyString, KafkaSecretUpdated: emptyString, KafkaSchemaUser: serviceUserName},
+		Data: map[string][]uint8{KafkaKeystore: []byte(keyStoreVal), KafkaTruststore: []byte(trustStoreVal)},
+		StringData: map[string]string{
+			KafkaBrokers: kafkaBrokerURI, KafkaCA: ca,
+			KafkaCertificate: emptyString, KafkaCredStorePassword: credStoreSecret,
+			KafkaPrivateKey: emptyString, KafkaSchemaPassword: emptyString, KafkaSchemaRegistry: emptyString,
+			KafkaSchemaUser: serviceUserName,
+		},
 	}
 	suite.mockSecretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(expected)
 
