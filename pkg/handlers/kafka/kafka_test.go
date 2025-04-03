@@ -261,12 +261,13 @@ func (suite *KafkaHandlerTestSuite) TestSecretExists() {
 		},
 	}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores, ServiceUsersGet))
+	suite.mockSecretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
 
-	_, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
+	secrets, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
 
 	suite.NoError(err)
 	suite.Empty(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations")))
-	suite.Equal(secret.GetAnnotations()[ServiceUserAnnotation], serviceUserName)
+	suite.Equal(secrets[0].GetAnnotations()[ServiceUserAnnotation], serviceUserName)
 }
 
 func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
@@ -331,7 +332,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 			MoreInfo: "aiven-more-info",
 			Status:   500,
 		})
-
+	suite.mockSecretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
 	_, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
 
 	suite.Error(err)
@@ -346,19 +347,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserNotFound() {
 			},
 		}).
 		Build()
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				ServiceUserAnnotation: serviceUserName,
-			},
-		},
-	}
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores, ServiceUsersGetNotFound))
-
-	_, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
-
-	suite.NoError(err)
-	expected := &corev1.Secret{
+	expected := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -366,10 +355,30 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserNotFound() {
 			},
 			Finalizers: []string{constants.AivenatorFinalizer},
 		},
-		Data:       secret.Data,
-		StringData: secret.StringData,
+		// Check these individually
+		Data: map[string][]uint8{KafkaKeystore: []byte(keyStoreVal), KafkaTruststore: []byte(trustStoreVal)},
+		StringData: map[string]string{
+			KafkaBrokers: kafkaBrokerURI, KafkaCA: ca,
+			KafkaCertificate: emptyString, KafkaCredStorePassword: credStoreSecret,
+			KafkaPrivateKey: emptyString, KafkaSchemaPassword: emptyString, KafkaSchemaRegistry: emptyString,
+			KafkaSchemaUser: serviceUserName,
+		},
 	}
-	suite.Equal(expected, secret)
+
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores))
+	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&aiven.ServiceUser{
+			Username: serviceUserName,
+		}, nil)
+
+	suite.mockSecretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(expected)
+	result, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
+
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores, ServiceUsersGetNotFound))
+	delete(result[0].StringData, KafkaSecretUpdated)
+
+	suite.NoError(err)
+	suite.Equal(&expected, result[0])
 }
 
 func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
@@ -380,22 +389,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
 			},
 		}).
 		Build()
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{},
-		},
-	}
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores))
-	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(&aiven.ServiceUser{
-			Username: serviceUserName,
-		}, nil)
-
-	_, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
-
-	suite.mockServiceUsers.AssertNotCalled(suite.T(), "Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
-	suite.NoError(err)
-	expected := &corev1.Secret{
+	expected := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -403,12 +397,38 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
 			},
 			Finalizers: []string{constants.AivenatorFinalizer},
 		},
-		Data:       secret.Data,
-		StringData: secret.StringData,
+		// Check these individually
+		Data: map[string][]uint8{KafkaKeystore: []byte(keyStoreVal), KafkaTruststore: []byte(trustStoreVal)},
+		StringData: map[string]string{
+			KafkaBrokers: kafkaBrokerURI, KafkaCA: ca,
+			KafkaCertificate: emptyString, KafkaCredStorePassword: credStoreSecret,
+			KafkaPrivateKey: emptyString, KafkaSchemaPassword: emptyString, KafkaSchemaRegistry: emptyString,
+			KafkaSchemaUser: serviceUserName,
+		},
 	}
-	suite.Equal(expected, secret)
-}
 
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores))
+	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&aiven.ServiceUser{
+			Username: serviceUserName,
+		}, nil)
+
+	suite.mockSecretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(expected)
+	result, err := suite.kafkaHandler.Apply(suite.ctx, &application, suite.logger)
+
+	suite.mockServiceUsers.AssertNotCalled(suite.T(), "Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	suite.NoError(err)
+	timeStamp, err := time.Parse("2006-01-02T15:04:05-07:00", result[0].StringData[KafkaSecretUpdated])
+	if err != nil {
+		panic("This should not fail")
+	}
+	suite.True(time.Now().After(timeStamp))
+	suite.True(timeStamp.After(time.Now().Add(-10 * time.Second))) // Note how this could be flaky
+	delete(result[0].StringData, KafkaSecretUpdated)
+
+	suite.Equal(&expected, result[0])
+}
 func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	suite.mockNameResolver.On("ResolveKafkaServiceName", mock.Anything, "not-my-testing-pool").Maybe().Return("", utils.ErrUnrecoverable)
