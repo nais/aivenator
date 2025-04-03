@@ -72,16 +72,17 @@ var _ = Describe("secret.Handler", func() {
 	})
 
 	DescribeTable("correctly handles", func(args args) {
-		secrets, err := handler.Apply(ctx, &args.application, &args.secret, nil)
+		_, err := handler.Apply(ctx, &args.application, &args.secret, nil)
 		Expect(err).To(Succeed())
-		Expect(secrets).ToNot(Succeed())
 
 		args.assert(args)
 	},
 		Entry("a basic AivenApplication",
+
 			args{
 				application: exampleAivenApplication,
 				secret:      corev1.Secret{},
+
 				assert: func(a args) {
 					Expect(a.secret.Labels[constants.SecretTypeLabel]).To(Equal(constants.AivenatorSecretType))
 					Expect(a.secret.Labels[constants.AppLabel]).To(Equal(a.application.GetName()))
