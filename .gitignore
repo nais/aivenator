@@ -43,3 +43,8 @@ Temporary Items
 .VolumeIcon.icns
 .testbin
 __pycache__
+.env*
+
+# Nix stuffs
+.direnv/
+result*

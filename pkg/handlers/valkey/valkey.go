@@ -8,15 +8,15 @@ import (
 	"strings"
 
 	"github.com/aiven/aiven-go-client/v2"
-	"github.com/nais/aivenator/constants"
+
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	redis "github.com/nais/aivenator/pkg/handlers/redis"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Annotations
@@ -24,6 +24,7 @@ const (
 	ServiceUserAnnotation = "valkey.aiven.nais.io/serviceUser"
 	ServiceNameAnnotation = "valkey.aiven.nais.io/serviceName"
 	ProjectAnnotation     = "valkey.aiven.nais.io/project"
+	InstanceAnnotation    = "valkey.aiven.nais.io/instanceName"
 )
 
 // Environment variables
@@ -35,29 +36,33 @@ const (
 	ValkeyPort     = "VALKEY_PORT"
 )
 
+type ValkeyHandler struct {
+	serviceuser    serviceuser.ServiceUserManager
+	service        service.ServiceManager
+	projectName    string
+	secretsHandler secret.Secrets
+}
+
 var namePattern = regexp.MustCompile("[^a-z0-9]")
 
-func NewValkeyHandler(ctx context.Context, aiven *aiven.Client, projectName string) ValkeyHandler {
+func NewValkeyHandler(ctx context.Context, aiven *aiven.Client, secretHandler *secret.Handler, projectName string) ValkeyHandler {
 	return ValkeyHandler{
-		serviceuser: serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:     service.NewManager(aiven.Services),
-		projectName: projectName,
+		serviceuser:    serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:        service.NewManager(aiven.Services),
+		projectName:    projectName,
+		secretsHandler: secretHandler,
 	}
 }
 
-type ValkeyHandler struct {
-	serviceuser serviceuser.ServiceUserManager
-	service     service.ServiceManager
-	projectName string
-}
-
-func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
+func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]*v1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "valkey"})
 	if len(application.Spec.Valkey) == 0 {
-		return nil
+		return nil, nil
 	}
 
+	var secrets []*v1.Secret
 	for _, spec := range application.Spec.Valkey {
+
 		serviceName := fmt.Sprintf("valkey-%s-%s", application.GetNamespace(), spec.Instance)
 
 		logger = logger.WithFields(log.Fields{
@@ -67,46 +72,50 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 
 		addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 		if err != nil {
-			return utils.AivenFail("GetService", application, err, true, logger)
+			return nil, utils.AivenFail("GetService", application, err, true, logger)
 		}
 		if len(addresses.Valkey.URI) == 0 {
-			return utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
+			return nil, utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
 		}
 
-		aivenUser, err := h.provideServiceUser(ctx, application, spec, serviceName, secret, logger)
+		valkeySecret := h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), spec.SecretName, logger)
+		serviceUser, err := h.provideServiceUser(ctx, application, spec, serviceName, &valkeySecret, logger)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceUserAnnotation)
-		serviceNameAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceNameAnnotation)
+		instanceName := keyName(spec.Instance, "-")
+		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", instanceName, ServiceUserAnnotation)
+		serviceNameAnnotationKey := fmt.Sprintf("%s.%s", instanceName, ServiceNameAnnotation)
 
-		secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
-			serviceUserAnnotationKey: aivenUser.Username,
-			serviceNameAnnotationKey: serviceName,
+		valkeySecret.SetAnnotations(utils.MergeStringMap(valkeySecret.GetAnnotations(), map[string]string{
+			InstanceAnnotation:       spec.Instance,
 			ProjectAnnotation:        h.projectName,
+			ServiceNameAnnotation:    serviceName,
+			ServiceUserAnnotation:    serviceUser.Username,
+			serviceNameAnnotationKey: serviceName,          // This annotation is only for the case of the "one Secret to rule all aiven resources"
+			serviceUserAnnotationKey: serviceUser.Username, // This annotation is only for the case of the "one Secret to rule all aiven resources"
 		}))
 
-		logger.Infof("Fetched service user %s", aivenUser.Username)
+		logger.Infof("Fetched service user %s", serviceUser.Username)
 
 		envVarSuffix := envVarName(spec.Instance)
-		secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
-			fmt.Sprintf("%s_%s", ValkeyUser, envVarSuffix):          aivenUser.Username,
-			fmt.Sprintf("%s_%s", ValkeyPassword, envVarSuffix):      aivenUser.Password,
+		valkeySecret.StringData = utils.MergeStringMap(valkeySecret.StringData, map[string]string{
+			fmt.Sprintf("%s_%s", ValkeyUser, envVarSuffix):          serviceUser.Username,
+			fmt.Sprintf("%s_%s", ValkeyPassword, envVarSuffix):      serviceUser.Password,
 			fmt.Sprintf("%s_%s", ValkeyURI, envVarSuffix):           addresses.Valkey.URI,
 			fmt.Sprintf("%s_%s", ValkeyHost, envVarSuffix):          addresses.Valkey.Host,
 			fmt.Sprintf("%s_%s", ValkeyPort, envVarSuffix):          strconv.Itoa(addresses.Valkey.Port),
 			fmt.Sprintf("%s_%s", redis.RedisPort, envVarSuffix):     strconv.Itoa(addresses.Valkey.Port),
-			fmt.Sprintf("%s_%s", redis.RedisUser, envVarSuffix):     aivenUser.Username,
-			fmt.Sprintf("%s_%s", redis.RedisPassword, envVarSuffix): aivenUser.Password,
+			fmt.Sprintf("%s_%s", redis.RedisUser, envVarSuffix):     serviceUser.Username,
+			fmt.Sprintf("%s_%s", redis.RedisPassword, envVarSuffix): serviceUser.Password,
 			fmt.Sprintf("%s_%s", redis.RedisHost, envVarSuffix):     addresses.Valkey.Host,
 			fmt.Sprintf("%s_%s", redis.RedisURI, envVarSuffix):      strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
 		})
+		secrets = append(secrets, &valkeySecret)
 	}
 
-	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
-
-	return nil
+	return secrets, nil
 }
 
 func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
@@ -172,14 +181,41 @@ func getValkeyACLCategories(access string) []string {
 	return categories
 }
 
-func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
+func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error {
 	annotations := secret.GetAnnotations()
 	projectName, okProjectName := annotations[ProjectAnnotation]
-
+	if !okProjectName {
+		return fmt.Errorf("missing annotation %s", ProjectAnnotation)
+	}
 	logger = logger.WithFields(log.Fields{"project": projectName})
-	for annotationKey := range annotations {
-		// Specifically for the suffix serviceName
-		if strings.HasSuffix(annotationKey, ServiceNameAnnotation) {
+
+	serviceName, secretIsUniqueForInstance := annotations[ServiceNameAnnotation]
+	// Iff `secretIsUniqueForInstance`, we're dealing with a secret that only pertains to one Valkey instance,
+	// and not the global "a common secret for all Aiven resources" of yore (see the else branch)
+	if secretIsUniqueForInstance {
+		logger = logger.WithField("service", serviceName)
+		serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]
+		if !okServiceUser {
+			return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
+		}
+
+		if err := h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger); err != nil {
+			if aiven.IsNotFound(err) {
+				return fmt.Errorf("Service user %s does not exist", serviceUserName)
+			}
+
+			return fmt.Errorf("deleting service user %s: %v", serviceUserName, err)
+		}
+
+		logger.Infof("Deleted service user %s", serviceUserName)
+	} else {
+		for annotationKey := range annotations {
+			// Specifically for the suffix serviceName
+			thisIsAServiceNameAnnotation := strings.HasSuffix(annotationKey, ServiceNameAnnotation)
+			if !thisIsAServiceNameAnnotation {
+				continue
+			}
+
 			serviceName := annotations[annotationKey]
 			logger = logger.WithField("service", serviceName)
 			instance := strings.Split(annotationKey, ".")[0]
@@ -189,10 +225,6 @@ func (h ValkeyHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *l
 			if !okServiceUser {
 				logger.Errorf("missing annotation %s", serviceUserNameKey)
 				continue
-			}
-
-			if !okProjectName {
-				return fmt.Errorf("missing annotation %s", ProjectAnnotation)
 			}
 
 			if err := h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger); err != nil {

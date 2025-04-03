@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
 	github.com/aiven/aiven-go-client/v2 v2.34.0
-	github.com/nais/liberator v0.0.0-20250206091341-3ef5649e6388
+	github.com/nais/liberator v0.0.0-20250321121702-2399ce86b625
 	github.com/onsi/ginkgo/v2 v2.23.3
 	github.com/onsi/gomega v1.37.0
 	github.com/prometheus/client_golang v1.21.1
