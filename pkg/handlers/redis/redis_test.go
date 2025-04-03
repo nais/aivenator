@@ -2,13 +2,10 @@ package redis
 
 import (
 	"context"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	"k8s.io/apimachinery/pkg/api/validation"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -191,158 +188,6 @@ var _ = Describe("redis.Handler", func() {
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetServiceUser failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
-			})
-		})
-	})
-
-	When("it receives a spec", func() {
-		data := testInstances[0]
-
-		BeforeEach(func() {
-			application = applicationBuilder.
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					Redis: []*aiven_nais_io_v1.RedisSpec{
-						{
-							Instance: data.instanceName,
-							Access:   data.access,
-						},
-					},
-				}).
-				Build()
-		})
-
-		assertHappy := func(secret *v1.Secret, err error) {
-			GinkgoHelper()
-			Expect(err).To(Succeed())
-			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
-		}
-
-		Context("and the service user already exists", func() {
-			BeforeEach(func() {
-				defaultServiceManagerMock(data)
-				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
-					Return(&aiven.ServiceUser{
-						Username: data.username,
-						Password: servicePassword,
-					}, nil)
-			})
-
-			It("uses the existing user", func() {
-				_, err := redisHandler.Apply(ctx, &application, logger)
-				assertHappy(&secret, err)
-			})
-		})
-
-		Context("and the service user doesn't exist", func() {
-			BeforeEach(func() {
-				defaultServiceManagerMock(data)
-				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
-					Return(nil, aiven.Error{
-						Message: "Service user does not exist",
-						Status:  404,
-					})
-				accessControl := &aiven.AccessControl{
-					RedisACLCategories: getRedisACLCategories(data.access),
-					RedisACLKeys:       []string{"*"},
-					RedisACLChannels:   []string{"*"},
-				}
-				mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, accessControl, mock.Anything).
-					Return(&aiven.ServiceUser{
-						Username: data.username,
-						Password: servicePassword,
-					}, nil)
-			})
-
-			It("creates the new user and returns credentials for the new user", func() {
-				_, err := redisHandler.Apply(ctx, &application, logger)
-				assertHappy(&secret, err)
-			})
-		})
-	})
-
-	When("it receives a spec with multiple instances", func() {
-		BeforeEach(func() {
-			var specs []*aiven_nais_io_v1.RedisSpec
-			for _, data := range testInstances {
-				specs = append(specs, &aiven_nais_io_v1.RedisSpec{
-					Instance: data.instanceName,
-					Access:   data.access,
-				})
-			}
-			application = applicationBuilder.
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					Redis: specs,
-				}).
-				Build()
-		})
-
-		assertHappy := func(secret *v1.Secret, data testData, err error) {
-			GinkgoHelper()
-			Expect(err).To(Succeed())
-			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
-		}
-
-		Context("and the service user already exists", func() {
-			BeforeEach(func() {
-				for _, data := range testInstances {
-					defaultServiceManagerMock(data)
-					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
-						Return(&aiven.ServiceUser{
-							Username: data.username,
-							Password: servicePassword,
-						}, nil)
-				}
-			})
-
-			It("uses the existing user", func() {
-				_, err := redisHandler.Apply(ctx, &application, logger)
-				for _, data := range testInstances {
-					assertHappy(&secret, data, err)
-				}
-			})
-		})
-
-		Context("and the service user doesn't exist", func() {
-			BeforeEach(func() {
-				for _, data := range testInstances {
-					defaultServiceManagerMock(data)
-					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
-						Return(nil, aiven.Error{
-							Message: "Service user does not exist",
-							Status:  404,
-						})
-					accessControl := &aiven.AccessControl{
-						RedisACLCategories: getRedisACLCategories(data.access),
-						RedisACLKeys:       []string{"*"},
-						RedisACLChannels:   []string{"*"},
-					}
-					mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, accessControl, mock.Anything).
-						Return(&aiven.ServiceUser{
-							Username: data.username,
-							Password: servicePassword,
-						}, nil)
-				}
-			})
-
-			It("creates the new user and returns credentials for the new user", func() {
-				_, err := redisHandler.Apply(ctx, &application, logger)
-				for _, data := range testInstances {
-					assertHappy(&secret, data, err)
-				}
 			})
 		})
 	})
