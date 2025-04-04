@@ -17,6 +17,7 @@ import (
 // TestManager_Apply
 func TestManager_Apply(t *testing.T) {
 	// given
+	mockSecrets := secret.MockSecrets{}
 	mockHandler := MockHandler{}
 	mockSecretsHandler := secret.MockSecrets{}
 	expectedAnnotations := make(map[string]string)
@@ -37,6 +38,7 @@ func TestManager_Apply(t *testing.T) {
 	application := aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
 	manager := Manager{handlers: []Handler{&mockHandler}}
 
+	mockSecrets.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
 	// when
 	logger, _ := test_logger.NewNullLogger()
 	secrets, err := manager.CreateSecret(context.Background(), &application, &corev1.Secret{}, logger)
