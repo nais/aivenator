@@ -5,20 +5,29 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	test_logger "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // TestManager_Apply
 func TestManager_Apply(t *testing.T) {
 	// given
 	mockHandler := MockHandler{}
+	mockSecretsHandler := secret.MockSecrets{}
 	expectedAnnotations := make(map[string]string)
 	expectedAnnotations["one"] = "1"
-	appliedSecrets := []*corev1.Secret{}
+	expectedSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: expectedAnnotations,
+		},
+	}
+	appliedSecrets := []*corev1.Secret{&expectedSecret}
+	mockSecretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything).Return(expectedSecret)
 	mockHandler.
 		On("Apply",
 			mock.Anything,
@@ -29,9 +38,8 @@ func TestManager_Apply(t *testing.T) {
 	manager := Manager{handlers: []Handler{&mockHandler}}
 
 	// when
-	secret := &corev1.Secret{}
 	logger, _ := test_logger.NewNullLogger()
-	secrets, err := manager.CreateSecret(context.Background(), &application, secret, logger)
+	secrets, err := manager.CreateSecret(context.Background(), &application, &corev1.Secret{}, logger)
 
 	// then
 	assert.NoError(t, err)
