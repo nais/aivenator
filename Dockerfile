@@ -30,7 +30,7 @@ RUN go build std
 COPY . /workspace
 
 # Run tests
-RUN make test
+RUN make mocks && make test
 
 # Build
 RUN CGO_ENABLED=0 go build -a -installsuffix cgo -o aivenator cmd/aivenator/main.go
