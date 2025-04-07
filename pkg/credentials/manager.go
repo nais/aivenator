@@ -9,7 +9,6 @@ import (
 	"github.com/nais/aivenator/pkg/handlers/influxdb"
 	"github.com/nais/aivenator/pkg/handlers/kafka"
 	"github.com/nais/aivenator/pkg/handlers/opensearch"
-	"github.com/nais/aivenator/pkg/handlers/redis"
 	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/handlers/valkey"
 	"github.com/nais/aivenator/pkg/metrics"
@@ -37,7 +36,6 @@ func NewManager(ctx context.Context, k8s client.Client, aiven *aiven.Client, kaf
 			influxdb.NewInfluxDBHandler(ctx, aiven, &secretHandler, mainProjectName),
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, &secretHandler, logger),
 			opensearch.NewOpenSearchHandler(ctx, k8s, aiven, &secretHandler, mainProjectName),
-			redis.NewRedisHandler(ctx, aiven, &secretHandler, mainProjectName),
 			valkey.NewValkeyHandler(ctx, aiven, &secretHandler, mainProjectName),
 		},
 		secretsHandler: &secretHandler,

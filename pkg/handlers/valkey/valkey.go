@@ -11,7 +11,6 @@ import (
 
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	redis "github.com/nais/aivenator/pkg/handlers/redis"
 	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -34,6 +33,11 @@ const (
 	ValkeyURI      = "VALKEY_URI"
 	ValkeyHost     = "VALKEY_HOST"
 	ValkeyPort     = "VALKEY_PORT"
+	RedisUser      = "REDIS_USERNAME"
+	RedisPassword  = "REDIS_PASSWORD"
+	RedisURI       = "REDIS_URI"
+	RedisHost      = "REDIS_HOST"
+	RedisPort      = "REDIS_PORT"
 )
 
 type ValkeyHandler struct {
@@ -101,16 +105,16 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 
 		envVarSuffix := envVarName(spec.Instance)
 		valkeySecret.StringData = utils.MergeStringMap(valkeySecret.StringData, map[string]string{
-			fmt.Sprintf("%s_%s", ValkeyUser, envVarSuffix):          serviceUser.Username,
-			fmt.Sprintf("%s_%s", ValkeyPassword, envVarSuffix):      serviceUser.Password,
-			fmt.Sprintf("%s_%s", ValkeyURI, envVarSuffix):           addresses.Valkey.URI,
-			fmt.Sprintf("%s_%s", ValkeyHost, envVarSuffix):          addresses.Valkey.Host,
-			fmt.Sprintf("%s_%s", ValkeyPort, envVarSuffix):          strconv.Itoa(addresses.Valkey.Port),
-			fmt.Sprintf("%s_%s", redis.RedisPort, envVarSuffix):     strconv.Itoa(addresses.Valkey.Port),
-			fmt.Sprintf("%s_%s", redis.RedisUser, envVarSuffix):     serviceUser.Username,
-			fmt.Sprintf("%s_%s", redis.RedisPassword, envVarSuffix): serviceUser.Password,
-			fmt.Sprintf("%s_%s", redis.RedisHost, envVarSuffix):     addresses.Valkey.Host,
-			fmt.Sprintf("%s_%s", redis.RedisURI, envVarSuffix):      strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
+			fmt.Sprintf("%s_%s", ValkeyUser, envVarSuffix):     serviceUser.Username,
+			fmt.Sprintf("%s_%s", ValkeyPassword, envVarSuffix): serviceUser.Password,
+			fmt.Sprintf("%s_%s", ValkeyURI, envVarSuffix):      addresses.Valkey.URI,
+			fmt.Sprintf("%s_%s", ValkeyHost, envVarSuffix):     addresses.Valkey.Host,
+			fmt.Sprintf("%s_%s", ValkeyPort, envVarSuffix):     strconv.Itoa(addresses.Valkey.Port),
+			fmt.Sprintf("%s_%s", RedisPort, envVarSuffix):      strconv.Itoa(addresses.Valkey.Port),
+			fmt.Sprintf("%s_%s", RedisUser, envVarSuffix):      serviceUser.Username,
+			fmt.Sprintf("%s_%s", RedisPassword, envVarSuffix):  serviceUser.Password,
+			fmt.Sprintf("%s_%s", RedisHost, envVarSuffix):      addresses.Valkey.Host,
+			fmt.Sprintf("%s_%s", RedisURI, envVarSuffix):       strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
 		})
 		secrets = append(secrets, &valkeySecret)
 	}
