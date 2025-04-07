@@ -72,7 +72,7 @@ var _ = Describe("secret.Handler", func() {
 	})
 
 	DescribeTable("correctly handles", func(args args) {
-		_, err := handler.Apply(ctx, &args.application, &args.secret, nil)
+		err := handler.NormalizeSecret(ctx, &args.application, &args.secret, args.secret.Name, nil)
 		Expect(err).To(Succeed())
 
 		args.assert(args)
@@ -153,9 +153,9 @@ var _ = Describe("secret.Handler", func() {
 
 	It("adds correct timestamp to secret data", func() {
 		s := corev1.Secret{}
-		secrets, err := handler.Apply(ctx, &exampleAivenApplication, &s, nil)
+		err := handler.NormalizeSecret(ctx, &exampleAivenApplication, &s, secretName, nil)
+
 		Expect(err).To(Succeed())
-		Expect(secrets).ToNot(BeEmpty())
 		value := s.StringData[AivenSecretUpdatedKey]
 		timestamp, err := time.Parse(time.RFC3339, value)
 		Expect(err).To(Succeed())
@@ -165,19 +165,23 @@ var _ = Describe("secret.Handler", func() {
 
 	It("adds project CA to secret data", func() {
 		s := corev1.Secret{}
-		secrets, err := handler.Apply(ctx, &exampleAivenApplication, &s, nil)
+		err := handler.NormalizeSecret(ctx, &exampleAivenApplication, &s, secretName, nil)
+
 		Expect(err).To(Succeed())
-		Expect(secrets).ToNot(BeEmpty())
 		value := s.StringData[AivenCAKey]
 
 		Expect(value).To(Equal(projectCA))
 	})
 
 	DescribeTable("returns unrecoverable errors for invalid secret name:", func(secretName string) {
+		s := corev1.Secret{}
+
 		application := aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 			WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 			Build()
-		_, err := handler.Apply(ctx, &application, &corev1.Secret{}, nil)
+
+		err := handler.NormalizeSecret(ctx, &application, &s, secretName, nil)
+
 		Expect(err).ToNot(Succeed())
 		Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
 	},

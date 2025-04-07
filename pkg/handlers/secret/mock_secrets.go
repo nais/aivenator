@@ -27,17 +27,17 @@ func (_m *MockSecrets) EXPECT() *MockSecrets_Expecter {
 	return &MockSecrets_Expecter{mock: &_m.Mock}
 }
 
-// GetOrInitSecret provides a mock function with given fields: ctx, namespace, secretName, logger
-func (_m *MockSecrets) GetOrInitSecret(ctx context.Context, namespace string, secretName string, logger logrus.FieldLogger) v1.Secret {
-	ret := _m.Called(ctx, namespace, secretName, logger)
+// GetOrInitSecret provides a mock function with given fields: ctx, application, secretName, logger
+func (_m *MockSecrets) GetOrInitSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secretName string, logger logrus.FieldLogger) v1.Secret {
+	ret := _m.Called(ctx, application, secretName, logger)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetOrInitSecret")
 	}
 
 	var r0 v1.Secret
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, logrus.FieldLogger) v1.Secret); ok {
-		r0 = rf(ctx, namespace, secretName, logger)
+	if rf, ok := ret.Get(0).(func(context.Context, *aiven_nais_io_v1.AivenApplication, string, logrus.FieldLogger) v1.Secret); ok {
+		r0 = rf(ctx, application, secretName, logger)
 	} else {
 		r0 = ret.Get(0).(v1.Secret)
 	}
@@ -52,16 +52,16 @@ type MockSecrets_GetOrInitSecret_Call struct {
 
 // GetOrInitSecret is a helper method to define mock.On call
 //   - ctx context.Context
-//   - namespace string
+//   - application *aiven_nais_io_v1.AivenApplication
 //   - secretName string
 //   - logger logrus.FieldLogger
-func (_e *MockSecrets_Expecter) GetOrInitSecret(ctx interface{}, namespace interface{}, secretName interface{}, logger interface{}) *MockSecrets_GetOrInitSecret_Call {
-	return &MockSecrets_GetOrInitSecret_Call{Call: _e.mock.On("GetOrInitSecret", ctx, namespace, secretName, logger)}
+func (_e *MockSecrets_Expecter) GetOrInitSecret(ctx interface{}, application interface{}, secretName interface{}, logger interface{}) *MockSecrets_GetOrInitSecret_Call {
+	return &MockSecrets_GetOrInitSecret_Call{Call: _e.mock.On("GetOrInitSecret", ctx, application, secretName, logger)}
 }
 
-func (_c *MockSecrets_GetOrInitSecret_Call) Run(run func(ctx context.Context, namespace string, secretName string, logger logrus.FieldLogger)) *MockSecrets_GetOrInitSecret_Call {
+func (_c *MockSecrets_GetOrInitSecret_Call) Run(run func(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secretName string, logger logrus.FieldLogger)) *MockSecrets_GetOrInitSecret_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(logrus.FieldLogger))
+		run(args[0].(context.Context), args[1].(*aiven_nais_io_v1.AivenApplication), args[2].(string), args[3].(logrus.FieldLogger))
 	})
 	return _c
 }
@@ -71,22 +71,22 @@ func (_c *MockSecrets_GetOrInitSecret_Call) Return(_a0 v1.Secret) *MockSecrets_G
 	return _c
 }
 
-func (_c *MockSecrets_GetOrInitSecret_Call) RunAndReturn(run func(context.Context, string, string, logrus.FieldLogger) v1.Secret) *MockSecrets_GetOrInitSecret_Call {
+func (_c *MockSecrets_GetOrInitSecret_Call) RunAndReturn(run func(context.Context, *aiven_nais_io_v1.AivenApplication, string, logrus.FieldLogger) v1.Secret) *MockSecrets_GetOrInitSecret_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// NormalizeSecret provides a mock function with given fields: ctx, application, _a2, logger
-func (_m *MockSecrets) NormalizeSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, _a2 *v1.Secret, logger logrus.FieldLogger) error {
-	ret := _m.Called(ctx, application, _a2, logger)
+// NormalizeSecret provides a mock function with given fields: ctx, application, _a2, secretName, logger
+func (_m *MockSecrets) NormalizeSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, _a2 *v1.Secret, secretName string, logger logrus.FieldLogger) error {
+	ret := _m.Called(ctx, application, _a2, secretName, logger)
 
 	if len(ret) == 0 {
 		panic("no return value specified for NormalizeSecret")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *aiven_nais_io_v1.AivenApplication, *v1.Secret, logrus.FieldLogger) error); ok {
-		r0 = rf(ctx, application, _a2, logger)
+	if rf, ok := ret.Get(0).(func(context.Context, *aiven_nais_io_v1.AivenApplication, *v1.Secret, string, logrus.FieldLogger) error); ok {
+		r0 = rf(ctx, application, _a2, secretName, logger)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -103,14 +103,15 @@ type MockSecrets_NormalizeSecret_Call struct {
 //   - ctx context.Context
 //   - application *aiven_nais_io_v1.AivenApplication
 //   - _a2 *v1.Secret
+//   - secretName string
 //   - logger logrus.FieldLogger
-func (_e *MockSecrets_Expecter) NormalizeSecret(ctx interface{}, application interface{}, _a2 interface{}, logger interface{}) *MockSecrets_NormalizeSecret_Call {
-	return &MockSecrets_NormalizeSecret_Call{Call: _e.mock.On("NormalizeSecret", ctx, application, _a2, logger)}
+func (_e *MockSecrets_Expecter) NormalizeSecret(ctx interface{}, application interface{}, _a2 interface{}, secretName interface{}, logger interface{}) *MockSecrets_NormalizeSecret_Call {
+	return &MockSecrets_NormalizeSecret_Call{Call: _e.mock.On("NormalizeSecret", ctx, application, _a2, secretName, logger)}
 }
 
-func (_c *MockSecrets_NormalizeSecret_Call) Run(run func(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, _a2 *v1.Secret, logger logrus.FieldLogger)) *MockSecrets_NormalizeSecret_Call {
+func (_c *MockSecrets_NormalizeSecret_Call) Run(run func(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, _a2 *v1.Secret, secretName string, logger logrus.FieldLogger)) *MockSecrets_NormalizeSecret_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*aiven_nais_io_v1.AivenApplication), args[2].(*v1.Secret), args[3].(logrus.FieldLogger))
+		run(args[0].(context.Context), args[1].(*aiven_nais_io_v1.AivenApplication), args[2].(*v1.Secret), args[3].(string), args[4].(logrus.FieldLogger))
 	})
 	return _c
 }
@@ -120,7 +121,7 @@ func (_c *MockSecrets_NormalizeSecret_Call) Return(_a0 error) *MockSecrets_Norma
 	return _c
 }
 
-func (_c *MockSecrets_NormalizeSecret_Call) RunAndReturn(run func(context.Context, *aiven_nais_io_v1.AivenApplication, *v1.Secret, logrus.FieldLogger) error) *MockSecrets_NormalizeSecret_Call {
+func (_c *MockSecrets_NormalizeSecret_Call) RunAndReturn(run func(context.Context, *aiven_nais_io_v1.AivenApplication, *v1.Secret, string, logrus.FieldLogger) error) *MockSecrets_NormalizeSecret_Call {
 	_c.Call.Return(run)
 	return _c
 }

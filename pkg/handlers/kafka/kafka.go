@@ -103,7 +103,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		return nil, utils.AivenFail("GetCA", application, err, false, logger)
 	}
 
-	secret := h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
+	secret := h.secretsHandler.GetOrInitSecret(ctx, application, application.Spec.SecretName, logger)
 	aivenUser, err := h.provideServiceUser(ctx, application, projectName, serviceName, &secret, logger)
 	if err != nil {
 		return nil, err
@@ -137,6 +137,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		KafkaKeystore:   credStore.Keystore,
 		KafkaTruststore: credStore.Truststore,
 	})
+	h.secretsHandler.NormalizeSecret(ctx, application, &secret, secret.Name, logger)
 
 	return []*v1.Secret{&secret}, nil
 }

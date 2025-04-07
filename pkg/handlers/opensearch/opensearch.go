@@ -70,11 +70,11 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	var secret corev1.Secret
 	usesNewStyleSecret := opensearch.SecretName != ""
 	if usesNewStyleSecret {
-		secret = h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.OpenSearch.SecretName, logger)
+		secret = h.secretsHandler.GetOrInitSecret(ctx, application, application.Spec.OpenSearch.SecretName, logger)
 	} else {
-		secret = h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), application.Spec.SecretName, logger)
+		secret = h.secretsHandler.GetOrInitSecret(ctx, application, application.Spec.SecretName, logger)
 	}
-	err := h.secretsHandler.NormalizeSecret(ctx, application, &secret, logger)
+	err := h.secretsHandler.NormalizeSecret(ctx, application, &secret, secret.Name, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		OpenSearchHost:     addresses.OpenSearch.Host,
 		OpenSearchPort:     strconv.Itoa(addresses.OpenSearch.Port),
 	})
-
+	h.secretsHandler.NormalizeSecret(ctx, application, &secret, secret.Name, logger)
 	return []*corev1.Secret{&secret}, nil
 }
 

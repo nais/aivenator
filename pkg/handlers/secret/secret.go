@@ -30,8 +30,8 @@ const (
 )
 
 type Secrets interface {
-	GetOrInitSecret(ctx context.Context, namespace, secretName string, logger log.FieldLogger) corev1.Secret
-	NormalizeSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error
+	GetOrInitSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secretName string, logger log.FieldLogger) corev1.Secret
+	NormalizeSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, secretName string, logger log.FieldLogger) error
 }
 
 type Handler struct {
@@ -48,17 +48,7 @@ func NewHandler(aiven *aiven.Client, k8s client.Client, projectName string) Hand
 	}
 }
 
-func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]*corev1.Secret, error) {
-	err := s.NormalizeSecret(ctx, application, secret, logger)
-	if err != nil {
-		return nil, fmt.Errorf("unable to normalize secret: %w", err)
-	}
-
-	return []*corev1.Secret{secret}, nil
-}
-
-func (h Handler) NormalizeSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error {
-	secretName := application.Spec.SecretName
+func (h Handler) NormalizeSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, secretName string, logger log.FieldLogger) error {
 
 	errors := validation.IsDNS1123Label(secretName)
 	hasErrors := len(errors) > 0
@@ -67,12 +57,13 @@ func (h Handler) NormalizeSecret(ctx context.Context, application *aiven_nais_io
 		return fmt.Errorf("invalid secret name '%s': %w", secretName, utils.ErrUnrecoverable)
 	}
 
-	updateObjectMeta(application, &secret.ObjectMeta)
+	updateObjectMeta(application, &secret.ObjectMeta, secretName)
 
 	projectCa, err := h.project.GetCA(ctx, h.projectName)
 	if err != nil {
 		return fmt.Errorf("unable to get project CA: %w", err)
 	}
+	updateObjectMeta(application, &secret.ObjectMeta, secretName)
 
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
@@ -82,26 +73,16 @@ func (h Handler) NormalizeSecret(ctx context.Context, application *aiven_nais_io
 	return nil
 }
 
-func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *metav1.ObjectMeta) {
-	objMeta.Name = application.Spec.SecretName
-	objMeta.Namespace = application.GetNamespace()
-
-	generation := 0
-	if v, ok := application.Labels[constants.GenerationLabel]; ok {
-		g, err := strconv.Atoi(v)
-		if err == nil {
-			generation = g
-		}
-	}
-
-	objMeta.Labels = utils.MergeStringMap(objMeta.Labels, map[string]string{
+func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, secretMeta *metav1.ObjectMeta, secretName string) {
+	secretMeta.Name = secretName
+	secretMeta.Namespace = application.GetNamespace()
+	secretMeta.Labels = utils.MergeStringMap(secretMeta.Labels, map[string]string{
 		constants.AppLabel:              application.GetName(),
 		constants.TeamLabel:             application.GetNamespace(),
 		constants.SecretTypeLabel:       constants.AivenatorSecretType,
-		constants.GenerationLabel:       strconv.Itoa(generation),
 		constants.AivenatorProtectedKey: strconv.FormatBool(application.Spec.Protected),
 	})
-	objMeta.Annotations = utils.MergeStringMap(objMeta.Annotations, createAnnotations(application))
+	secretMeta.Annotations = utils.MergeStringMap(secretMeta.Annotations, createAnnotations(application))
 }
 
 func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[string]string {
@@ -117,15 +98,14 @@ func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[strin
 	return annotations
 }
 
-func (s Handler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
+func (h Handler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
 	return nil
 }
 
-func (h Handler) GetOrInitSecret(ctx context.Context, namespace, secretName string, logger log.FieldLogger) corev1.Secret {
+func (h Handler) GetOrInitSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secretName string, logger log.FieldLogger) corev1.Secret {
 	secret := corev1.Secret{}
-
 	secretObjectKey := client.ObjectKey{
-		Namespace: namespace,
+		Namespace: application.GetNamespace(),
 		Name:      secretName,
 	}
 

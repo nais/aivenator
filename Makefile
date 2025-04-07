@@ -7,7 +7,7 @@ tools_archive := kubebuilder-tools-${K8S_VERSION}-$(os)-$(arch).tar.gz
 aivenator:
 	go build -o bin/aivenator cmd/aivenator/*.go
 
-test:
+test: mocks
 	go test ./... -v -count=1 -coverprofile cover.out
 
 check:

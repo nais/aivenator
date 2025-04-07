@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
-	"github.com/nais/aivenator/pkg/handlers/influxdb"
 	"github.com/nais/aivenator/pkg/handlers/kafka"
 	"github.com/nais/aivenator/pkg/handlers/opensearch"
 	"github.com/nais/aivenator/pkg/handlers/secret"
@@ -33,7 +32,6 @@ func NewManager(ctx context.Context, k8s client.Client, aiven *aiven.Client, kaf
 	secretHandler := secret.NewHandler(aiven, k8s, mainProjectName)
 	return Manager{
 		handlers: []Handler{
-			influxdb.NewInfluxDBHandler(ctx, aiven, &secretHandler, mainProjectName),
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, &secretHandler, logger),
 			opensearch.NewOpenSearchHandler(ctx, k8s, aiven, &secretHandler, mainProjectName),
 			valkey.NewValkeyHandler(ctx, aiven, &secretHandler, mainProjectName),

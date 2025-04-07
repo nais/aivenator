@@ -82,7 +82,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			return nil, utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
 		}
 
-		valkeySecret := h.secretsHandler.GetOrInitSecret(ctx, application.GetNamespace(), spec.SecretName, logger)
+		valkeySecret := h.secretsHandler.GetOrInitSecret(ctx, application, spec.SecretName, logger)
 		serviceUser, err := h.provideServiceUser(ctx, application, spec, serviceName, &valkeySecret, logger)
 		if err != nil {
 			return nil, err
@@ -116,6 +116,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			fmt.Sprintf("%s_%s", RedisHost, envVarSuffix):      addresses.Valkey.Host,
 			fmt.Sprintf("%s_%s", RedisURI, envVarSuffix):       strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
 		})
+		h.secretsHandler.NormalizeSecret(ctx, application, &valkeySecret, valkeySecret.Name, logger)
 		secrets = append(secrets, &valkeySecret)
 	}
 
