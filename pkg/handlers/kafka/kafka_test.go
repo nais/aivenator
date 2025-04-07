@@ -228,9 +228,9 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 	suite.NoError(err)
 
 	// Handle Go timestamps...
-	timeStamp, err := time.Parse("2006-01-02T15:04:05-07:00", result[0].StringData[KafkaSecretUpdated])
+	timeStamp, err := time.Parse(time.RFC3339, result[0].StringData[KafkaSecretUpdated])
 	if err != nil {
-		panic("This should not fail")
+		panic(fmt.Errorf("This should not fail: %v", err))
 	}
 	suite.True(time.Now().After(timeStamp))
 	suite.True(timeStamp.After(time.Now().Add(-2 * time.Second))) // Within the time it took to run the test
@@ -419,9 +419,9 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
 	suite.mockServiceUsers.AssertNotCalled(suite.T(), "Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 
 	suite.NoError(err)
-	timeStamp, err := time.Parse("2006-01-02T15:04:05-07:00", result[0].StringData[KafkaSecretUpdated])
+	timeStamp, err := time.Parse(time.RFC3339, result[0].StringData[KafkaSecretUpdated])
 	if err != nil {
-		panic("This should not fail")
+		panic(fmt.Errorf("This should not fail: %v", err))
 	}
 	suite.True(time.Now().After(timeStamp))
 	suite.True(timeStamp.After(time.Now().Add(-10 * time.Second))) // Note how this could be flaky
@@ -429,6 +429,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
 
 	suite.Equal(&expected, result[0])
 }
+
 func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	suite.mockNameResolver.On("ResolveKafkaServiceName", mock.Anything, "not-my-testing-pool").Maybe().Return("", utils.ErrUnrecoverable)
