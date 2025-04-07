@@ -2,7 +2,6 @@ package valkey
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -54,7 +53,7 @@ type testData struct {
 }
 
 var testInstances = map[string]testData{
-	"foo": {
+	"my-instance1": {
 		instanceName:             "my-instance1",
 		serviceName:              "valkey-team-a-my-instance1",
 		serviceURI:               "valkeys://my-instance1.example.com:23456",
@@ -77,29 +76,29 @@ var testInstances = map[string]testData{
 		redisPasswordKey:         "REDIS_PASSWORD_MY_INSTANCE1",
 		redisUsernameKey:         "REDIS_USERNAME_MY_INSTANCE1",
 	},
-	// "bar": {
-	// 	instanceName:             "session-store",
-	// 	serviceName:              "valkey-team-a-session-store",
-	// 	serviceURI:               "valkeys://session-store.example.com:23456",
-	// 	redisServiceURI:          "rediss://session-store.example.com:23456",
-	// 	serviceHost:              "session-store.example.com",
-	// 	servicePort:              23456,
-	// 	access:                   "readwrite",
-	// 	username:                 "test-app-rw-9Nv",
-	// 	secretName:               "bar",
-	// 	serviceUserAnnotationKey: "session-store.valkey.aiven.nais.io/serviceUser",
-	// 	serviceNameAnnotationKey: "session-store.valkey.aiven.nais.io/serviceName",
-	// 	usernameKey:              "VALKEY_USERNAME_SESSION_STORE",
-	// 	passwordKey:              "VALKEY_PASSWORD_SESSION_STORE",
-	// 	uriKey:                   "VALKEY_URI_SESSION_STORE",
-	// 	hostKey:                  "VALKEY_HOST_SESSION_STORE",
-	// 	portKey:                  "VALKEY_PORT_SESSION_STORE",
-	// 	redisUriKey:              "REDIS_URI_SESSION_STORE",
-	// 	redisPortKey:             "REDIS_PORT_SESSION_STORE",
-	// 	redisHostKey:             "REDIS_HOST_SESSION_STORE",
-	// 	redisPasswordKey:         "REDIS_PASSWORD_SESSION_STORE",
-	// 	redisUsernameKey:         "REDIS_USERNAME_SESSION_STORE",
-	// },
+	"session-store": {
+		instanceName:             "session-store",
+		serviceName:              "valkey-team-a-session-store",
+		serviceURI:               "valkeys://session-store.example.com:23456",
+		redisServiceURI:          "rediss://session-store.example.com:23456",
+		serviceHost:              "session-store.example.com",
+		servicePort:              23456,
+		access:                   "readwrite",
+		username:                 "test-app-rw-9Nv",
+		secretName:               "bar",
+		serviceUserAnnotationKey: "session-store.valkey.aiven.nais.io/serviceUser",
+		serviceNameAnnotationKey: "session-store.valkey.aiven.nais.io/serviceName",
+		usernameKey:              "VALKEY_USERNAME_SESSION_STORE",
+		passwordKey:              "VALKEY_PASSWORD_SESSION_STORE",
+		uriKey:                   "VALKEY_URI_SESSION_STORE",
+		hostKey:                  "VALKEY_HOST_SESSION_STORE",
+		portKey:                  "VALKEY_PORT_SESSION_STORE",
+		redisUriKey:              "REDIS_URI_SESSION_STORE",
+		redisPortKey:             "REDIS_PORT_SESSION_STORE",
+		redisHostKey:             "REDIS_HOST_SESSION_STORE",
+		redisPasswordKey:         "REDIS_PASSWORD_SESSION_STORE",
+		redisUsernameKey:         "REDIS_USERNAME_SESSION_STORE",
+	},
 }
 
 type mockContainer struct {
@@ -179,21 +178,20 @@ var _ = Describe("valkey.Handler", func() {
 	})
 
 	When("it receives a spec with Valkey requested", func() {
-		data := testInstances["foo"]
+		data := testInstances["my-instance1"]
 
 		BeforeEach(func() {
-
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
 						{
-							Instance:   testInstances["foo"].instanceName,
-							Access:     testInstances["foo"].access,
-							SecretName: testInstances["foo"].secretName,
+							Instance:   testInstances["my-instance1"].instanceName,
+							Access:     testInstances["my-instance1"].access,
+							SecretName: testInstances["my-instance1"].secretName,
 						},
 						{
-							Instance: testInstances["bar"].instanceName,
-							Access:   testInstances["bar"].access,
+							Instance: testInstances["session-store"].instanceName,
+							Access:   testInstances["session-store"].access,
 						},
 					},
 				}).
@@ -202,7 +200,6 @@ var _ = Describe("valkey.Handler", func() {
 
 		Context("and the service is unavailable", func() {
 			BeforeEach(func() {
-
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
@@ -229,7 +226,6 @@ var _ = Describe("valkey.Handler", func() {
 						Status:   500,
 					})
 				mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
-
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -251,8 +247,8 @@ var _ = Describe("valkey.Handler", func() {
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
 						{
-							Instance:   data["foo"].instanceName,
-							Access:     data["foo"].access,
+							Instance:   data["my-instance1"].instanceName,
+							Access:     data["my-instance1"].access,
 							SecretName: "foo",
 						},
 					},
@@ -281,42 +277,44 @@ var _ = Describe("valkey.Handler", func() {
 
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
-				defaultServiceManagerMock(data["foo"])
-				mocks.serviceUserManager.On("Get", mock.Anything, data["foo"].username, projectName, data["foo"].serviceName, mock.Anything).
+				defaultServiceManagerMock(data["my-instance1"])
+				mocks.serviceUserManager.On("Get", mock.Anything, data["my-instance1"].username, projectName, data["my-instance1"].serviceName, mock.Anything).
 					Return(&aiven.ServiceUser{
-						Username: data["foo"].username,
+						Username: data["my-instance1"].username,
 						Password: servicePassword,
 					}, nil)
 			})
 
 			It("uses the existing user", func() {
 				secrets, err := valkeyHandler.Apply(ctx, &application, logger)
-				fmt.Fprintf(GinkgoWriter, "secrtes %v", secrets)
-				assertHappy(secrets[0], testInstances["foo"], err)
+				for _, secret := range secrets {
+					assertHappy(secret, testInstances[secret.Annotations[InstanceAnnotation]], err)
+				}
 			})
 		})
 
 		Context("and the service user doesn't exist", func() {
 			BeforeEach(func() {
-				defaultServiceManagerMock(data["foo"])
+				defaultServiceManagerMock(data["my-instance1"])
 				mocks.secretsHandler.On("GetOrInitSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(corev1.Secret{})
 
-				mocks.serviceUserManager.On("Get", mock.Anything, data["foo"].username, projectName, data["foo"].serviceName, mock.Anything).
+				mocks.serviceUserManager.On("Get", mock.Anything, data["my-instance1"].username, projectName, data["my-instance1"].serviceName, mock.Anything).
 					Return(nil, aiven.Error{
 						Message: "Service user does not exist",
 						Status:  404,
 					})
-				mocks.serviceUserManager.On("Create", mock.Anything, data["foo"].username, projectName, data["foo"].serviceName, defaultAccessControl(data["foo"]), mock.Anything).
+				mocks.serviceUserManager.On("Create", mock.Anything, data["my-instance1"].username, projectName, data["my-instance1"].serviceName, defaultAccessControl(data["my-instance1"]), mock.Anything).
 					Return(&aiven.ServiceUser{
-						Username: data["foo"].username,
+						Username: data["my-instance1"].username,
 						Password: servicePassword,
 					}, nil)
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
 				secrets, err := valkeyHandler.Apply(ctx, &application, logger)
-				fmt.Fprintf(GinkgoWriter, "secretsII: %v", secrets)
-				assertHappy(secrets[0], testInstances["foo"], err)
+				for _, secret := range secrets {
+					assertHappy(secret, testInstances[secret.Annotations[InstanceAnnotation]], err)
+				}
 			})
 		})
 	})
@@ -371,7 +369,9 @@ var _ = Describe("valkey.Handler", func() {
 
 			It("uses the existing user", func() {
 				secrets, err := valkeyHandler.Apply(ctx, &application, logger)
-				assertHappy(secrets[0], testInstances["foo"], err)
+				for _, secret := range secrets {
+					assertHappy(secret, testInstances[secret.Annotations[InstanceAnnotation]], err)
+				}
 			})
 		})
 
@@ -397,10 +397,8 @@ var _ = Describe("valkey.Handler", func() {
 
 			It("creates the new user and returns credentials for the new user", func() {
 				secrets, err := valkeyHandler.Apply(ctx, &application, logger)
-				for _, data := range testInstances {
-					for _, secret := range secrets {
-						assertHappy(secret, data, err)
-					}
+				for _, secret := range secrets {
+					assertHappy(secret, testInstances[secret.Annotations[InstanceAnnotation]], err)
 				}
 			})
 		})
