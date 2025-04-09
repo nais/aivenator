@@ -8,7 +8,6 @@ import (
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
-	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/handlers/secret"
@@ -38,7 +37,6 @@ const (
 
 func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string) OpenSearchHandler {
 	return OpenSearchHandler{
-		project:       project.NewManager(aiven.CA),
 		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:       service.NewManager(aiven.Services),
 		openSearchACL: aiven.OpenSearchACLs,
@@ -48,7 +46,6 @@ func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName 
 }
 
 type OpenSearchHandler struct {
-	project       project.ProjectManager
 	serviceuser   serviceuser.ServiceUserManager
 	service       service.ServiceManager
 	openSearchACL opensearch.ACLManager
@@ -86,7 +83,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 				Namespace: application.GetNamespace(),
 			},
 		}
-		_, err := h.secretHandler.Apply(ctx, application, finalSecret, logger)
+		_, err := h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
 		if err != nil {
 			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 		}

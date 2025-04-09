@@ -38,12 +38,34 @@ func NewHandler(aiven *aiven.Client, projectName string) Handler {
 }
 
 func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
-	// TODO: For at testene skal gå igjennom, så må gjøre noen navneendringer i her i stedet
 	secretName := application.Spec.SecretName
 
 	errors := validation.IsDNS1123Label(secretName)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secretName, utils.ErrUnrecoverable, errors)
+	}
+
+	secret.ObjectMeta.Name = application.Spec.SecretName
+	secret.ObjectMeta.Namespace = application.GetNamespace()
+	updateObjectMeta(application, &secret.ObjectMeta)
+
+	projectCa, err := s.project.GetCA(ctx, s.projectName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get project CA: %w", err)
+	}
+
+	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
+		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
+		AivenCAKey:            projectCa,
+	})
+
+	return nil, nil
+}
+
+func (s Handler) ApplyIndividualSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
+	errors := validation.IsDNS1123Label(secret.Name)
+	if len(errors) > 0 {
+		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secret.Name, utils.ErrUnrecoverable, errors)
 	}
 
 	updateObjectMeta(application, &secret.ObjectMeta)
@@ -62,9 +84,6 @@ func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenA
 }
 
 func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *metav1.ObjectMeta) {
-	objMeta.Name = application.Spec.SecretName
-	objMeta.Namespace = application.GetNamespace()
-
 	generation := 0
 	if v, ok := application.Labels[constants.GenerationLabel]; ok {
 		g, err := strconv.Atoi(v)
