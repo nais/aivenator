@@ -26,14 +26,14 @@ const (
 )
 
 type Handler struct {
-	project     project.ProjectManager
-	projectName string
+	Project     project.ProjectManager
+	ProjectName string
 }
 
 func NewHandler(aiven *aiven.Client, projectName string) Handler {
 	return Handler{
-		project:     project.NewManager(aiven.CA),
-		projectName: projectName,
+		Project:     project.NewManager(aiven.CA),
+		ProjectName: projectName,
 	}
 }
 
@@ -49,7 +49,7 @@ func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenA
 	secret.ObjectMeta.Namespace = application.GetNamespace()
 	updateObjectMeta(application, &secret.ObjectMeta)
 
-	projectCa, err := s.project.GetCA(ctx, s.projectName)
+	projectCa, err := s.Project.GetCA(ctx, s.ProjectName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get project CA: %w", err)
 	}
@@ -70,7 +70,7 @@ func (s Handler) ApplyIndividualSecret(ctx context.Context, application *aiven_n
 
 	updateObjectMeta(application, &secret.ObjectMeta)
 
-	projectCa, err := s.project.GetCA(ctx, s.projectName)
+	projectCa, err := s.Project.GetCA(ctx, s.ProjectName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get project CA: %w", err)
 	}

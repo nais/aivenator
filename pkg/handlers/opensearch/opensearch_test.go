@@ -10,6 +10,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 
 	"github.com/nais/aivenator/pkg/utils"
 	v1 "k8s.io/api/core/v1"
@@ -57,6 +58,7 @@ type OpenSearchHandlerTestSuite struct {
 
 	logger             *log.Entry
 	mockServiceUsers   *serviceuser.MockServiceUserManager
+	mockProject        *project.MockProjectManager
 	mockServices       *service.MockServiceManager
 	mockOpenSearchACL  *opensearch.MockACLManager
 	opensearchHandler  OpenSearchHandler
@@ -88,6 +90,12 @@ func (suite *OpenSearchHandlerTestSuite) addDefaultMocks(enabled map[int]struct{
 				Password: servicePassword,
 			}, nil)
 	}
+
+	if _, ok := enabled[ServiceUsersGet]; ok {
+		suite.mockProject.On("GetCA", mock.Anything, mock.Anything).
+			Return("my-ca", nil)
+	}
+
 	if _, ok := enabled[ServiceUsersCreate]; ok {
 		suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			Return(&aiven.ServiceUser{
@@ -133,12 +141,17 @@ func (suite *OpenSearchHandlerTestSuite) addDefaultMocks(enabled map[int]struct{
 func (suite *OpenSearchHandlerTestSuite) SetupTest() {
 	suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
 	suite.mockServices = &service.MockServiceManager{}
+	suite.mockProject = &project.MockProjectManager{}
 	suite.mockOpenSearchACL = &opensearch.MockACLManager{}
 	suite.opensearchHandler = OpenSearchHandler{
 		serviceuser:   suite.mockServiceUsers,
 		service:       suite.mockServices,
 		openSearchACL: suite.mockOpenSearchACL,
-		projectName:   projectName,
+		secretHandler: secret.Handler{
+			Project:     suite.mockProject,
+			ProjectName: projectName,
+		},
+		projectName: projectName,
 	}
 	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", namespace)
 	suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -208,24 +221,29 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchIndividualSecretsOk() {
 	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
-	expected := &v1.Secret{
+	expected := v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
+			Name:      application.Spec.OpenSearch.SecretName,
+			Namespace: application.GetNamespace(),
 			Annotations: map[string]string{
-				ProjectAnnotation:     projectName,
-				ServiceNameAnnotation: fmt.Sprintf("opensearch-%s-%s", application.GetNamespace(), instance),
-				ServiceUserAnnotation: serviceUserName,
+				ProjectAnnotation:                 projectName,
+				ServiceNameAnnotation:             fmt.Sprintf("opensearch-%s-%s", application.GetNamespace(), instance),
+				ServiceUserAnnotation:             serviceUserName,
+				constants.AivenatorProtectedKey:   "false",
+				"nais.io/deploymentCorrelationID": "",
 			},
+			Labels:     individualSecrets[0].ObjectMeta.Labels,
 			Finalizers: []string{constants.AivenatorFinalizer},
 		},
 		// Check these individually
-		Data:       sharedSecret.Data,
-		StringData: sharedSecret.StringData,
+		Data:       individualSecrets[0].Data,
+		StringData: individualSecrets[0].StringData,
 	}
 	suite.Len(sharedSecret.StringData, 0)
 	suite.Len(individualSecrets, 1)
 	suite.Equal(expected, individualSecrets[0])
 	suite.ElementsMatch(utils.KeysFromStringMap(individualSecrets[0].StringData), []string{
-		OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort,
+		OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort, secret.AivenCAKey, secret.AivenSecretUpdatedKey,
 	})
 }
 
