@@ -3,6 +3,9 @@ package secret
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/utils"
@@ -15,8 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"testing"
-	"time"
 )
 
 const (
@@ -48,9 +49,9 @@ var _ = Describe("secret.Handler", func() {
 	var cancel context.CancelFunc
 
 	type args struct {
-		application aiven_nais_io_v1.AivenApplication
-		secret      corev1.Secret
-		assert      func(args)
+		application  aiven_nais_io_v1.AivenApplication
+		sharedSecret corev1.Secret
+		assert       func(args)
 	}
 
 	BeforeEach(func() {
@@ -68,20 +69,21 @@ var _ = Describe("secret.Handler", func() {
 	})
 
 	DescribeTable("correctly handles", func(args args) {
-		err := handler.Apply(ctx, &args.application, &args.secret, nil)
+		individualSecrets, err := handler.Apply(ctx, &args.application, &args.sharedSecret, nil)
 		Expect(err).To(Succeed())
+		Expect(individualSecrets).To(BeNil())
 
 		args.assert(args)
 	},
 		Entry("a basic AivenApplication",
 			args{
-				application: exampleAivenApplication,
-				secret:      corev1.Secret{},
+				application:  exampleAivenApplication,
+				sharedSecret: corev1.Secret{},
 				assert: func(a args) {
-					Expect(a.secret.Labels[constants.SecretTypeLabel]).To(Equal(constants.AivenatorSecretType))
-					Expect(a.secret.Labels[constants.AppLabel]).To(Equal(a.application.GetName()))
-					Expect(a.secret.Labels[constants.TeamLabel]).To(Equal(a.application.GetNamespace()))
-					Expect(a.secret.GetNamespace()).To(Equal(a.application.GetNamespace()))
+					Expect(a.sharedSecret.Labels[constants.SecretTypeLabel]).To(Equal(constants.AivenatorSecretType))
+					Expect(a.sharedSecret.Labels[constants.AppLabel]).To(Equal(a.application.GetName()))
+					Expect(a.sharedSecret.Labels[constants.TeamLabel]).To(Equal(a.application.GetNamespace()))
+					Expect(a.sharedSecret.GetNamespace()).To(Equal(a.application.GetNamespace()))
 				},
 			}),
 		Entry("an AivenApplication with secret and correlationId",
@@ -90,17 +92,17 @@ var _ = Describe("secret.Handler", func() {
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 					WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
 					Build(),
-				secret: corev1.Secret{},
+				sharedSecret: corev1.Secret{},
 				assert: func(a args) {
-					Expect(validation.ValidateAnnotations(a.secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-					Expect(a.secret.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]).To(Equal(correlationId))
-					Expect(a.secret.GetName()).To(Equal(a.application.Spec.SecretName))
+					Expect(validation.ValidateAnnotations(a.sharedSecret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
+					Expect(a.sharedSecret.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]).To(Equal(correlationId))
+					Expect(a.sharedSecret.GetName()).To(Equal(a.application.Spec.SecretName))
 				},
 			}),
 		Entry("a pre-existing secret",
 			args{
 				application: exampleAivenApplication,
-				secret: corev1.Secret{
+				sharedSecret: corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            secretName,
 						Namespace:       namespace,
@@ -111,24 +113,24 @@ var _ = Describe("secret.Handler", func() {
 					},
 				},
 				assert: func(a args) {
-					Expect(a.secret.Labels).Should(HaveKey("pre-existing-label"), "existing label missing")
-					Expect(a.secret.Labels).Should(HaveKey(constants.AppLabel), "new label missing")
-					Expect(a.secret.Annotations).Should(HaveKey("pre-existing-annotation"), "existing annotation missing")
-					Expect(a.secret.Annotations).Should(HaveKey(nais_io_v1.DeploymentCorrelationIDAnnotation), "new annotation missing")
+					Expect(a.sharedSecret.Labels).Should(HaveKey("pre-existing-label"), "existing label missing")
+					Expect(a.sharedSecret.Labels).Should(HaveKey(constants.AppLabel), "new label missing")
+					Expect(a.sharedSecret.Annotations).Should(HaveKey("pre-existing-annotation"), "existing annotation missing")
+					Expect(a.sharedSecret.Annotations).Should(HaveKey(nais_io_v1.DeploymentCorrelationIDAnnotation), "new annotation missing")
 
-					Expect(a.secret.Finalizers).Should(ContainElement("pre-existing-finalizer"), "existing finalizer missing")
-					Expect(a.secret.OwnerReferences).Should(ContainElement(metav1.OwnerReference{Name: "pre-existing-owner-reference"}), "pre-existing ownerReference missing")
+					Expect(a.sharedSecret.Finalizers).Should(ContainElement("pre-existing-finalizer"), "existing finalizer missing")
+					Expect(a.sharedSecret.OwnerReferences).Should(ContainElement(metav1.OwnerReference{Name: "pre-existing-owner-reference"}), "pre-existing ownerReference missing")
 
-					Expect(a.secret.OwnerReferences).Should(HaveLen(1), "additional ownerReferences set")
+					Expect(a.sharedSecret.OwnerReferences).Should(HaveLen(1), "additional ownerReferences set")
 				},
 			}),
 		Entry("a aiven-generation label is set on application",
 			args{
-				application: applicationWithGeneration,
-				secret:      corev1.Secret{},
+				application:  applicationWithGeneration,
+				sharedSecret: corev1.Secret{},
 				assert: func(a args) {
-					Expect(a.secret.Labels).Should(HaveKey(constants.GenerationLabel), "generation label missing")
-					Expect(a.secret.Labels[constants.GenerationLabel]).To(Equal(secretGeneration))
+					Expect(a.sharedSecret.Labels).Should(HaveKey(constants.GenerationLabel), "generation label missing")
+					Expect(a.sharedSecret.Labels[constants.GenerationLabel]).To(Equal(secretGeneration))
 				},
 			}),
 		Entry("a protected secret",
@@ -136,20 +138,21 @@ var _ = Describe("secret.Handler", func() {
 				application: aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, Protected: true}).
 					Build(),
-				secret: corev1.Secret{},
+				sharedSecret: corev1.Secret{},
 				assert: func(a args) {
-					Expect(validation.ValidateAnnotations(a.secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-					Expect(a.secret.GetAnnotations()[constants.AivenatorProtectedKey]).To(Equal("true"))
-					Expect(a.secret.GetLabels()[constants.AivenatorProtectedKey]).To(Equal("true"))
+					Expect(validation.ValidateAnnotations(a.sharedSecret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
+					Expect(a.sharedSecret.GetAnnotations()[constants.AivenatorProtectedKey]).To(Equal("true"))
+					Expect(a.sharedSecret.GetLabels()[constants.AivenatorProtectedKey]).To(Equal("true"))
 				},
 			}),
 	)
 
 	It("adds correct timestamp to secret data", func() {
-		s := corev1.Secret{}
-		err := handler.Apply(ctx, &exampleAivenApplication, &s, nil)
+		sharedSecret := corev1.Secret{}
+		individualSecrets, err := handler.Apply(ctx, &exampleAivenApplication, &sharedSecret, nil)
 		Expect(err).To(Succeed())
-		value := s.StringData[AivenSecretUpdatedKey]
+		Expect(individualSecrets).To(BeNil())
+		value := sharedSecret.StringData[AivenSecretUpdatedKey]
 		timestamp, err := time.Parse(time.RFC3339, value)
 		Expect(err).To(Succeed())
 
@@ -157,10 +160,11 @@ var _ = Describe("secret.Handler", func() {
 	})
 
 	It("adds project CA to secret data", func() {
-		s := corev1.Secret{}
-		err := handler.Apply(ctx, &exampleAivenApplication, &s, nil)
+		sharedSecret := corev1.Secret{}
+		individualSecrets, err := handler.Apply(ctx, &exampleAivenApplication, &sharedSecret, nil)
 		Expect(err).To(Succeed())
-		value := s.StringData[AivenCAKey]
+		Expect(individualSecrets).To(BeNil())
+		value := sharedSecret.StringData[AivenCAKey]
 
 		Expect(value).To(Equal(projectCA))
 	})
@@ -169,9 +173,10 @@ var _ = Describe("secret.Handler", func() {
 		application := aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 			WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 			Build()
-		err := handler.Apply(ctx, &application, &corev1.Secret{}, nil)
+		individualSecrets, err := handler.Apply(ctx, &application, &corev1.Secret{}, nil)
 		Expect(err).ToNot(Succeed())
 		Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+		Expect(individualSecrets).To(BeNil())
 	},
 		EntryDescription("%v"),
 		Entry("<empty>", ""),

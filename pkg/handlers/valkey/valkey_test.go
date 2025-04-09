@@ -110,7 +110,7 @@ var _ = Describe("valkey.Handler", func() {
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var application aiven_nais_io_v1.AivenApplication
-	var secret v1.Secret
+	var sharedSecret v1.Secret
 	var valkeyHandler ValkeyHandler
 	var mocks mockContainer
 	var ctx context.Context
@@ -140,7 +140,7 @@ var _ = Describe("valkey.Handler", func() {
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
-		secret = v1.Secret{}
+		sharedSecret = v1.Secret{}
 		mocks = mockContainer{
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
@@ -163,9 +163,10 @@ var _ = Describe("valkey.Handler", func() {
 		})
 
 		It("ignores it", func() {
-			err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+			individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
 			Expect(err).To(Succeed())
-			Expect(secret).To(Equal(v1.Secret{}))
+			Expect(sharedSecret).To(Equal(v1.Secret{}))
+			Expect(individualSecrets).To(BeNil())
 		})
 	})
 
@@ -195,10 +196,11 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetService failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(individualSecrets).To(BeNil())
 			})
 		})
 
@@ -214,10 +216,11 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetServiceUser failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(individualSecrets).To(BeNil())
 			})
 		})
 	})
@@ -268,8 +271,9 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("uses the existing user", func() {
-				err := valkeyHandler.Apply(ctx, &application, &secret, logger)
-				assertHappy(&secret, err)
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
+				assertHappy(&sharedSecret, err)
+				Expect(individualSecrets).To(BeNil())
 			})
 		})
 
@@ -289,8 +293,9 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				err := valkeyHandler.Apply(ctx, &application, &secret, logger)
-				assertHappy(&secret, err)
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
+				assertHappy(&sharedSecret, err)
+				Expect(individualSecrets).To(BeNil())
 			})
 		})
 	})
@@ -338,10 +343,11 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("uses the existing user", func() {
-				err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
 				for _, data := range testInstances {
-					assertHappy(&secret, data, err)
+					assertHappy(&sharedSecret, data, err)
 				}
+				Expect(individualSecrets).To(BeNil())
 			})
 		})
 
@@ -364,10 +370,11 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				err := valkeyHandler.Apply(ctx, &application, &secret, logger)
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
 				for _, data := range testInstances {
-					assertHappy(&secret, data, err)
+					assertHappy(&sharedSecret, data, err)
 				}
+				Expect(individualSecrets).To(BeNil())
 			})
 		})
 	})

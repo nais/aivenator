@@ -55,10 +55,10 @@ type ValkeyHandler struct {
 	projectName string
 }
 
-func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
+func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "valkey"})
 	if len(application.Spec.Valkey) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	for _, spec := range application.Spec.Valkey {
@@ -71,15 +71,15 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 
 		addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 		if err != nil {
-			return utils.AivenFail("GetService", application, err, true, logger)
+			return nil, utils.AivenFail("GetService", application, err, true, logger)
 		}
 		if len(addresses.Valkey.URI) == 0 {
-			return utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
+			return nil, utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
 		}
 
 		aivenUser, err := h.provideServiceUser(ctx, application, spec, serviceName, secret, logger)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		serviceUserAnnotationKey := fmt.Sprintf("%s.%s", keyName(spec.Instance, "-"), ServiceUserAnnotation)
@@ -110,7 +110,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
-	return nil
+	return nil, nil
 }
 
 func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {

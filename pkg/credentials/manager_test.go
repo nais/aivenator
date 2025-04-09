@@ -22,7 +22,7 @@ func TestManager_Apply(t *testing.T) {
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
-		Return(nil).
+		Return(nil, nil).
 		Run(func(args mock.Arguments) {
 			secret := args.Get(2).(*corev1.Secret)
 			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
@@ -34,12 +34,14 @@ func TestManager_Apply(t *testing.T) {
 	manager := Manager{handlers: []Handler{&mockHandler}}
 
 	// when
-	secret := &corev1.Secret{}
-	secret, err := manager.CreateSecret(context.Background(), &application, secret, nil)
+	sharedSecret := &corev1.Secret{}
+	individualSecrets, err := manager.CreateSecret(context.Background(), &application, sharedSecret, nil)
 
 	// then
 	assert.NoError(t, err)
-	assert.Equal(t, secret.ObjectMeta.Annotations, expectedAnnotations)
+	assert.NotEmpty(t, individualSecrets)
+	assert.Equal(t, sharedSecret.ObjectMeta.Annotations, expectedAnnotations)
+	assert.Equal(t, individualSecrets[0].ObjectMeta.Annotations, expectedAnnotations)
 }
 
 func TestManager_ApplyFailed(t *testing.T) {
@@ -54,7 +56,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
-		Return(nil).
+		Return(nil, nil).
 		Run(func(args mock.Arguments) {
 			secret := args.Get(2).(*corev1.Secret)
 			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
@@ -75,7 +77,7 @@ func TestManager_ApplyFailed(t *testing.T) {
 			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
 			mock.AnythingOfType("*v1.Secret"),
 			mock.Anything).
-		Return(handlerError)
+		Return(nil, handlerError)
 	failingHandler.
 		On("Cleanup",
 			mock.Anything,
