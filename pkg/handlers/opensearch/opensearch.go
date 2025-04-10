@@ -14,7 +14,7 @@ import (
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -53,7 +53,7 @@ type OpenSearchHandler struct {
 	projectName   string
 }
 
-func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error) {
+func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
 	spec := application.Spec.OpenSearch
 	if spec == nil {
 		return nil, nil
@@ -77,7 +77,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	finalSecret := sharedSecret
 	if spec.SecretName != "" {
-		finalSecret = &v1.Secret{
+		finalSecret = &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      spec.SecretName,
 				Namespace: application.GetNamespace(),
@@ -88,7 +88,6 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 		}
 	}
-
 	aivenUser, err := h.provideServiceUser(ctx, application, serviceName, finalSecret, logger)
 	if err != nil {
 		return nil, err
@@ -111,13 +110,13 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
 
 	if spec.SecretName != "" {
-		return []v1.Secret{*finalSecret}, nil
+		return []corev1.Secret{*finalSecret}, nil
 	}
 
 	return nil, nil
 }
 
-func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	var aivenUser *aiven.ServiceUser
 	var err error
 
@@ -156,7 +155,7 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 	return aivenUser, nil
 }
 
-func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error {
+func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger *log.Entry) error {
 	annotations := secret.GetAnnotations()
 
 	if serviceName, okServiceName := annotations[ServiceNameAnnotation]; okServiceName {

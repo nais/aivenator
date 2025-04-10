@@ -7,14 +7,16 @@ import (
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
+	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -99,6 +101,7 @@ var testInstances = []testData{
 type mockContainer struct {
 	serviceUserManager *serviceuser.MockServiceUserManager
 	serviceManager     *service.MockServiceManager
+	projectManager     *project.MockProjectManager
 }
 
 func TestValkey(t *testing.T) {
@@ -110,7 +113,7 @@ var _ = Describe("valkey.Handler", func() {
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var application aiven_nais_io_v1.AivenApplication
-	var sharedSecret v1.Secret
+	var sharedSecret corev1.Secret
 	var valkeyHandler ValkeyHandler
 	var mocks mockContainer
 	var ctx context.Context
@@ -140,15 +143,20 @@ var _ = Describe("valkey.Handler", func() {
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
-		sharedSecret = v1.Secret{}
+		sharedSecret = corev1.Secret{}
 		mocks = mockContainer{
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
+			projectManager:     project.NewMockProjectManager(GinkgoT()),
 		}
 		valkeyHandler = ValkeyHandler{
 			serviceuser: mocks.serviceUserManager,
 			service:     mocks.serviceManager,
 			projectName: projectName,
+			secretHandler: secret.Handler{
+				Project:     mocks.projectManager,
+				ProjectName: projectName,
+			},
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	})
@@ -165,7 +173,7 @@ var _ = Describe("valkey.Handler", func() {
 		It("ignores it", func() {
 			individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
 			Expect(err).To(Succeed())
-			Expect(sharedSecret).To(Equal(v1.Secret{}))
+			Expect(sharedSecret).To(Equal(corev1.Secret{}))
 			Expect(individualSecrets).To(BeNil())
 		})
 	})
@@ -238,9 +246,10 @@ var _ = Describe("valkey.Handler", func() {
 						},
 					}}).
 				Build()
+
 		})
 
-		assertHappy := func(secret *v1.Secret, err error) {
+		assertHappy := func(secret *corev1.Secret, err error) {
 			GinkgoHelper()
 			Expect(err).To(Succeed())
 			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
@@ -299,6 +308,72 @@ var _ = Describe("valkey.Handler", func() {
 			})
 		})
 	})
+	When("it receives a spec with multiple newstyle instances", func() {
+		BeforeEach(func() {
+			var specs []*aiven_nais_io_v1.ValkeySpec
+			for _, data := range testInstances {
+				specs = append(specs, &aiven_nais_io_v1.ValkeySpec{
+					Instance: data.instanceName,
+					Access:   data.access,
+				})
+			}
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+						&aiven_nais_io_v1.ValkeySpec{
+							Instance:   "my-instance1",
+							Access:     "read",
+							SecretName: "first-secret",
+						}, &aiven_nais_io_v1.ValkeySpec{
+							Instance:   "session-store",
+							Access:     "readwrite",
+							SecretName: "second-secret",
+						},
+					},
+				}).
+				Build()
+		})
+
+		assertHappy := func(secret *corev1.Secret, data testData, err error) {
+			GinkgoHelper()
+			Expect(err).To(Succeed())
+			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
+			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
+			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
+			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
+			Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
+		}
+
+		Context("and the service user already exists", func() {
+			BeforeEach(func() {
+				for _, data := range testInstances {
+					defaultServiceManagerMock(data)
+					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
+						Return(&aiven.ServiceUser{
+							Username: data.username,
+							Password: servicePassword,
+						}, nil)
+					mocks.projectManager.On("GetCA", mock.Anything, projectName).
+						Return("my-ca", nil)
+
+				}
+
+			})
+
+			It("uses the existing user", func() {
+
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
+				for i, data := range testInstances {
+					assertHappy(&individualSecrets[i], data, err)
+				}
+				Expect(len(individualSecrets)).To(Equal(2))
+			})
+		})
+	})
 
 	When("it receives a spec with multiple instances", func() {
 		BeforeEach(func() {
@@ -316,7 +391,7 @@ var _ = Describe("valkey.Handler", func() {
 				Build()
 		})
 
-		assertHappy := func(secret *v1.Secret, data testData, err error) {
+		assertHappy := func(secret *corev1.Secret, data testData, err error) {
 			GinkgoHelper()
 			Expect(err).To(Succeed())
 			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
