@@ -10,6 +10,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 
 	"github.com/nais/aivenator/pkg/utils"
 	v1 "k8s.io/api/core/v1"
@@ -41,6 +42,7 @@ const (
 	ServiceUsersCreate
 	OpenSearchACLGet
 	OpenSearchACLUpdate
+	ProjectCAGet
 )
 
 func enabled(elements ...int) map[int]struct{} {
@@ -56,11 +58,11 @@ type OpenSearchHandlerTestSuite struct {
 
 	logger             *log.Entry
 	mockServiceUsers   *serviceuser.MockServiceUserManager
+	mockProject        *project.MockProjectManager
 	mockServices       *service.MockServiceManager
 	mockOpenSearchACL  *opensearch.MockACLManager
 	opensearchHandler  OpenSearchHandler
 	applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
-	mockProjects       *project.MockProjectManager
 	ctx                context.Context
 	cancel             context.CancelFunc
 }
@@ -88,6 +90,12 @@ func (suite *OpenSearchHandlerTestSuite) addDefaultMocks(enabled map[int]struct{
 				Password: servicePassword,
 			}, nil)
 	}
+
+	if _, ok := enabled[ServiceUsersGet]; ok {
+		suite.mockProject.On("GetCA", mock.Anything, mock.Anything).
+			Return("my-ca", nil)
+	}
+
 	if _, ok := enabled[ServiceUsersCreate]; ok {
 		suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			Return(&aiven.ServiceUser{
@@ -133,13 +141,17 @@ func (suite *OpenSearchHandlerTestSuite) addDefaultMocks(enabled map[int]struct{
 func (suite *OpenSearchHandlerTestSuite) SetupTest() {
 	suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
 	suite.mockServices = &service.MockServiceManager{}
+	suite.mockProject = &project.MockProjectManager{}
 	suite.mockOpenSearchACL = &opensearch.MockACLManager{}
 	suite.opensearchHandler = OpenSearchHandler{
-		project:       suite.mockProjects,
 		serviceuser:   suite.mockServiceUsers,
 		service:       suite.mockServices,
 		openSearchACL: suite.mockOpenSearchACL,
-		projectName:   projectName,
+		secretHandler: secret.Handler{
+			Project:     suite.mockProject,
+			ProjectName: projectName,
+		},
+		projectName: projectName,
 	}
 	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", namespace)
 	suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -152,11 +164,12 @@ func (suite *OpenSearchHandlerTestSuite) TearDownTest() {
 func (suite *OpenSearchHandlerTestSuite) TestNoOpenSearch() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	application := suite.applicationBuilder.Build()
-	secret := &v1.Secret{}
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	sharedSecret := &v1.Secret{}
+	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
-	suite.Equal(&v1.Secret{}, secret)
+	suite.Equal(&v1.Secret{}, sharedSecret)
+	suite.Nil(individualSecrets)
 }
 
 func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
@@ -169,8 +182,8 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
 			},
 		}).
 		Build()
-	secret := &v1.Secret{}
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	sharedSecret := &v1.Secret{}
+	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
 	expected := &v1.Secret{
@@ -183,12 +196,54 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
 			Finalizers: []string{constants.AivenatorFinalizer},
 		},
 		// Check these individually
-		Data:       secret.Data,
-		StringData: secret.StringData,
+		Data:       sharedSecret.Data,
+		StringData: sharedSecret.StringData,
 	}
-	suite.Equal(expected, secret)
-	suite.ElementsMatch(utils.KeysFromStringMap(secret.StringData), []string{
+	suite.Equal(expected, sharedSecret)
+	suite.ElementsMatch(utils.KeysFromStringMap(sharedSecret.StringData), []string{
 		OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort,
+	})
+	suite.Nil(individualSecrets)
+}
+
+func (suite *OpenSearchHandlerTestSuite) TestOpenSearchIndividualSecretsOk() {
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServiceUsersGet))
+	application := suite.applicationBuilder.
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+				Instance:   instance,
+				Access:     access,
+				SecretName: "foo",
+			},
+		}).
+		Build()
+	sharedSecret := &v1.Secret{}
+	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
+
+	suite.NoError(err)
+	expected := v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      application.Spec.OpenSearch.SecretName,
+			Namespace: application.GetNamespace(),
+			Annotations: map[string]string{
+				ProjectAnnotation:                 projectName,
+				ServiceNameAnnotation:             fmt.Sprintf("opensearch-%s-%s", application.GetNamespace(), instance),
+				ServiceUserAnnotation:             serviceUserName,
+				constants.AivenatorProtectedKey:   "false",
+				"nais.io/deploymentCorrelationID": "",
+			},
+			Labels:     individualSecrets[0].ObjectMeta.Labels,
+			Finalizers: []string{constants.AivenatorFinalizer},
+		},
+		// Check these individually
+		Data:       individualSecrets[0].Data,
+		StringData: individualSecrets[0].StringData,
+	}
+	suite.Len(sharedSecret.StringData, 0)
+	suite.Len(individualSecrets, 1)
+	suite.Equal(expected, individualSecrets[0])
+	suite.ElementsMatch(utils.KeysFromStringMap(individualSecrets[0].StringData), []string{
+		OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort, secret.AivenCAKey, secret.AivenSecretUpdatedKey,
 	})
 }
 
@@ -210,10 +265,11 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceGetFailed() {
 			Status:   500,
 		})
 
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
+	suite.Nil(individualSecrets)
 }
 
 func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailed() {
@@ -225,7 +281,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailed() {
 			},
 		}).
 		Build()
-	secret := &v1.Secret{}
+	sharedSecret := &v1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, aiven.Error{
@@ -234,10 +290,11 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailed() {
 			Status:   500,
 		})
 
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
+	suite.Nil(individualSecrets)
 }
 
 func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreateFailed() {
@@ -264,11 +321,12 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreateFailed() {
 			Status:   500,
 		}).Once()
 
-	secret := &v1.Secret{}
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	sharedSecret := &v1.Secret{}
+	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.Error(err)
 	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
+	suite.Nil(individualSecrets)
 }
 
 func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreatedIfNeeded() {
@@ -294,14 +352,15 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreatedIfNeeded() {
 			Password: servicePassword,
 		}, nil).Once()
 
-	secret := &v1.Secret{}
-	err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+	sharedSecret := &v1.Secret{}
+	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
-	suite.Equal(username, secret.StringData[OpenSearchUser])
+	suite.Equal(username, sharedSecret.StringData[OpenSearchUser])
 	suite.mockServiceUsers.AssertExpectations(suite.T())
 	suite.mockServices.AssertExpectations(suite.T())
 	suite.mockOpenSearchACL.AssertExpectations(suite.T())
+	suite.Nil(individualSecrets)
 }
 
 func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelected() {
@@ -343,11 +402,12 @@ func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelected() {
 					},
 				}).
 				Build()
-			secret := &v1.Secret{}
-			err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
+			sharedSecret := &v1.Secret{}
+			individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 			suite.NoError(err)
-			suite.Equal(t.username, secret.StringData[OpenSearchUser])
+			suite.Equal(t.username, sharedSecret.StringData[OpenSearchUser])
+			suite.Nil(individualSecrets)
 		})
 	}
 }

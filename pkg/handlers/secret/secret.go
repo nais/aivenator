@@ -26,32 +26,32 @@ const (
 )
 
 type Handler struct {
-	project     project.ProjectManager
-	projectName string
+	Project     project.ProjectManager
+	ProjectName string
 }
 
 func NewHandler(aiven *aiven.Client, projectName string) Handler {
 	return Handler{
-		project:     project.NewManager(aiven.CA),
-		projectName: projectName,
+		Project:     project.NewManager(aiven.CA),
+		ProjectName: projectName,
 	}
 }
 
-func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) error {
+func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
 	secretName := application.Spec.SecretName
 
 	errors := validation.IsDNS1123Label(secretName)
-	hasErrors := len(errors) > 0
-
-	if hasErrors {
-		return fmt.Errorf("invalid secret name '%s': %w", secretName, utils.ErrUnrecoverable)
+	if len(errors) > 0 {
+		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secretName, utils.ErrUnrecoverable, errors)
 	}
 
+	secret.ObjectMeta.Name = application.Spec.SecretName
+	secret.ObjectMeta.Namespace = application.GetNamespace()
 	updateObjectMeta(application, &secret.ObjectMeta)
 
-	projectCa, err := s.project.GetCA(ctx, s.projectName)
+	projectCa, err := s.Project.GetCA(ctx, s.ProjectName)
 	if err != nil {
-		return fmt.Errorf("unable to get project CA: %w", err)
+		return nil, fmt.Errorf("unable to get project CA: %w", err)
 	}
 
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
@@ -59,13 +59,31 @@ func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenA
 		AivenCAKey:            projectCa,
 	})
 
-	return nil
+	return nil, nil
+}
+
+func (s Handler) ApplyIndividualSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
+	errors := validation.IsDNS1123Label(secret.Name)
+	if len(errors) > 0 {
+		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secret.Name, utils.ErrUnrecoverable, errors)
+	}
+
+	updateObjectMeta(application, &secret.ObjectMeta)
+
+	projectCa, err := s.Project.GetCA(ctx, s.ProjectName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get project CA: %w", err)
+	}
+
+	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
+		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
+		AivenCAKey:            projectCa,
+	})
+
+	return nil, nil
 }
 
 func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *metav1.ObjectMeta) {
-	objMeta.Name = application.Spec.SecretName
-	objMeta.Namespace = application.GetNamespace()
-
 	generation := 0
 	if v, ok := application.Labels[constants.GenerationLabel]; ok {
 		g, err := strconv.Atoi(v)

@@ -19,7 +19,7 @@ import (
 )
 
 type Handler interface {
-	Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error
+	Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error)
 	Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error
 }
 
@@ -38,12 +38,13 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 	}
 }
 
-func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger *log.Entry) (*v1.Secret, error) {
+func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *v1.Secret, logger *log.Entry) ([]v1.Secret, error) {
+	var finalSecrets []v1.Secret
 	for _, handler := range c.handlers {
 		processingStart := time.Now()
-		err := handler.Apply(ctx, application, secret, logger)
+		individualSecrets, err := handler.Apply(ctx, application, sharedSecret, logger)
 		if err != nil {
-			cleanupError := handler.Cleanup(ctx, secret, logger)
+			cleanupError := handler.Cleanup(ctx, sharedSecret, logger)
 			if cleanupError != nil {
 				return nil, fmt.Errorf("error during apply: %w, additionally, an error occured during cleanup: %v", err, cleanupError)
 			}
@@ -56,9 +57,13 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 		metrics.HandlerProcessingTime.With(prometheus.Labels{
 			metrics.LabelHandler: handlerName,
 		}).Observe(used.Seconds())
+
+		if individualSecrets != nil {
+			finalSecrets = append(finalSecrets, individualSecrets...)
+		}
 	}
 
-	return secret, nil
+	return append(finalSecrets, *sharedSecret), nil
 }
 
 func (c Manager) Cleanup(ctx context.Context, s *v1.Secret, logger *log.Entry) error {

@@ -65,21 +65,21 @@ type KafkaHandler struct {
 	projects     []string
 }
 
-func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
+func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "kafka"})
 	if application.Spec.Kafka == nil {
-		return nil
+		return nil, nil
 	}
 
 	projectName := application.Spec.Kafka.Pool
 	if projectName == "" {
 		logger.Debugf("No Kafka pool specified; noop")
-		return nil
+		return nil, nil
 	}
 
 	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, application.Spec.Kafka.Pool)
 	if err != nil {
-		return utils.AivenFail("ResolveServiceName", application, err, false, logger)
+		return nil, utils.AivenFail("ResolveServiceName", application, err, false, logger)
 	}
 
 	logger = logger.WithFields(log.Fields{
@@ -90,22 +90,22 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	if !strings.ContainsString(h.projects, projectName) {
 		err := fmt.Errorf("pool %s is not allowed in this cluster: %w", projectName, utils.ErrUnrecoverable)
 		utils.LocalFail("ValidatePool", application, err, logger)
-		return err
+		return nil, err
 	}
 
 	addresses, err := h.service.GetServiceAddresses(ctx, projectName, serviceName)
 	if err != nil {
-		return utils.AivenFail("GetService", application, err, false, logger)
+		return nil, utils.AivenFail("GetService", application, err, false, logger)
 	}
 
 	ca, err := h.project.GetCA(ctx, projectName)
 	if err != nil {
-		return utils.AivenFail("GetCA", application, err, false, logger)
+		return nil, utils.AivenFail("GetCA", application, err, false, logger)
 	}
 
 	aivenUser, err := h.provideServiceUser(ctx, application, projectName, serviceName, secret, logger)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
@@ -117,7 +117,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	credStore, err := h.generator.MakeCredStores(aivenUser.AccessKey, aivenUser.AccessCert, ca)
 	if err != nil {
 		utils.LocalFail("CreateCredStores", application, err, logger)
-		return err
+		return nil, err
 	}
 
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
@@ -139,7 +139,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
 
-	return nil
+	return nil, nil
 }
 
 func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {

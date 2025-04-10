@@ -8,13 +8,14 @@ import (
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
-	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -36,27 +37,28 @@ const (
 
 func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string) OpenSearchHandler {
 	return OpenSearchHandler{
-		project:       project.NewManager(aiven.CA),
 		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:       service.NewManager(aiven.Services),
 		openSearchACL: aiven.OpenSearchACLs,
+		secretHandler: secret.NewHandler(aiven, projectName),
 		projectName:   projectName,
 	}
 }
 
 type OpenSearchHandler struct {
-	project       project.ProjectManager
 	serviceuser   serviceuser.ServiceUserManager
 	service       service.ServiceManager
 	openSearchACL opensearch.ACLManager
+	secretHandler secret.Handler
 	projectName   string
 }
 
-func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) error {
+func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error) {
 	spec := application.Spec.OpenSearch
 	if spec == nil {
-		return nil
+		return nil, nil
 	}
+
 	serviceName := spec.Instance
 
 	logger = logger.WithFields(log.Fields{
@@ -67,26 +69,38 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 	if err != nil {
-		return utils.AivenFail("GetService", application, err, false, logger)
+		return nil, utils.AivenFail("GetService", application, err, false, logger)
 	}
 	if len(addresses.OpenSearch.URI) == 0 {
-		return utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
+		return nil, utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
 	}
 
-	aivenUser, err := h.provideServiceUser(ctx, application, serviceName, secret, logger)
+	finalSecret := sharedSecret
+	if spec.SecretName != "" {
+		finalSecret = &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      spec.SecretName,
+				Namespace: application.GetNamespace(),
+			},
+		}
+		_, err := h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
+		if err != nil {
+			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
+		}
+	}
+
+	aivenUser, err := h.provideServiceUser(ctx, application, serviceName, finalSecret, logger)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
+	finalSecret.SetAnnotations(utils.MergeStringMap(finalSecret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenUser.Username,
 		ServiceNameAnnotation: fmt.Sprintf("opensearch-%s-%s", application.GetNamespace(), serviceName),
 		ProjectAnnotation:     h.projectName,
 	}))
 
-	logger.Infof("Fetched service user %s", aivenUser.Username)
-
-	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
+	finalSecret.StringData = utils.MergeStringMap(finalSecret.StringData, map[string]string{
 		OpenSearchUser:     aivenUser.Username,
 		OpenSearchPassword: aivenUser.Password,
 		OpenSearchURI:      addresses.OpenSearch.URI,
@@ -94,9 +108,13 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		OpenSearchPort:     strconv.Itoa(addresses.OpenSearch.Port),
 	})
 
-	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
+	controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
 
-	return nil
+	if spec.SecretName != "" {
+		return []v1.Secret{*finalSecret}, nil
+	}
+
+	return nil, nil
 }
 
 func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
