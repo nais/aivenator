@@ -3,11 +3,12 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"github.com/nais/liberator/pkg/scheme"
-	"k8s.io/apimachinery/pkg/runtime"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/nais/liberator/pkg/scheme"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
@@ -98,9 +99,7 @@ type secretSetup struct {
 	reason     string
 }
 
-func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
-	pastDate := time.Now().Add(-48 * time.Hour)
-	futureDate := time.Now().Add(48 * time.Hour)
+func generateAndRegisterPodSecrets(suite *JanitorTestSuite) []secretSetup {
 	secrets := []secretSetup{
 		{UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, false, "Unused secret should be deleted"},
 		{UnusedSecret, NotMyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret in another namespace should be kept"},
@@ -110,13 +109,17 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 		{UnusedSecretWithNoAnnotations, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretHasNoAnnotations}, false, "Unused secret should be deleted, even if annotations are nil"},
 		{SecretBelongingToOtherApp, MyNamespace, constants.AivenatorSecretType, NotMyAppName, []MakeSecretOption{}, true, "Secret belonging to different app should be kept"},
 		{CurrentlyRequestedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret currently requested should be kept"},
-		{ProtectedNotExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(futureDate)}, true, "Protected secret with time-limit that isn't expired should be kept"},
-		{ProtectedExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(pastDate)}, false, "Protected secret with time-limit that is expired should be deleted"},
+		{ProtectedNotExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(time.Now().Add(48 * time.Hour))}, true, "Protected secret with time-limit that isn't expired should be kept"},
+		{ProtectedExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(time.Now().Add(-48 * time.Hour))}, false, "Protected secret with time-limit that is expired should be deleted"},
 		{ProtectedTimeLimitedWithNoExpirySet, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit}, true, "Protected secret with time-limit but missing expires date should be kept"},
 	}
 	for _, s := range secrets {
 		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
 	}
+	return secrets
+}
+
+func generateApplication() aiven_nais_io_v1.AivenApplication {
 	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			SecretName: CurrentlyRequestedSecret,
@@ -125,8 +128,176 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 	application.SetLabels(map[string]string{
 		constants.AppLabel: MyAppName,
 	})
+	return application
+}
+
+func (suite *JanitorTestSuite) TestUnusedVolumeMountedSecretsFound() {
+	secrets := generateAndRegisterPodSecrets(suite)
+	application := generateApplication()
+
 	suite.clientBuilder.WithRuntimeObjects(
-		makePodForSecret(SecretUsedByPod),
+		makePodForSecretVolume(SecretUsedByPod),
+		&application,
+	)
+
+	// Unique per of these tests
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+	suite.Nil(err)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
+func (suite *JanitorTestSuite) TestUnusedEnvMountedSecretsFound() {
+	secrets := generateAndRegisterPodSecrets(suite)
+	application := generateApplication()
+
+	// Unique per of these tests
+	suite.clientBuilder.WithRuntimeObjects(
+		makePodForSecretValueFrom(SecretUsedByPod),
+		&application,
+	)
+
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+	suite.Nil(err)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
+func (suite *JanitorTestSuite) TestUnusedEnvFromMountedSecretsFound() {
+	secrets := generateAndRegisterPodSecrets(suite)
+	application := generateApplication()
+
+	// Unique per of these tests
+	suite.clientBuilder.WithRuntimeObjects(
+		makePodForSecretEnvFrom(SecretUsedByPod),
+		&application,
+	)
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+	suite.Nil(err)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
+func (suite *JanitorTestSuite) TestOpenSearchIndividualSecret() {
+	secrets := generateAndRegisterPodSecrets(suite)
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+				Instance:   "OpenSearchInstance",
+				Access:     "read",
+				SecretName: CurrentlyRequestedSecret,
+			},
+		}).
+		Build()
+	application.SetLabels(map[string]string{
+		constants.AppLabel: MyAppName,
+	})
+
+	suite.clientBuilder.WithRuntimeObjects(
+		makePodForSecretValueFrom(SecretUsedByPod),
+		&application,
+	)
+
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+	suite.Nil(err)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
+func (suite *JanitorTestSuite) TestValkeyIndividualSecret() {
+	secrets := generateAndRegisterPodSecrets(suite)
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Valkey: []*aiven_nais_io_v1.ValkeySpec{
+				{
+					Instance:   "ValkeyInstance",
+					Access:     "read",
+					SecretName: CurrentlyRequestedSecret,
+				},
+			},
+		}).
+		Build()
+	application.SetLabels(map[string]string{
+		constants.AppLabel: MyAppName,
+	})
+
+	suite.clientBuilder.WithRuntimeObjects(
+		makePodForSecretValueFrom(SecretUsedByPod),
+		&application,
+	)
+
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+	suite.Nil(err)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
+func (suite *JanitorTestSuite) TestKafkaIndividualSecret() {
+	secrets := generateAndRegisterPodSecrets(suite)
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
+				Pool:       "KafkaPool",
+				SecretName: CurrentlyRequestedSecret,
+			},
+		}).
+		Build()
+	application.SetLabels(map[string]string{
+		constants.AppLabel: MyAppName,
+	})
+
+	suite.clientBuilder.WithRuntimeObjects(
+		makePodForSecretValueFrom(SecretUsedByPod),
 		&application,
 	)
 
@@ -352,7 +523,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 	}
 }
 
-func makePodForSecret(secretName string) *corev1.Pod {
+func makePodForSecretVolume(secretName string) *corev1.Pod {
 	return &corev1.Pod{
 		Spec: corev1.PodSpec{
 			Volumes: []corev1.Volume{
@@ -360,6 +531,52 @@ func makePodForSecret(secretName string) *corev1.Pod {
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName: secretName,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func makePodForSecretValueFrom(secretName string) *corev1.Pod {
+	return &corev1.Pod{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "container",
+					Env: []corev1.EnvVar{
+						{
+							Name: "AIVEN_SECRET",
+							ValueFrom: &corev1.EnvVarSource{
+								SecretKeyRef: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: "my-secret",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func makePodForSecretEnvFrom(secretName string) *corev1.Pod {
+	return &corev1.Pod{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "container",
+					EnvFrom: []corev1.EnvFromSource{
+						{
+							SecretRef: &corev1.SecretEnvSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: secretName,
+								},
+							},
 						},
 					},
 				},

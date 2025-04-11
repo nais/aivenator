@@ -3,6 +3,7 @@ package credentials
 import (
 	"context"
 	"fmt"
+
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -138,6 +139,16 @@ func inUse(object client.Object, secretName string) (bool, error) {
 	case *aiven_nais_io_v1.AivenApplication:
 		if t.Spec.SecretName == secretName {
 			return true, nil
+		} else if t.Spec.Kafka != nil && t.Spec.Kafka.SecretName == secretName {
+			return true, nil
+		} else if t.Spec.OpenSearch != nil && t.Spec.OpenSearch.SecretName == secretName {
+			return true, nil
+		} else if t.Spec.Valkey != nil {
+			for _, spec := range t.Spec.Valkey {
+				if spec.SecretName == secretName {
+					return true, nil
+				}
+			}
 		} else {
 			return false, nil
 		}
