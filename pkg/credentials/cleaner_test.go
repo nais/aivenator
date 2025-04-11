@@ -208,6 +208,115 @@ func (suite *JanitorTestSuite) TestUnusedEnvFromMountedSecretsFound() {
 	}
 }
 
+func (suite *JanitorTestSuite) TestOpenSearchIndividualSecret() {
+	secrets := generateAndRegisterPodSecrets(suite)
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+				Instance:   "OpenSearchInstance",
+				Access:     "read",
+				SecretName: CurrentlyRequestedSecret,
+			},
+		}).
+		Build()
+	application.SetLabels(map[string]string{
+		constants.AppLabel: MyAppName,
+	})
+
+	suite.clientBuilder.WithRuntimeObjects(
+		makePodForSecretValueFrom(SecretUsedByPod),
+		&application,
+	)
+
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+	suite.Nil(err)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
+func (suite *JanitorTestSuite) TestValkeyIndividualSecret() {
+	secrets := generateAndRegisterPodSecrets(suite)
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Valkey: []*aiven_nais_io_v1.ValkeySpec{
+				{
+					Instance:   "ValkeyInstance",
+					Access:     "read",
+					SecretName: CurrentlyRequestedSecret,
+				},
+			},
+		}).
+		Build()
+	application.SetLabels(map[string]string{
+		constants.AppLabel: MyAppName,
+	})
+
+	suite.clientBuilder.WithRuntimeObjects(
+		makePodForSecretValueFrom(SecretUsedByPod),
+		&application,
+	)
+
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+	suite.Nil(err)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
+func (suite *JanitorTestSuite) TestKafkaIndividualSecret() {
+	secrets := generateAndRegisterPodSecrets(suite)
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
+				Pool:       "KafkaPool",
+				SecretName: CurrentlyRequestedSecret,
+			},
+		}).
+		Build()
+	application.SetLabels(map[string]string{
+		constants.AppLabel: MyAppName,
+	})
+
+	suite.clientBuilder.WithRuntimeObjects(
+		makePodForSecretValueFrom(SecretUsedByPod),
+		&application,
+	)
+
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+	suite.Nil(err)
+
+	for _, tt := range secrets {
+		suite.Run(tt.reason, func() {
+			actual := &corev1.Secret{}
+			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+		})
+	}
+}
+
 func (suite *JanitorTestSuite) TestErrors() {
 	type interaction struct {
 		method     string
