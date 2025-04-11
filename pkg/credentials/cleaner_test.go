@@ -3,11 +3,12 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"github.com/nais/liberator/pkg/scheme"
-	"k8s.io/apimachinery/pkg/runtime"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/nais/liberator/pkg/scheme"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
@@ -125,12 +126,24 @@ func (suite *JanitorTestSuite) TestUnusedSecretsFound() {
 	application.SetLabels(map[string]string{
 		constants.AppLabel: MyAppName,
 	})
+
 	suite.clientBuilder.WithRuntimeObjects(
-		makePodForSecret(SecretUsedByPod),
+		makePodForSecretVolume(SecretUsedByPod),
+		&application,
+	)
+	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	runTestStuff(suite, janitor, secrets, application)
+
+	suite.clientBuilder.WithRuntimeObjects(
+		makePodForSecretEnvFrom(SecretUsedByPod),
 		&application,
 	)
 
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
+	janitor = suite.buildJanitor(suite.clientBuilder.Build())
+	runTestStuff(suite, janitor, secrets, application)
+}
+
+func runTestStuff(suite *JanitorTestSuite, janitor *Cleaner, secrets []secretSetup, application aiven_nais_io_v1.AivenApplication) {
 	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
 	suite.Nil(err)
 
@@ -352,7 +365,7 @@ func (suite *JanitorTestSuite) TestErrors() {
 	}
 }
 
-func makePodForSecret(secretName string) *corev1.Pod {
+func makePodForSecretVolume(secretName string) *corev1.Pod {
 	return &corev1.Pod{
 		Spec: corev1.PodSpec{
 			Volumes: []corev1.Volume{
@@ -360,6 +373,52 @@ func makePodForSecret(secretName string) *corev1.Pod {
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName: secretName,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func makePodForSecretValueFrom(secretName string) *corev1.Pod {
+	return &corev1.Pod{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "container",
+					Env: []corev1.EnvVar{
+						{
+							Name: "AIVEN_SECRET",
+							ValueFrom: &corev1.EnvVarSource{
+								SecretKeyRef: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: "my-secret",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func makePodForSecretEnvFrom(secretName string) *corev1.Pod {
+	return &corev1.Pod{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "container",
+					EnvFrom: []corev1.EnvFromSource{
+						{
+							SecretRef: &corev1.SecretEnvSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: secretName,
+								},
+							},
 						},
 					},
 				},
