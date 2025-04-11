@@ -139,6 +139,8 @@ func inUse(object client.Object, secretName string) (bool, error) {
 	case *aiven_nais_io_v1.AivenApplication:
 		if t.Spec.SecretName == secretName {
 			return true, nil
+		} else if t.Spec.Kafka != nil && t.Spec.Kafka.SecretName == secretName {
+			return true, nil
 		} else if t.Spec.OpenSearch != nil && t.Spec.OpenSearch.SecretName == secretName {
 			return true, nil
 		} else if t.Spec.Valkey != nil {
