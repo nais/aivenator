@@ -13,6 +13,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/certificate"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -129,7 +130,11 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 		service:      suite.mockServices,
 		generator:    suite.mockGenerator,
 		nameResolver: suite.mockNameResolver,
-		projects:     []string{"dev-nais-dev", "my-testing-pool"},
+		secretHandler: secret.Handler{
+			Project:     suite.mockProjects,
+			ProjectName: "dev-nais-dev",
+		},
+		projects: []string{"dev-nais-dev", "my-testing-pool"},
 	}
 	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
 	suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -195,6 +200,42 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			Kafka: &aiven_nais_io_v1.KafkaSpec{
 				Pool: pool,
+			},
+		}).
+		Build()
+	sharedSecret := &v1.Secret{}
+	individualSecrets, err := suite.kafkaHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
+
+	suite.NoError(err)
+	expected := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				ServiceUserAnnotation: serviceUserName,
+				PoolAnnotation:        pool,
+			},
+			Finalizers: []string{constants.AivenatorFinalizer},
+		},
+		// Check these individually
+		Data:       sharedSecret.Data,
+		StringData: sharedSecret.StringData,
+	}
+	suite.Equal(expected, sharedSecret)
+	suite.Nil(individualSecrets)
+
+	suite.ElementsMatch(utils.KeysFromStringMap(sharedSecret.StringData), []string{
+		KafkaCA, KafkaPrivateKey, KafkaCredStorePassword, KafkaSchemaRegistry, KafkaSchemaUser, KafkaSchemaPassword,
+		KafkaBrokers, KafkaSecretUpdated, KafkaCertificate,
+	})
+	suite.ElementsMatch(keysFromByteMap(sharedSecret.Data), []string{KafkaKeystore, KafkaTruststore})
+}
+
+func (suite *KafkaHandlerTestSuite) TestIndividualSecretKafkaOk() {
+	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores, ServiceUsersGetNotFound))
+	application := suite.applicationBuilder.
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			Kafka: &aiven_nais_io_v1.KafkaSpec{
+				Pool:       pool,
+				SecretName: "foo",
 			},
 		}).
 		Build()
