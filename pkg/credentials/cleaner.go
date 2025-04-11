@@ -114,7 +114,7 @@ func (j *Cleaner) cleanUnusedSecrets(ctx context.Context, secrets corev1.SecretL
 	}
 
 	if found := len(secretLists.Unused.Items); found > 0 {
-		j.Logger.Infof("Found %d unused secrets managed by Aivenator", found)
+		j.Logger.Infof("Found %d secrets managed by Avinator not used by any pods", found)
 
 		for _, oldSecret := range secretLists.Unused.Items {
 			err = j.cleanUnusedSecret(ctx, oldSecret, counts, objects)
