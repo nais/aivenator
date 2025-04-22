@@ -102,10 +102,6 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return fail(fmt.Errorf("unable to retrieve resource from cluster: %s", err))
 	}
 
-	logger = logger.WithFields(log.Fields{
-		"secret_name": application.Spec.SecretName,
-	})
-
 	applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, application, logger)
 	if err != nil {
 		utils.LocalFail("HandleProtectedAndTimeLimited", &application, err, logger)
@@ -163,6 +159,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger.Infof("Creating secret")
 	sharedSecret := r.initSecret(ctx, application, logger)
+	logger = logger.WithField("secret_name", sharedSecret.Name)
 	finalSecrets, err := r.Manager.CreateSecret(ctx, &application, sharedSecret, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
