@@ -157,7 +157,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}).Observe(used.Seconds())
 	}()
 
-	logger.Infof("Creating secret")
+	logger.Infof("Creating secret(s)")
 	sharedSecret := r.initSecret(ctx, application, logger)
 	logger = logger.WithField("secret_name", sharedSecret.Name)
 	finalSecrets, err := r.Manager.CreateSecret(ctx, &application, sharedSecret, logger)
@@ -168,8 +168,8 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger.Infof("Saving %d secret(s) to cluster", len(finalSecrets))
 	for _, secret := range finalSecrets {
-		err = r.SaveSecret(ctx, &secret, logger)
-		if err != nil {
+		logger := logger.WithFields(log.Fields{"secret_name": secret.Name})
+		if err := r.SaveSecret(ctx, &secret, logger); err != nil {
 			utils.LocalFail("SaveSecret", &application, err, logger)
 			return fail(err)
 		}

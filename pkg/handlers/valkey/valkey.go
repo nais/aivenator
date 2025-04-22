@@ -76,6 +76,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		})
 		finalSecret := sharedSecret
 		if valkeySpec.SecretName != "" {
+			logger = logger.WithField("secret_name", valkeySpec.SecretName)
 			finalSecret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      valkeySpec.SecretName,
@@ -205,7 +206,10 @@ func (h ValkeyHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logge
 	annotations := secret.GetAnnotations()
 	projectName, okProjectName := annotations[ProjectAnnotation]
 
-	logger = logger.WithFields(log.Fields{"project": projectName})
+	logger = logger.WithFields(log.Fields{
+		"project":     projectName,
+		"secret_name": secret.Name,
+	})
 	for annotationKey := range annotations {
 		// Specifically for the suffix serviceName
 		if strings.HasSuffix(annotationKey, ServiceNameAnnotation) {

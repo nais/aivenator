@@ -77,6 +77,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	finalSecret := sharedSecret
 	if spec.SecretName != "" {
+		logger = logger.WithField("secret_name", spec.SecretName)
 		finalSecret = &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      spec.SecretName,
@@ -159,6 +160,8 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 	annotations := secret.GetAnnotations()
 
 	if serviceName, okServiceName := annotations[ServiceNameAnnotation]; okServiceName {
+		logger = logger.WithField("secret_name", secret.GetName())
+
 		serviceUser, okServiceUser := annotations[ServiceUserAnnotation]
 		if !okServiceUser {
 			return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
