@@ -87,7 +87,6 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			if err != nil {
 				return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 			}
-
 		}
 
 		addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
@@ -125,13 +124,14 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			fmt.Sprintf("%s_%s", RedisHost, envVarSuffix):      addresses.Valkey.Host,
 			fmt.Sprintf("%s_%s", RedisURI, envVarSuffix):       strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
 		})
+
 		controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
 
 		if valkeySpec.SecretName != "" {
 			secrets = append(secrets, *finalSecret)
 		}
-
 	}
+
 	if len(secrets) > 0 {
 		return secrets, nil
 	}
@@ -140,9 +140,6 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 }
 
 func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
-	var aivenUser *aiven.ServiceUser
-	var err error
-
 	var serviceUserName string
 
 	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
@@ -158,13 +155,14 @@ func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aive
 		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetName(), utils.SelectSuffix(valkeySpec.Access), suffix)
 	}
 
-	aivenUser, err = h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
+	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
 	if err == nil {
 		return aivenUser, nil
 	}
 	if !aiven.IsNotFound(err) {
 		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
 	}
+
 	accessControl := &aiven.AccessControl{
 		ValkeyACLCategories: getValkeyACLCategories(valkeySpec.Access),
 		ValkeyACLKeys:       []string{"*"},
@@ -175,6 +173,7 @@ func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aive
 	if err != nil {
 		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 	}
+
 	return aivenUser, nil
 }
 

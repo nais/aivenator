@@ -112,7 +112,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger.Infof("Application exists; processing")
 	defer func() {
-		application.Status.SynchronizationTime = &v1.Time{time.Now()}
+		application.Status.SynchronizationTime = &v1.Time{Time: time.Now()}
 		application.Status.ObservedGeneration = application.GetGeneration()
 		err := metrics.ObserveKubernetesLatency("AivenApplication_Update", func() error {
 			return r.Status().Update(ctx, &application)

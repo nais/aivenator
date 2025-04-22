@@ -118,9 +118,6 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 }
 
 func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
-	var aivenUser *aiven.ServiceUser
-	var err error
-
 	var serviceUserName string
 
 	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
@@ -136,7 +133,7 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetNamespace(), utils.SelectSuffix(application.Spec.OpenSearch.Access), suffix)
 	}
 
-	aivenUser, err = h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
+	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
 	if err == nil {
 		return aivenUser, nil
 	}
@@ -149,11 +146,33 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 	}
 
-	if err = h.updateACL(ctx, serviceUserName, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
+	if err := h.updateACL(ctx, serviceUserName, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
 		return nil, utils.AivenFail("UpdateACL", application, err, false, logger)
 	}
 
 	return aivenUser, nil
+}
+
+func (h OpenSearchHandler) updateACL(ctx context.Context, serviceUserName, access, projectName, serviceName string) error {
+	resp, err := h.openSearchACL.Get(ctx, projectName, serviceName)
+	if err != nil {
+		return err
+	}
+
+	config := resp.OpenSearchACLConfig
+	config.Enabled = true
+	config.Add(aiven.OpenSearchACL{
+		Rules: []aiven.OpenSearchACLRule{
+			{Index: "_*", Permission: access},
+			{Index: "*", Permission: access},
+		},
+		Username: serviceUserName,
+	})
+	_, err = h.openSearchACL.Update(ctx, projectName, serviceName, aiven.OpenSearchACLRequest{
+		OpenSearchACLConfig: config,
+	})
+
+	return err
 }
 
 func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger *log.Entry) error {
@@ -189,28 +208,5 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 		logger.Infof("Deleted service user %s", serviceUser)
 	}
 
-	return nil
-}
-
-func (h OpenSearchHandler) updateACL(ctx context.Context, serviceUserName string, access string, projectName string, serviceName string) error {
-	resp, err := h.openSearchACL.Get(ctx, projectName, serviceName)
-	if err != nil {
-		return err
-	}
-	config := resp.OpenSearchACLConfig
-	config.Enabled = true
-	config.Add(aiven.OpenSearchACL{
-		Rules: []aiven.OpenSearchACLRule{
-			{Index: "_*", Permission: access},
-			{Index: "*", Permission: access},
-		},
-		Username: serviceUserName,
-	})
-	_, err = h.openSearchACL.Update(ctx, projectName, serviceName, aiven.OpenSearchACLRequest{
-		OpenSearchACLConfig: config,
-	})
-	if err != nil {
-		return err
-	}
 	return nil
 }
