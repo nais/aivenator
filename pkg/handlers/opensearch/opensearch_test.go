@@ -2,7 +2,6 @@ package opensearch
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -190,7 +189,7 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOk() {
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ProjectAnnotation:     projectName,
-				ServiceNameAnnotation: fmt.Sprintf("opensearch-%s-%s", application.GetNamespace(), instance),
+				ServiceNameAnnotation: instance,
 				ServiceUserAnnotation: serviceUserName,
 			},
 			Finalizers: []string{constants.AivenatorFinalizer},
@@ -227,7 +226,7 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchIndividualSecretsOk() {
 			Namespace: application.GetNamespace(),
 			Annotations: map[string]string{
 				ProjectAnnotation:                 projectName,
-				ServiceNameAnnotation:             fmt.Sprintf("opensearch-%s-%s", application.GetNamespace(), instance),
+				ServiceNameAnnotation:             instance,
 				ServiceUserAnnotation:             serviceUserName,
 				constants.AivenatorProtectedKey:   "false",
 				"nais.io/deploymentCorrelationID": "",
