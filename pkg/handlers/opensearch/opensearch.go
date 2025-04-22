@@ -96,7 +96,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	finalSecret.SetAnnotations(utils.MergeStringMap(finalSecret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenUser.Username,
-		ServiceNameAnnotation: fmt.Sprintf("opensearch-%s-%s", application.GetNamespace(), serviceName),
+		ServiceNameAnnotation: serviceName,
 		ProjectAnnotation:     h.projectName,
 	}))
 
