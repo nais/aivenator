@@ -48,6 +48,7 @@ Currently supported Aiven services
 
 - Kafka
 - OpenSearch
+- Valkey
 
 Protected Applications
 ----------------------
@@ -77,8 +78,8 @@ These will be installed in `./.testbin/` by `make kubebuilder`.
 Verifying the Aivenator image and its contents
 ----------------------
 
-The image is signed "keylessly" (is that a word?) using [Sigstore cosign](https://github.com/sigstore/cosign). 
-To verify its authenticity run 
+The image is signed "keylessly" (is that a word?) using [Sigstore cosign](https://github.com/sigstore/cosign).
+To verify its authenticity run
 ```
 cosign verify ghcr.io/nais/aivenator/aivenator:<tag> \
 --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
@@ -86,7 +87,7 @@ cosign verify ghcr.io/nais/aivenator/aivenator:<tag> \
 ```
 
 The images are also attested with SBOMs in the [CycloneDX](https://cyclonedx.org/) format.
-You can verify these by running 
+You can verify these by running
 ```
 cosign verify-attestation --type cyclonedx \
 --certificate-identity "https://github.com/nais/aivenator/.github/workflows/main.yml@refs/heads/main" \
