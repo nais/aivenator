@@ -24,6 +24,7 @@ const (
 	ServiceUserAnnotation = "opensearch.aiven.nais.io/serviceUser"
 	ServiceNameAnnotation = "opensearch.aiven.nais.io/serviceName"
 	ProjectAnnotation     = "opensearch.aiven.nais.io/project"
+	DefaultACLAccess      = "read"
 )
 
 // Environment variables
@@ -119,6 +120,10 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	var serviceUserName string
+
+	if application.Spec.OpenSearch.Access == "" {
+		application.Spec.OpenSearch.Access = DefaultACLAccess
+	}
 
 	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
 		serviceUserName = nameFromAnnotation
