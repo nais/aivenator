@@ -43,7 +43,7 @@ values:
     computed:
       template: '"{{ if .Env.aiven_prometheus_password }}{{ .Env.aiven_prometheus_password }}{{ end }}"'
   aiven.serviceUserLimit:
-    description: The limit on the number of Service Users in the main project (set by Aiven)
+    description: The limit on the number of Service Users in the main project (set by Aiven) (not used onprem)
     displayName: Service User limit
     config:
       type: int
