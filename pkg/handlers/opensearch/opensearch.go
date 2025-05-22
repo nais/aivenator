@@ -114,6 +114,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	if spec.SecretName != "" {
 		return []corev1.Secret{*finalSecret}, nil
 	}
+	logger.Infof("Applied secret: %s", spec.SecretName)
 
 	return nil, nil
 }
@@ -154,7 +155,7 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 	if err := h.updateACL(ctx, serviceUserName, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
 		return nil, utils.AivenFail("UpdateACL", application, err, false, logger)
 	}
-
+	logger.Infof("created serviceuser: %v", aivenUser.Username)
 	return aivenUser, nil
 }
 

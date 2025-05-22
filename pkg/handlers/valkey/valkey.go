@@ -129,6 +129,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 
 		if valkeySpec.SecretName != "" {
 			secrets = append(secrets, *finalSecret)
+			logger.Infof("Applied secret: %s", valkeySpec.SecretName)
 		}
 	}
 
@@ -174,6 +175,7 @@ func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aive
 		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 	}
 
+	logger.Infof("created serviceuser: %v", aivenUser.Username)
 	return aivenUser, nil
 }
 

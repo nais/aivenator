@@ -58,6 +58,7 @@ func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenA
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
 		AivenCAKey:            projectCa,
 	})
+	logger.Infof("Applied secret: %s", secret.Name)
 
 	return nil, nil
 }
@@ -79,6 +80,7 @@ func (s Handler) ApplyIndividualSecret(ctx context.Context, application *aiven_n
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
 		AivenCAKey:            projectCa,
 	})
+	logger.Infof("Applied individual secret: %s", secret.Name)
 
 	return nil, nil
 }
