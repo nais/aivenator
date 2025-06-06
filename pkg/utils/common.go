@@ -49,7 +49,7 @@ func SelectSuffix(access string) string {
 
 func CreateSuffix(application *aiven_nais_io_v1.AivenApplication) (string, error) {
 	hasher := crc32.NewIEEE()
-	basename := fmt.Sprintf("%d%s", application.Generation, os.Getenv("NAIS_CLUSTER_NAME"))
+	basename := fmt.Sprintf("%d%s", application.Generation, application.Name)
 	_, err := hasher.Write([]byte(basename))
 	if err != nil {
 		return "", err
