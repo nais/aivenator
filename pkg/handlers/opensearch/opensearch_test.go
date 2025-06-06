@@ -305,7 +305,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreateFailed() {
 			},
 		}).
 		Build()
-	username := serviceUserName + "-r-9Nv"
+	username := serviceUserName + "-r-3D_"
 
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	suite.mockServiceUsers.On("Get", mock.Anything, username, projectName, mock.Anything, mock.Anything).
@@ -337,7 +337,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreatedIfNeeded() {
 			},
 		}).
 		Build()
-	username := serviceUserName + "-r-9Nv"
+	username := serviceUserName + "-r-3D_"
 
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, OpenSearchACLGet, OpenSearchACLUpdate))
 	suite.mockServiceUsers.On("Get", mock.Anything, username, projectName, mock.Anything, mock.Anything).
@@ -369,15 +369,15 @@ func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelected() {
 	}{
 		{
 			access:   "read",
-			username: serviceUserName + "-r-9Nv",
+			username: serviceUserName + "-r-3D_",
 		},
 		{
 			access:   "readwrite",
-			username: serviceUserName + "-rw-9Nv",
+			username: serviceUserName + "-rw-3D_",
 		},
 		{
 			access:   "write",
-			username: serviceUserName + "-w-9Nv",
+			username: serviceUserName + "-w-3D_",
 		},
 		{
 			access:   "admin",
