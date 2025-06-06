@@ -97,4 +97,4 @@ values:
       - onprem
   tenant:
     computed:
-      template: '"{{.Tenant.Name}}"'
+      template: '"{{ .Tenant.Name }}"'
