@@ -13,6 +13,7 @@ import (
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
@@ -47,6 +48,7 @@ var _ = Describe("secret.Handler", func() {
 	var mockProjects *project.MockProjectManager
 	var ctx context.Context
 	var cancel context.CancelFunc
+	logger := logrus.New()
 
 	type args struct {
 		application  aiven_nais_io_v1.AivenApplication
@@ -69,7 +71,7 @@ var _ = Describe("secret.Handler", func() {
 	})
 
 	DescribeTable("correctly handles", func(args args) {
-		individualSecrets, err := handler.Apply(ctx, &args.application, &args.sharedSecret, nil)
+		individualSecrets, err := handler.Apply(ctx, &args.application, &args.sharedSecret, logger)
 		Expect(err).To(Succeed())
 		Expect(individualSecrets).To(BeNil())
 
@@ -149,7 +151,7 @@ var _ = Describe("secret.Handler", func() {
 
 	It("adds correct timestamp to secret data", func() {
 		sharedSecret := corev1.Secret{}
-		individualSecrets, err := handler.Apply(ctx, &exampleAivenApplication, &sharedSecret, nil)
+		individualSecrets, err := handler.Apply(ctx, &exampleAivenApplication, &sharedSecret, logger)
 		Expect(err).To(Succeed())
 		Expect(individualSecrets).To(BeNil())
 		value := sharedSecret.StringData[AivenSecretUpdatedKey]
@@ -161,7 +163,7 @@ var _ = Describe("secret.Handler", func() {
 
 	It("adds project CA to secret data", func() {
 		sharedSecret := corev1.Secret{}
-		individualSecrets, err := handler.Apply(ctx, &exampleAivenApplication, &sharedSecret, nil)
+		individualSecrets, err := handler.Apply(ctx, &exampleAivenApplication, &sharedSecret, logger)
 		Expect(err).To(Succeed())
 		Expect(individualSecrets).To(BeNil())
 		value := sharedSecret.StringData[AivenCAKey]
@@ -173,7 +175,7 @@ var _ = Describe("secret.Handler", func() {
 		application := aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 			WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 			Build()
-		individualSecrets, err := handler.Apply(ctx, &application, &corev1.Secret{}, nil)
+		individualSecrets, err := handler.Apply(ctx, &application, &corev1.Secret{}, logger)
 		Expect(err).ToNot(Succeed())
 		Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
 		Expect(individualSecrets).To(BeNil())
