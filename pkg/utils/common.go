@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"hash/crc32"
-	"os"
 	"time"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
