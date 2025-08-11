@@ -1,0 +1,8 @@
+apiVersion: aiven.io/v1alpha1
+kind: Valkey
+metadata:
+  name: valkey-test
+  namespace: basseng
+spec:
+  plan: startup-4
+  project: dev-nais-dev
