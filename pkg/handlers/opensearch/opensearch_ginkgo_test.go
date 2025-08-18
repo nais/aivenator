@@ -34,8 +34,26 @@ const (
 	serviceHost     = "example.com"
 	servicePort     = 1234
 	instance        = "my-instance"
+	serviceName     = "my-service"
 	access          = "read"
 )
+
+type testData struct {
+	instanceName             string
+	serviceName              string
+	serviceURI               string
+	serviceHost              string
+	servicePort              int
+	access                   string
+	username                 string
+	serviceNameAnnotationKey string
+	serviceUserAnnotationKey string
+	usernameKey              string
+	passwordKey              string
+	uriKey                   string
+	hostKey                  string
+	portKey                  string
+}
 
 type mockContainer struct {
 	serviceUserManager *serviceuser.MockServiceUserManager
@@ -49,31 +67,27 @@ func TestOpensearch(t *testing.T) {
 }
 
 var _ = Describe("opensearch handler", func() {
+	var mocks mockContainer
+	var data testData
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var ctx context.Context
 	var sharedSecret corev1.Secret
 	//	var individualSecret corev1.Secret
 	var cancel context.CancelFunc
-	var mocks mockContainer
 	var opensearchHandler OpenSearchHandler
 	var application aiven_nais_io_v1.AivenApplication
-	// suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
-	// suite.mockServices = &service.MockServiceManager{}
-	// suite.mockProject = &project.MockProjectManager{}
-	// suite.mockOpenSearchACL = &opensearch.MockACLManager{}
-	// suite.opensearchHandler = OpenSearchHandler{
-	// 	serviceuser:   suite.mockServiceUsers,
-	// 	service:       suite.mockServices,
-	// 	openSearchACL: suite.mockOpenSearchACL,
-	// 	secretHandler: secret.Handler{
-	// 		Project:     suite.mockProject,
-	// 		ProjectName: projectName,
-	// 	},
-	// 	projectName: projectName,
-	// }
-	// suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", namespace)
-	// suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
+
+	defaultServiceManagerMock := func(data testData) {
+		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, serviceName).
+			Return(&service.ServiceAddresses{
+				OpenSearch: service.ServiceAddress{
+					URI:  data.serviceURI,
+					Host: data.serviceHost,
+					Port: data.servicePort,
+				},
+			}, nil)
+	}
 
 	BeforeEach(func() {
 		sharedSecret = corev1.Secret{}
@@ -103,6 +117,16 @@ var _ = Describe("opensearch handler", func() {
 
 	AfterEach(func() {
 		cancel()
+		logger = nil
+		applicationBuilder = aiven_nais_io_v1.AivenApplicationBuilder{}
+		ctx = nil
+		sharedSecret = corev1.Secret{}
+		cancel = nil
+		opensearchHandler = OpenSearchHandler{}
+
+		application = aiven_nais_io_v1.AivenApplication{}
+		//	var individualSecret corev1.Secret
+
 	})
 	When("it receives a spec without OpenSearch", func() {
 		BeforeEach(func() {
@@ -129,8 +153,53 @@ var _ = Describe("opensearch handler", func() {
 					}).
 					Build()
 				sharedSecret = corev1.Secret{}
+				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
+					Return(nil, aiven.Error{
+						Message:  "aiven-error",
+						MoreInfo: "aiven-more-info",
+						Status:   500,
+					})
+			})
 
-				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+			It("sets the correct aiven fail condition", func() {
+				individualSecrets, err := opensearchHandler.Apply(ctx, &application, &sharedSecret, logger)
+
+				Expect(err).ToNot(Succeed())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(individualSecrets).To(BeNil())
+
+			})
+		})
+		Context("and service users are unavailable", func() {
+			BeforeEach(func() {
+				data = testData{
+					instanceName:             instance,
+					serviceName:              serviceUserName,
+					serviceURI:               serviceURI,
+					serviceHost:              serviceHost,
+					servicePort:              servicePort,
+					access:                   access,
+					username:                 serviceUserName,
+					serviceNameAnnotationKey: "",
+					serviceUserAnnotationKey: "",
+					usernameKey:              "",
+					passwordKey:              "",
+					uriKey:                   "",
+					hostKey:                  "",
+					portKey:                  "",
+				}
+
+				application = applicationBuilder.
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+							Instance: serviceName,
+							Access:   access,
+						},
+					}).
+					Build()
+				sharedSecret = corev1.Secret{}
+				defaultServiceManagerMock(data)
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
 						MoreInfo: "aiven-more-info",
@@ -147,20 +216,91 @@ var _ = Describe("opensearch handler", func() {
 				Expect(individualSecrets).To(BeNil())
 
 			})
+
 		})
-		Context("and service users are unavailable", func() {})
 	})
-	When("it receives a spec", func() {
-		Context("and the service user already exists", func() {})
-		Context("and the service user doesn't exist", func() {})
-	})
-	When("it receives a spec with multiple newstyle instances", func() {
-		Context("and the service user already exists", func() {})
-	})
-	When("it receives a spec with multiple instances", func() {
-		Context("and the service user already exists", func() {})
-		Context("and the service user doesn't exist", func() {})
-	})
+	// When("it receives a spec", func() {
+	// 	BeforeEach(func() {
+	// 		application = applicationBuilder.
+	// 			WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+	// 				OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+	// 					Instance: instance,
+	// 					Access:   access,
+	// 				},
+	// 			}).
+	// 			Build()
+	// 		sharedSecret = corev1.Secret{}
+
+	// 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+	// 			Return(&service.ServiceAddresses{
+	// 				ServiceURI: serviceURI,
+	// 				OpenSearch: service.ServiceAddress{
+	// 					URI:  serviceURI,
+	// 					Host: serviceHost,
+	// 					Port: servicePort,
+	// 				},
+	// 			}, nil)
+
+	// 	})
+	// 	Context("and the service user already exists", func() {
+	// 		BeforeEach(func() {
+	// 			mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+	// 				Return(&aiven.ServiceUser{
+	// 					Username: serviceUserName,
+	// 					Password: servicePassword,
+	// 				}, nil)
+
+	// 		})
+
+	// 		It("Uses the existing user", func() {
+	// 			suite.NoError(err)
+	// 			expected := &v1.Secret{
+	// 				ObjectMeta: metav1.ObjectMeta{
+	// 					Annotations: map[string]string{
+	// 						ProjectAnnotation:     projectName,
+	// 						ServiceNameAnnotation: instance,
+	// 						ServiceUserAnnotation: serviceUserName,
+	// 					},
+	// 					Finalizers: []string{constants.AivenatorFinalizer},
+	// 				},
+	// 				// Check these individually
+	// 				Data:       sharedSecret.Data,
+	// 				StringData: sharedSecret.StringData,
+	// 			}
+	// 			suite.Equal(expected, sharedSecret)
+	// 			suite.ElementsMatch(utils.KeysFromStringMap(sharedSecret.StringData), []string{
+	// 				OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort,
+	// 			})
+	// 			suite.Nil(individualSecrets)
+	// 		})
+	// 	})
+
+	// 	Context("and the service user doesn't exist", func() {
+	// 		BeforeEach(func() {
+	// 			defaultServiceManagerMock(data)
+	// 			mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
+	// 				Return(nil, aiven.Error{
+	// 					Message: "Service user does not exist",
+	// 					Status:  404,
+	// 				})
+	// 			mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, nil, mock.Anything).
+	// 				Return(&aiven.ServiceUser{
+	// 					Username: data.username,
+	// 					Password: servicePassword,
+	// 				}, nil)
+
+	// 		})
+
+	// 		It("Creates and returns creds for the new user", func() {
+
+	// 			suite.Error(err)
+	// 			suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
+	// 			suite.Nil(individualSecrets)
+
+	// 		})
+
+	// 	})
+	// })
 })
 
 func (suite *OpenSearchHandlerTestSuite) SetupSuiteG() {
