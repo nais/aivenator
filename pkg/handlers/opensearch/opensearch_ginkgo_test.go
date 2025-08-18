@@ -11,7 +11,10 @@ import (
 	"github.com/nais/aivenator/pkg/handlers/secret"
 
 	"github.com/nais/aivenator/pkg/utils"
-	v1 "k8s.io/api/core/v1"
+	//	. "github.com/onsi/gomega"
+
+	. "github.com/onsi/ginkgo/v2"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/aiven/aiven-go-client/v2"
@@ -21,10 +24,57 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+var _ = Describe("opensearch handler", func() {
+	var logger log.FieldLogger
+	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
+	var ctx context.Context
+	var cancel context.CancelFunc
+
+	// suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
+	// suite.mockServices = &service.MockServiceManager{}
+	// suite.mockProject = &project.MockProjectManager{}
+	// suite.mockOpenSearchACL = &opensearch.MockACLManager{}
+	// suite.opensearchHandler = OpenSearchHandler{
+	// 	serviceuser:   suite.mockServiceUsers,
+	// 	service:       suite.mockServices,
+	// 	openSearchACL: suite.mockOpenSearchACL,
+	// 	secretHandler: secret.Handler{
+	// 		Project:     suite.mockProject,
+	// 		ProjectName: projectName,
+	// 	},
+	// 	projectName: projectName,
+	// }
+	// suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", namespace)
+	// suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
+
+	BeforeEach(func() {})
+
+	AfterEach(func() {
+		cancel()
+	})
+	When("it receives a spec without OpenSearch", func() {})
+	When("it receives a spec with OpenSearch requested", func() {
+		Context("and the service is unavailable", func() {})
+		Context("and service users are unavailable", func() {})
+	})
+	When("it receives a spec", func() {
+		Context("and the service user already exists", func() {})
+		Context("and the service user doesn't exist", func() {})
+	})
+	When("it receives a spec with multiple newstyle instances", func() {
+		Context("and the service user already exists", func() {})
+	})
+	When("it receives a spec with multiple instances", func() {
+		Context("and the service user already exists", func() {})
+		Context("and the service user doesn't exist", func() {})
+	})
+})
+
 func (suite *OpenSearchHandlerTestSuite) SetupSuiteG() {
 	suite.logger = log.NewEntry(log.New())
 }
 
+// Before
 func (suite *OpenSearchHandlerTestSuite) addDefaultMocksG(enabled map[int]struct{}) {
 	if _, ok := enabled[ServicesGetAddresses]; ok {
 		suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
@@ -92,6 +142,7 @@ func (suite *OpenSearchHandlerTestSuite) addDefaultMocksG(enabled map[int]struct
 	}
 }
 
+// Before ??
 func (suite *OpenSearchHandlerTestSuite) SetupTestG() {
 	suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
 	suite.mockServices = &service.MockServiceManager{}
@@ -111,18 +162,20 @@ func (suite *OpenSearchHandlerTestSuite) SetupTestG() {
 	suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
 }
 
+// After
 func (suite *OpenSearchHandlerTestSuite) TearDownTestG() {
 	suite.cancel()
 }
 
+// Tests
 func (suite *OpenSearchHandlerTestSuite) TestNoOpenSearchG() {
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	application := suite.applicationBuilder.Build()
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
-	suite.Equal(&v1.Secret{}, sharedSecret)
+	suite.Equal(&corev1.Secret{}, sharedSecret)
 	suite.Nil(individualSecrets)
 }
 
@@ -136,11 +189,11 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOkG() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
-	expected := &v1.Secret{
+	expected := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ProjectAnnotation:     projectName,
@@ -171,11 +224,11 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchIndividualSecretsOkG() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
-	expected := v1.Secret{
+	expected := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      application.Spec.OpenSearch.SecretName,
 			Namespace: application.GetNamespace(),
@@ -210,7 +263,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceGetFailedG() {
 			},
 		}).
 		Build()
-	secret := &v1.Secret{}
+	secret := &corev1.Secret{}
 	suite.addDefaultMocks(enabled(ServiceUsersGet))
 	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, aiven.Error{
@@ -235,7 +288,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailedG() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses))
 	suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, aiven.Error{
@@ -275,7 +328,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreateFailedG() {
 			Status:   500,
 		}).Once()
 
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.Error(err)
@@ -306,7 +359,7 @@ func (suite *OpenSearchHandlerTestSuite) TestServiceUserCreatedIfNeededG() {
 			Password: servicePassword,
 		}, nil).Once()
 
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
@@ -356,7 +409,7 @@ func (suite *OpenSearchHandlerTestSuite) TestCorrectServiceUserSelectedG() {
 					},
 				}).
 				Build()
-			sharedSecret := &v1.Secret{}
+			sharedSecret := &corev1.Secret{}
 			individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 			suite.NoError(err)
