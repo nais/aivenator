@@ -24,18 +24,6 @@ import (
 )
 
 const (
-	namespace       = "team-a"
-	serviceUserName = "team-a"
-	servicePassword = "service-password"
-	projectName     = "my-project"
-	serviceURI      = "http://example.com:1234"
-	serviceHost     = "example.com"
-	servicePort     = 1234
-	instance        = "my-instance"
-	access          = "read"
-)
-
-const (
 	ServicesGetAddresses = iota
 	ServiceUsersGet
 	ServiceUsersCreate

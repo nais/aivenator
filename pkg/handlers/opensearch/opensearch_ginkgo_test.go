@@ -2,6 +2,7 @@ package opensearch
 
 import (
 	"context"
+	"testing"
 	"time"
 
 	"github.com/nais/aivenator/constants"
@@ -11,9 +12,8 @@ import (
 	"github.com/nais/aivenator/pkg/handlers/secret"
 
 	"github.com/nais/aivenator/pkg/utils"
-	//	. "github.com/onsi/gomega"
-
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -24,12 +24,40 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const (
+	appName         = "aiven-app"
+	namespace       = "team-a"
+	serviceUserName = "team-a"
+	servicePassword = "service-password"
+	projectName     = "my-project"
+	serviceURI      = "http://example.com:1234"
+	serviceHost     = "example.com"
+	servicePort     = 1234
+	instance        = "my-instance"
+	access          = "read"
+)
+
+type mockContainer struct {
+	serviceUserManager *serviceuser.MockServiceUserManager
+	serviceManager     *service.MockServiceManager
+	projectManager     *project.MockProjectManager
+}
+
+func TestOpensearch(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Opensearch Suite")
+}
+
 var _ = Describe("opensearch handler", func() {
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var ctx context.Context
+	var sharedSecret corev1.Secret
+	//	var individualSecret corev1.Secret
 	var cancel context.CancelFunc
-
+	var mocks mockContainer
+	var opensearchHandler OpenSearchHandler
+	var application aiven_nais_io_v1.AivenApplication
 	// suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
 	// suite.mockServices = &service.MockServiceManager{}
 	// suite.mockProject = &project.MockProjectManager{}
@@ -47,14 +75,79 @@ var _ = Describe("opensearch handler", func() {
 	// suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", namespace)
 	// suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
 
-	BeforeEach(func() {})
+	BeforeEach(func() {
+		sharedSecret = corev1.Secret{}
+
+		root := log.New()
+		root.Out = GinkgoWriter
+		logger = log.NewEntry(root)
+		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
+		mocks = mockContainer{
+			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
+			serviceManager:     service.NewMockServiceManager(GinkgoT()),
+			projectManager:     project.NewMockProjectManager(GinkgoT()),
+		}
+		opensearchHandler = OpenSearchHandler{
+			serviceuser:   mocks.serviceUserManager,
+			service:       mocks.serviceManager,
+			openSearchACL: nil,
+			secretHandler: secret.Handler{
+				Project:     mocks.projectManager,
+				ProjectName: projectName,
+			},
+			projectName: projectName,
+		}
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+
+	})
 
 	AfterEach(func() {
 		cancel()
 	})
-	When("it receives a spec without OpenSearch", func() {})
+	When("it receives a spec without OpenSearch", func() {
+		BeforeEach(func() {
+		})
+
+		It("doesn't crash", func() {
+			individualSecrets, err := opensearchHandler.Apply(ctx, &application, &sharedSecret, logger)
+			Expect(err).To(Succeed())
+			Expect(sharedSecret).To(Equal(corev1.Secret{}))
+			Expect(individualSecrets).To(BeNil())
+		})
+
+	})
+
 	When("it receives a spec with OpenSearch requested", func() {
-		Context("and the service is unavailable", func() {})
+		Context("and the service is unavailable", func() {
+			BeforeEach(func() {
+				application = applicationBuilder.
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+							Instance: instance,
+							Access:   access,
+						},
+					}).
+					Build()
+				sharedSecret = corev1.Secret{}
+
+				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{
+						Message:  "aiven-error",
+						MoreInfo: "aiven-more-info",
+						Status:   500,
+					})
+
+			})
+
+			It("sets the correct aiven fail condition", func() {
+				individualSecrets, err := opensearchHandler.Apply(ctx, &application, &sharedSecret, logger)
+
+				Expect(err).ToNot(Succeed())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(individualSecrets).To(BeNil())
+
+			})
+		})
 		Context("and service users are unavailable", func() {})
 	})
 	When("it receives a spec", func() {
@@ -165,18 +258,6 @@ func (suite *OpenSearchHandlerTestSuite) SetupTestG() {
 // After
 func (suite *OpenSearchHandlerTestSuite) TearDownTestG() {
 	suite.cancel()
-}
-
-// Tests
-func (suite *OpenSearchHandlerTestSuite) TestNoOpenSearchG() {
-	suite.addDefaultMocks(enabled(ServicesGetAddresses))
-	application := suite.applicationBuilder.Build()
-	sharedSecret := &corev1.Secret{}
-	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
-
-	suite.NoError(err)
-	suite.Equal(&corev1.Secret{}, sharedSecret)
-	suite.Nil(individualSecrets)
 }
 
 func (suite *OpenSearchHandlerTestSuite) TestOpenSearchOkG() {
