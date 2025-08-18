@@ -320,11 +320,11 @@ var _ = Describe("valkey.Handler", func() {
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
-						&aiven_nais_io_v1.ValkeySpec{
+						{
 							Instance:   "my-instance1",
 							Access:     "read",
 							SecretName: "first-secret",
-						}, &aiven_nais_io_v1.ValkeySpec{
+						}, {
 							Instance:   "session-store",
 							Access:     "readwrite",
 							SecretName: "second-secret",
