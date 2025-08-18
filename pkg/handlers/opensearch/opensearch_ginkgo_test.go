@@ -79,7 +79,7 @@ var _ = Describe("opensearch handler", func() {
 	var application aiven_nais_io_v1.AivenApplication
 
 	defaultServiceManagerMock := func(data testData) {
-		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, serviceName).
+		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 			Return(&service.ServiceAddresses{
 				OpenSearch: service.ServiceAddress{
 					URI:  data.serviceURI,
@@ -95,7 +95,7 @@ var _ = Describe("opensearch handler", func() {
 		root := log.New()
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
-		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
+		//		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
 		mocks = mockContainer{
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
@@ -118,7 +118,7 @@ var _ = Describe("opensearch handler", func() {
 	AfterEach(func() {
 		cancel()
 		logger = nil
-		applicationBuilder = aiven_nais_io_v1.AivenApplicationBuilder{}
+		//		applicationBuilder = aiven_nais_io_v1.AivenApplicationBuilder{}
 		ctx = nil
 		sharedSecret = corev1.Secret{}
 		cancel = nil
@@ -147,18 +147,13 @@ var _ = Describe("opensearch handler", func() {
 				application = applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-							Instance: instance,
+							Instance: serviceName,
 							Access:   access,
 						},
 					}).
 					Build()
 				sharedSecret = corev1.Secret{}
-				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
-					Return(nil, aiven.Error{
-						Message:  "aiven-error",
-						MoreInfo: "aiven-more-info",
-						Status:   500,
-					})
+				defaultServiceManagerMock(data)
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -192,14 +187,14 @@ var _ = Describe("opensearch handler", func() {
 				application = applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-							Instance: serviceName,
+							Instance: instance,
 							Access:   access,
 						},
 					}).
 					Build()
 				sharedSecret = corev1.Secret{}
 				defaultServiceManagerMock(data)
-				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything).
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
 						MoreInfo: "aiven-more-info",
