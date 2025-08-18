@@ -167,74 +167,6 @@ func (suite *OpenSearchHandlerTestSuite) SetupSuiteG() {
 	suite.logger = log.NewEntry(log.New())
 }
 
-// Before
-func (suite *OpenSearchHandlerTestSuite) addDefaultMocksG(enabled map[int]struct{}) {
-	if _, ok := enabled[ServicesGetAddresses]; ok {
-		suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
-			Return(&service.ServiceAddresses{
-				ServiceURI: serviceURI,
-				OpenSearch: service.ServiceAddress{
-					URI:  serviceURI,
-					Host: serviceHost,
-					Port: servicePort,
-				},
-			}, nil)
-	}
-	if _, ok := enabled[ServiceUsersGet]; ok {
-		suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(&aiven.ServiceUser{
-				Username: serviceUserName,
-				Password: servicePassword,
-			}, nil)
-	}
-
-	if _, ok := enabled[ServiceUsersGet]; ok {
-		suite.mockProject.On("GetCA", mock.Anything, mock.Anything).
-			Return("my-ca", nil)
-	}
-
-	if _, ok := enabled[ServiceUsersCreate]; ok {
-		suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(&aiven.ServiceUser{
-				Username: serviceUserName,
-				Password: servicePassword,
-			}, nil)
-	}
-	if _, ok := enabled[OpenSearchACLGet]; ok {
-		suite.mockOpenSearchACL.On("Get", mock.Anything, mock.Anything, mock.Anything).
-			Return(&aiven.OpenSearchACLResponse{
-				OpenSearchACLConfig: aiven.OpenSearchACLConfig{
-					ACLs: []aiven.OpenSearchACL{
-						{
-							Rules:    nil,
-							Username: serviceUserName,
-						},
-					},
-					Enabled:     true,
-					ExtendedAcl: false,
-				},
-			}, nil).Once()
-	}
-	if _, ok := enabled[OpenSearchACLUpdate]; ok {
-		suite.mockOpenSearchACL.On("Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(&aiven.OpenSearchACLResponse{
-				OpenSearchACLConfig: aiven.OpenSearchACLConfig{
-					ACLs: []aiven.OpenSearchACL{
-						{
-							Rules: []aiven.OpenSearchACLRule{
-								{Index: "*", Permission: access},
-								{Index: "_*", Permission: access},
-							},
-							Username: serviceUserName,
-						},
-					},
-					Enabled:     true,
-					ExtendedAcl: false,
-				},
-			}, nil).Once()
-	}
-}
-
 // Before ??
 func (suite *OpenSearchHandlerTestSuite) SetupTestG() {
 	suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
@@ -333,31 +265,6 @@ func (suite *OpenSearchHandlerTestSuite) TestOpenSearchIndividualSecretsOkG() {
 	suite.ElementsMatch(utils.KeysFromStringMap(individualSecrets[0].StringData), []string{
 		OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort, secret.AivenCAKey, secret.AivenSecretUpdatedKey,
 	})
-}
-
-func (suite *OpenSearchHandlerTestSuite) TestServiceGetFailedG() {
-	application := suite.applicationBuilder.
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-				Instance: instance,
-				Access:   access,
-			},
-		}).
-		Build()
-	secret := &corev1.Secret{}
-	suite.addDefaultMocks(enabled(ServiceUsersGet))
-	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, aiven.Error{
-			Message:  "aiven-error",
-			MoreInfo: "aiven-more-info",
-			Status:   500,
-		})
-
-	individualSecrets, err := suite.opensearchHandler.Apply(suite.ctx, &application, secret, suite.logger)
-
-	suite.Error(err)
-	suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
-	suite.Nil(individualSecrets)
 }
 
 func (suite *OpenSearchHandlerTestSuite) TestServiceUsersGetFailedG() {
