@@ -23,8 +23,6 @@ import (
 )
 
 const (
-	appName         = "aiven-app"
-	namespace       = "team-a"
 	serviceUserName = "team-a"
 	servicePassword = "service-password"
 	projectName     = "my-project"
@@ -33,25 +31,9 @@ const (
 	servicePort     = 1234
 	instance        = "my-instance"
 	serviceName     = "my-service"
+	secretName      = "foo"
 	access          = "read"
 )
-
-type testData struct {
-	instanceName             string
-	serviceName              string
-	serviceURI               string
-	serviceHost              string
-	servicePort              int
-	access                   string
-	username                 string
-	serviceNameAnnotationKey string
-	serviceUserAnnotationKey string
-	usernameKey              string
-	passwordKey              string
-	uriKey                   string
-	hostKey                  string
-	portKey                  string
-}
 
 type mockContainer struct {
 	serviceUserManager *serviceuser.MockServiceUserManager
@@ -67,26 +49,13 @@ func TestOpensearch(t *testing.T) {
 
 var _ = Describe("opensearch handler", func() {
 	var mocks mockContainer
-	var data testData
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var ctx context.Context
 	var sharedSecret corev1.Secret
-	//	var individualSecret corev1.Secret
 	var cancel context.CancelFunc
 	var opensearchHandler OpenSearchHandler
 	var application aiven_nais_io_v1.AivenApplication
-
-	defaultServiceManagerMock := func(data testData) {
-		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
-			Return(&service.ServiceAddresses{
-				OpenSearch: service.ServiceAddress{
-					URI:  data.serviceURI,
-					Host: data.serviceHost,
-					Port: data.servicePort,
-				},
-			}, nil)
-	}
 
 	BeforeEach(func() {
 		sharedSecret = corev1.Secret{}
@@ -94,7 +63,6 @@ var _ = Describe("opensearch handler", func() {
 		root := log.New()
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
-		//		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
 		mocks = mockContainer{
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
@@ -117,14 +85,12 @@ var _ = Describe("opensearch handler", func() {
 	AfterEach(func() {
 		cancel()
 		logger = nil
-		//		applicationBuilder = aiven_nais_io_v1.AivenApplicationBuilder{}
 		ctx = nil
 		sharedSecret = corev1.Secret{}
 		cancel = nil
 		opensearchHandler = OpenSearchHandler{}
 
 		application = aiven_nais_io_v1.AivenApplication{}
-		//	var individualSecret corev1.Secret
 	})
 	When("it receives a spec without OpenSearch", func() {
 		BeforeEach(func() {
@@ -150,7 +116,12 @@ var _ = Describe("opensearch handler", func() {
 					}).
 					Build()
 				sharedSecret = corev1.Secret{}
-				defaultServiceManagerMock(data)
+				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{
+						Message:  "aiven-error",
+						MoreInfo: "aiven-more-info",
+						Status:   500,
+					})
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -163,23 +134,6 @@ var _ = Describe("opensearch handler", func() {
 		})
 		Context("and service users are unavailable", func() {
 			BeforeEach(func() {
-				data = testData{
-					instanceName:             instance,
-					serviceName:              serviceUserName,
-					serviceURI:               serviceURI,
-					serviceHost:              serviceHost,
-					servicePort:              servicePort,
-					access:                   access,
-					username:                 serviceUserName,
-					serviceNameAnnotationKey: "",
-					serviceUserAnnotationKey: "",
-					usernameKey:              "",
-					passwordKey:              "",
-					uriKey:                   "",
-					hostKey:                  "",
-					portKey:                  "",
-				}
-
 				application = applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
@@ -189,7 +143,14 @@ var _ = Describe("opensearch handler", func() {
 					}).
 					Build()
 				sharedSecret = corev1.Secret{}
-				defaultServiceManagerMock(data)
+				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+					Return(&service.ServiceAddresses{
+						OpenSearch: service.ServiceAddress{
+							URI:  serviceURI,
+							Host: serviceHost,
+							Port: servicePort,
+						},
+					}, nil)
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
@@ -241,9 +202,9 @@ var _ = Describe("opensearch handler", func() {
 				application = applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-							Instance:   instance,
+							Instance:   serviceName,
 							Access:     access,
-							SecretName: "foo",
+							SecretName: secretName,
 						},
 					}).
 					Build()
@@ -256,39 +217,24 @@ var _ = Describe("opensearch handler", func() {
 				Expect(err).To(BeNil())
 				expected := []corev1.Secret{
 					{
-						TypeMeta: metav1.TypeMeta{Kind: "", APIVersion: ""},
 						ObjectMeta: metav1.ObjectMeta{
-							Name:                       "foo",
-							GenerateName:               "",
-							Namespace:                  "",
-							SelfLink:                   "",
-							UID:                        "",
-							ResourceVersion:            "",
-							Generation:                 0,
-							DeletionTimestamp:          nil,
-							DeletionGracePeriodSeconds: nil,
+							Name: secretName,
 							Labels: map[string]string{
 								"type":                              "aivenator.aiven.nais.io",
-								"app":                               "",
-								"team":                              "",
+								"app":                               application.Name,
+								"team":                              application.Namespace,
 								"aiven.nais.io/secret-generation":   "0",
 								"aivenator.aiven.nais.io/protected": "false",
 							},
 							Annotations: map[string]string{
-								"opensearch.aiven.nais.io/serviceName": "my-instance",
-								"opensearch.aiven.nais.io/project":     "my-project",
-								"nais.io/deploymentCorrelationID":      "",
-								"aivenator.aiven.nais.io/protected":    "false",
-								"opensearch.aiven.nais.io/serviceUser": "team-a",
+								ServiceNameAnnotation:             serviceName,
+								ProjectAnnotation:                 projectName,
+								"nais.io/deploymentCorrelationID": "",
+								constants.AivenatorProtectedKey:   "false",
+								ServiceUserAnnotation:             serviceUserName,
 							},
-							OwnerReferences: nil,
-							Finalizers:      []string{constants.AivenatorFinalizer},
-							ManagedFields:   nil,
+							Finalizers: []string{constants.AivenatorFinalizer},
 						},
-						Immutable:  nil,
-						Data:       nil,
-						StringData: nil,
-						Type:       "",
 					},
 				}
 				individualSecrets[0].StringData = nil
@@ -298,14 +244,21 @@ var _ = Describe("opensearch handler", func() {
 
 		Context("and the service user doesn't exist", func() {
 			BeforeEach(func() {
-				defaultServiceManagerMock(data)
+				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+					Return(&service.ServiceAddresses{
+						OpenSearch: service.ServiceAddress{
+							URI:  serviceURI,
+							Host: serviceHost,
+							Port: servicePort,
+						},
+					}, nil)
 
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, aiven.Error{
 					Message: "Service user does not exist", Status: 404,
 				})
 
 				mocks.serviceUserManager.On("Create", mock.Anything, "-r-9Nv", "my-project", "my-instance", (*aiven.AccessControl)(nil), mock.Anything).Return(&aiven.ServiceUser{
-					Username: data.username,
+					Username: serviceUserName,
 					Password: servicePassword,
 				}, nil)
 				mocks.aclManager.On("Get", mock.Anything, mock.Anything, mock.Anything).Return(&aiven.OpenSearchACLResponse{
@@ -395,10 +348,9 @@ var _ = Describe("opensearch handler", func() {
 							constants.AivenatorProtectedKey:   "false",
 							"nais.io/deploymentCorrelationID": "",
 						},
-						Labels:     individualSecrets[0].ObjectMeta.Labels,
+						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
 					},
-					// Check these individually
 					Data:       individualSecrets[0].Data,
 					StringData: individualSecrets[0].StringData,
 				}
@@ -433,7 +385,7 @@ var _ = Describe("opensearch handler", func() {
 						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
 							Instance:   instance,
 							Access:     "",
-							SecretName: "foo",
+							SecretName: secretName,
 						},
 					}).
 					Build()
