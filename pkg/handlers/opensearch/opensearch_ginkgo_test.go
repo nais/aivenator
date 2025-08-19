@@ -5,23 +5,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
+	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/handlers/secret"
-
 	"github.com/nais/aivenator/pkg/utils"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/aiven/aiven-go-client/v2"
-	"github.com/nais/aivenator/pkg/aiven/service"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -106,7 +104,7 @@ var _ = Describe("opensearch handler", func() {
 		opensearchHandler = OpenSearchHandler{
 			serviceuser:   mocks.serviceUserManager,
 			service:       mocks.serviceManager,
-			openSearchACL: nil,
+			openSearchACL: mocks.aclManager,
 			secretHandler: secret.Handler{
 				Project:     mocks.projectManager,
 				ProjectName: projectName,
@@ -318,6 +316,34 @@ var _ = Describe("opensearch handler", func() {
 					Username: data.username,
 					Password: servicePassword,
 				}, nil)
+				mocks.aclManager.On("Get", mock.Anything, mock.Anything, mock.Anything).Return(&aiven.OpenSearchACLResponse{
+					OpenSearchACLConfig: aiven.OpenSearchACLConfig{
+						ACLs: []aiven.OpenSearchACL{
+							{
+								Rules:    nil,
+								Username: serviceUserName,
+							},
+						},
+						Enabled:     true,
+						ExtendedAcl: false,
+					},
+				}, nil).Once()
+				mocks.aclManager.On("Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(&aiven.OpenSearchACLResponse{
+						OpenSearchACLConfig: aiven.OpenSearchACLConfig{
+							ACLs: []aiven.OpenSearchACL{
+								{
+									Rules: []aiven.OpenSearchACLRule{
+										{Index: "*", Permission: access},
+										{Index: "_*", Permission: access},
+									},
+									Username: serviceUserName,
+								},
+							},
+							Enabled:     true,
+							ExtendedAcl: false,
+						},
+					}, nil).Once()
 			})
 
 			It("Creates and returns creds for the new user", func() {
@@ -325,7 +351,7 @@ var _ = Describe("opensearch handler", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, sharedSecret, logger)
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(sharedSecret.StringData[OpenSearchUser]).To(Equal("foo"))
+				Expect(sharedSecret.StringData[OpenSearchUser]).To(Equal(serviceUserName))
 				Expect(individualSecrets).To(BeNil())
 
 			})
