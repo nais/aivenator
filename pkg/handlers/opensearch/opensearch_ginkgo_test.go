@@ -59,6 +59,7 @@ type mockContainer struct {
 	serviceUserManager *serviceuser.MockServiceUserManager
 	serviceManager     *service.MockServiceManager
 	projectManager     *project.MockProjectManager
+	aclManager         *opensearch.MockACLManager
 }
 
 func TestOpensearch(t *testing.T) {
@@ -100,6 +101,7 @@ var _ = Describe("opensearch handler", func() {
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
 			projectManager:     project.NewMockProjectManager(GinkgoT()),
+			aclManager:         opensearch.NewMockACLManager(GinkgoT()),
 		}
 		opensearchHandler = OpenSearchHandler{
 			serviceuser:   mocks.serviceUserManager,
@@ -214,88 +216,122 @@ var _ = Describe("opensearch handler", func() {
 
 		})
 	})
-	// When("it receives a spec", func() {
-	// 	BeforeEach(func() {
-	// 		application = applicationBuilder.
-	// 			WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-	// 				OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-	// 					Instance: instance,
-	// 					Access:   access,
-	// 				},
-	// 			}).
-	// 			Build()
-	// 		sharedSecret = corev1.Secret{}
+	When("it receives a spec", func() {
+		BeforeEach(func() {
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+						Instance: instance,
+						Access:   access,
+					},
+				}).
+				Build()
+			sharedSecret = corev1.Secret{}
 
-	// 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
-	// 			Return(&service.ServiceAddresses{
-	// 				ServiceURI: serviceURI,
-	// 				OpenSearch: service.ServiceAddress{
-	// 					URI:  serviceURI,
-	// 					Host: serviceHost,
-	// 					Port: servicePort,
-	// 				},
-	// 			}, nil)
+			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+				Return(&service.ServiceAddresses{
+					ServiceURI: serviceURI,
+					OpenSearch: service.ServiceAddress{
+						URI:  serviceURI,
+						Host: serviceHost,
+						Port: servicePort,
+					},
+				}, nil)
 
-	// 	})
-	// 	Context("and the service user already exists", func() {
-	// 		BeforeEach(func() {
-	// 			mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-	// 				Return(&aiven.ServiceUser{
-	// 					Username: serviceUserName,
-	// 					Password: servicePassword,
-	// 				}, nil)
+		})
+		Context("and the service user already exists", func() {
+			BeforeEach(func() {
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(&aiven.ServiceUser{
+						Username: serviceUserName,
+						Password: servicePassword,
+					}, nil)
+				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("my-ca", nil)
 
-	// 		})
+				application = applicationBuilder.
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+							Instance:   instance,
+							Access:     access,
+							SecretName: "foo",
+						},
+					}).
+					Build()
+				sharedSecret = corev1.Secret{}
 
-	// 		It("Uses the existing user", func() {
-	// 			suite.NoError(err)
-	// 			expected := &v1.Secret{
-	// 				ObjectMeta: metav1.ObjectMeta{
-	// 					Annotations: map[string]string{
-	// 						ProjectAnnotation:     projectName,
-	// 						ServiceNameAnnotation: instance,
-	// 						ServiceUserAnnotation: serviceUserName,
-	// 					},
-	// 					Finalizers: []string{constants.AivenatorFinalizer},
-	// 				},
-	// 				// Check these individually
-	// 				Data:       sharedSecret.Data,
-	// 				StringData: sharedSecret.StringData,
-	// 			}
-	// 			suite.Equal(expected, sharedSecret)
-	// 			suite.ElementsMatch(utils.KeysFromStringMap(sharedSecret.StringData), []string{
-	// 				OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort,
-	// 			})
-	// 			suite.Nil(individualSecrets)
-	// 		})
-	// 	})
+			})
 
-	// 	Context("and the service user doesn't exist", func() {
-	// 		BeforeEach(func() {
-	// 			defaultServiceManagerMock(data)
-	// 			mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
-	// 				Return(nil, aiven.Error{
-	// 					Message: "Service user does not exist",
-	// 					Status:  404,
-	// 				})
-	// 			mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, nil, mock.Anything).
-	// 				Return(&aiven.ServiceUser{
-	// 					Username: data.username,
-	// 					Password: servicePassword,
-	// 				}, nil)
+			It("Uses the existing user", func() {
+				individualSecrets, err := opensearchHandler.Apply(ctx, &application, &sharedSecret, logger)
 
-	// 		})
+				Expect(err).To(BeNil())
+				expected := []corev1.Secret{
+					{
+						TypeMeta: metav1.TypeMeta{Kind: "", APIVersion: ""},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:                       "foo",
+							GenerateName:               "",
+							Namespace:                  "",
+							SelfLink:                   "",
+							UID:                        "",
+							ResourceVersion:            "",
+							Generation:                 0,
+							DeletionTimestamp:          nil,
+							DeletionGracePeriodSeconds: nil,
+							Labels: map[string]string{
+								"type":                              "aivenator.aiven.nais.io",
+								"app":                               "",
+								"team":                              "",
+								"aiven.nais.io/secret-generation":   "0",
+								"aivenator.aiven.nais.io/protected": "false",
+							},
+							Annotations: map[string]string{
+								"opensearch.aiven.nais.io/serviceName": "my-instance",
+								"opensearch.aiven.nais.io/project":     "my-project",
+								"nais.io/deploymentCorrelationID":      "",
+								"aivenator.aiven.nais.io/protected":    "false",
+								"opensearch.aiven.nais.io/serviceUser": "team-a",
+							},
+							OwnerReferences: nil,
+							Finalizers:      []string{constants.AivenatorFinalizer},
+							ManagedFields:   nil,
+						},
+						Immutable:  nil,
+						Data:       nil,
+						StringData: nil,
+						Type:       "",
+					},
+				}
+				individualSecrets[0].StringData = nil
+				Expect(individualSecrets).To(Equal(expected))
+			})
+		})
 
-	// 		It("Creates and returns creds for the new user", func() {
+		Context("and the service user doesn't exist", func() {
+			BeforeEach(func() {
+				defaultServiceManagerMock(data)
 
-	// 			suite.Error(err)
-	// 			suite.NotNil(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure))
-	// 			suite.Nil(individualSecrets)
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, aiven.Error{
+					Message: "Service user does not exist", Status: 404})
 
-	// 		})
+				mocks.serviceUserManager.On("Create", mock.Anything, "-r-9Nv", "my-project", "my-instance", (*aiven.AccessControl)(nil), mock.Anything).Return(&aiven.ServiceUser{
+					Username: data.username,
+					Password: servicePassword,
+				}, nil)
+			})
 
-	// 	})
-	// })
+			It("Creates and returns creds for the new user", func() {
+				sharedSecret := &corev1.Secret{}
+				individualSecrets, err := opensearchHandler.Apply(ctx, &application, sharedSecret, logger)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(sharedSecret.StringData[OpenSearchUser]).To(Equal("foo"))
+				Expect(individualSecrets).To(BeNil())
+
+			})
+
+		})
+	})
 })
 
 func (suite *OpenSearchHandlerTestSuite) SetupSuiteG() {
