@@ -112,7 +112,6 @@ var _ = Describe("opensearch handler", func() {
 			projectName: projectName,
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-
 	})
 
 	AfterEach(func() {
@@ -126,7 +125,6 @@ var _ = Describe("opensearch handler", func() {
 
 		application = aiven_nais_io_v1.AivenApplication{}
 		//	var individualSecret corev1.Secret
-
 	})
 	When("it receives a spec without OpenSearch", func() {
 		BeforeEach(func() {
@@ -138,7 +136,6 @@ var _ = Describe("opensearch handler", func() {
 			Expect(sharedSecret).To(Equal(corev1.Secret{}))
 			Expect(individualSecrets).To(BeNil())
 		})
-
 	})
 
 	When("it receives a spec with OpenSearch requested", func() {
@@ -162,7 +159,6 @@ var _ = Describe("opensearch handler", func() {
 				Expect(err).ToNot(Succeed())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
-
 			})
 		})
 		Context("and service users are unavailable", func() {
@@ -200,7 +196,6 @@ var _ = Describe("opensearch handler", func() {
 						MoreInfo: "aiven-more-info",
 						Status:   500,
 					})
-
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -209,9 +204,7 @@ var _ = Describe("opensearch handler", func() {
 				Expect(err).ToNot(Succeed())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
-
 			})
-
 		})
 	})
 	When("it receives a spec", func() {
@@ -235,7 +228,6 @@ var _ = Describe("opensearch handler", func() {
 						Port: servicePort,
 					},
 				}, nil)
-
 		})
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
@@ -256,7 +248,6 @@ var _ = Describe("opensearch handler", func() {
 					}).
 					Build()
 				sharedSecret = corev1.Secret{}
-
 			})
 
 			It("Uses the existing user", func() {
@@ -310,7 +301,8 @@ var _ = Describe("opensearch handler", func() {
 				defaultServiceManagerMock(data)
 
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, aiven.Error{
-					Message: "Service user does not exist", Status: 404})
+					Message: "Service user does not exist", Status: 404,
+				})
 
 				mocks.serviceUserManager.On("Create", mock.Anything, "-r-9Nv", "my-project", "my-instance", (*aiven.AccessControl)(nil), mock.Anything).Return(&aiven.ServiceUser{
 					Username: data.username,
@@ -353,9 +345,7 @@ var _ = Describe("opensearch handler", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(sharedSecret.StringData[OpenSearchUser]).To(Equal(serviceUserName))
 				Expect(individualSecrets).To(BeNil())
-
 			})
-
 		})
 	})
 	When("it receives a spec with individual secret instance", func() {
@@ -381,7 +371,6 @@ var _ = Describe("opensearch handler", func() {
 						Port: servicePort,
 					},
 				}, nil)
-
 		})
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
@@ -419,6 +408,48 @@ var _ = Describe("opensearch handler", func() {
 				Expect(utils.KeysFromStringMap(individualSecrets[0].StringData)).To(ConsistOf(
 					OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort, secret.AivenCAKey, secret.AivenSecretUpdatedKey,
 				))
+			})
+		})
+	})
+	When("it receives a spec w/individual secret instance, existing service user for secret", func() {
+		BeforeEach(func() {
+			mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("my-ca", nil)
+			sharedSecret = corev1.Secret{}
+
+			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+				Return(&service.ServiceAddresses{
+					ServiceURI: serviceURI,
+					OpenSearch: service.ServiceAddress{
+						URI:  serviceURI,
+						Host: serviceHost,
+						Port: servicePort,
+					},
+				}, nil)
+		})
+		Context("and the service user has no specified Opensearch ACLs", func() {
+			BeforeEach(func() {
+				application = applicationBuilder.
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+							Instance:   instance,
+							Access:     "",
+							SecretName: "foo",
+						},
+					}).
+					Build()
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(&aiven.ServiceUser{
+						Username: serviceUserName,
+						Password: servicePassword,
+					}, nil)
+			})
+			It("the service user receives default ACLs", func() {
+				individualSecrets, err := opensearchHandler.Apply(ctx, &application, &sharedSecret, logger)
+
+				Expect(err).To(BeNil())
+				Expect(sharedSecret.StringData).To(HaveLen(0))
+				Expect(individualSecrets).To(HaveLen(1))
+				Expect(application.Spec.OpenSearch.Access).To(Equal(DefaultACLAccess))
 			})
 		})
 	})
