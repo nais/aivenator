@@ -109,7 +109,6 @@ var _ = Describe("kafka handler", func() {
 				})
 				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, pool, mock.Anything, mock.Anything).Return(nil)
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
-
 			})
 			It("should not error", func() {
 				err := kafkaHandler.Cleanup(ctx, &sharedSecret, logger)
@@ -201,7 +200,7 @@ var _ = Describe("kafka handler", func() {
 				Expect(individualSecrets).To(BeNil())
 			})
 
-			It("should create a secret", func() {
+			It("should re-use supplied secret", func() {
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(&aiven.ServiceUser{Username: serviceUserName}, nil)
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
@@ -223,6 +222,11 @@ var _ = Describe("kafka handler", func() {
 						Secret:     credStoreSecret,
 					}, nil)
 
+				sharedSecret.ObjectMeta = metav1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceUserAnnotation: serviceUserName,
+					},
+				}
 				application := applicationBuilder.Build()
 				individualSecrets, err := kafkaHandler.Apply(ctx, &application, &sharedSecret, logger)
 
@@ -274,11 +278,9 @@ var _ = Describe("kafka handler", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
-
 			})
 
 			It("fails when there is no CA", func() {
-
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
@@ -308,7 +310,6 @@ var _ = Describe("kafka handler", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
-
 			})
 
 			It("fails when failing to create serviceusers", func() {
@@ -349,7 +350,6 @@ var _ = Describe("kafka handler", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
-
 			})
 			It("succeeds when succesfully creating missing serviceusers", func() {
 				application := applicationBuilder.
