@@ -49,6 +49,7 @@ type mockContainer struct {
 	projectManager     *project.MockProjectManager
 	serviceUserManager *serviceuser.MockServiceUserManager
 	serviceManager     *service.MockServiceManager
+	nameResolver       *liberator_service.MockNameResolver
 }
 
 func enabled(elements ...int) map[int]struct{} {
@@ -84,13 +85,14 @@ var _ = Describe("kafka handler", func() {
 			projectManager:     project.NewMockProjectManager(GinkgoT()),
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
+			nameResolver:       liberator_service.NewMockNameResolver(GinkgoT()),
 		}
 		kafkaHandler = KafkaHandler{
 			project:      mocks.projectManager,
 			serviceuser:  mocks.serviceUserManager,
 			service:      mocks.serviceManager,
 			generator:    nil,
-			nameResolver: nil,
+			nameResolver: mocks.nameResolver,
 			projects:     nil,
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -104,6 +106,21 @@ var _ = Describe("kafka handler", func() {
 			err := kafkaHandler.Cleanup(ctx, &sharedSecret, logger)
 
 			Expect(err).ToNot(HaveOccurred())
+		})
+		Context("delete serviceUser on cleanup", func() {
+			BeforeEach(func() {
+				sharedSecret.SetAnnotations(map[string]string{
+					ServiceUserAnnotation: serviceUserName,
+					PoolAnnotation:        pool,
+				})
+				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, pool, mock.Anything, mock.Anything).Return(nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+
+			})
+			It("", func() {
+				err := kafkaHandler.Cleanup(ctx, &sharedSecret, logger)
+				Expect(err).ToNot(HaveOccurred())
+			})
 		})
 	})
 })
@@ -194,21 +211,6 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 
 func (suite *KafkaHandlerTestSuite) TearDownTest() {
 	suite.cancel()
-}
-
-func (suite *KafkaHandlerTestSuite) TestCleanupServiceUser() {
-	secret := &corev1.Secret{}
-	secret.SetAnnotations(map[string]string{
-		ServiceUserAnnotation: serviceUserName,
-		PoolAnnotation:        pool,
-	})
-	suite.mockServiceUsers.On("Delete", mock.Anything, serviceUserName, pool, mock.Anything, mock.Anything).
-		Return(nil)
-
-	err := suite.kafkaHandler.Cleanup(suite.ctx, secret, suite.logger)
-
-	suite.NoError(err)
-	suite.mockServiceUsers.AssertCalled(suite.T(), "Delete", mock.Anything, serviceUserName, pool, mock.Anything, mock.Anything)
 }
 
 func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
