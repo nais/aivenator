@@ -50,6 +50,7 @@ type mockContainer struct {
 	serviceUserManager *serviceuser.MockServiceUserManager
 	serviceManager     *service.MockServiceManager
 	nameResolver       *liberator_service.MockNameResolver
+	generator          *certificate.MockGenerator
 }
 
 func enabled(elements ...int) map[int]struct{} {
@@ -86,14 +87,15 @@ var _ = Describe("kafka handler", func() {
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
 			nameResolver:       liberator_service.NewMockNameResolver(GinkgoT()),
+			generator:          certificate.NewMockGenerator(GinkgoT()),
 		}
 		kafkaHandler = KafkaHandler{
 			project:      mocks.projectManager,
 			serviceuser:  mocks.serviceUserManager,
 			service:      mocks.serviceManager,
-			generator:    nil,
+			generator:    mocks.generator,
 			nameResolver: mocks.nameResolver,
-			projects:     nil,
+			projects:     []string{"dev-nais-dev", "my-testing-pool"},
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 
@@ -151,6 +153,113 @@ var _ = Describe("kafka handler", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(individualSecrets).To(BeNil())
 				Expect(sharedSecret).To(Equal(corev1.Secret{}))
+			})
+		})
+		Context("that has kafka configured", func() {
+			BeforeEach(func() {
+				applicationBuilder = applicationBuilder.WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Kafka: &aiven_nais_io_v1.KafkaSpec{
+						Pool: pool,
+					},
+				})
+			})
+
+			It("should return an error if the pool is invalid", func() {
+				application := applicationBuilder.WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Kafka: &aiven_nais_io_v1.KafkaSpec{
+						Pool: invalidPool,
+					},
+				}).Build()
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, invalidPool).Return("", utils.ErrUnrecoverable)
+
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, &sharedSecret, logger)
+
+				Expect(err).To(HaveOccurred())
+				Expect(individualSecrets).To(BeNil())
+			})
+
+			It("should return an error if the service user creation fails", func() {
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+
+				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+					Return(&service.ServiceAddresses{
+						ServiceURI: serviceURI,
+						SchemaRegistry: service.ServiceAddress{
+							URI:  "",
+							Host: "",
+							Port: 0,
+						},
+					}, nil)
+
+				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
+					Return(ca, nil)
+
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{
+						Message:  "aiven-error",
+						MoreInfo: "aiven-more-info",
+						Status:   404,
+					})
+
+				mocks.serviceUserManager.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{Message: "aiven-error", Status: 500})
+
+				application := applicationBuilder.Build()
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, &sharedSecret, logger)
+
+				Expect(err).To(HaveOccurred())
+				Expect(individualSecrets).To(BeNil())
+			})
+
+			It("should return an error if the service user already exists", func() {
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(&aiven.ServiceUser{Username: serviceUserName}, nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+					Return(&service.ServiceAddresses{
+						ServiceURI: serviceURI,
+						SchemaRegistry: service.ServiceAddress{
+							URI:  "",
+							Host: "",
+							Port: 0,
+						},
+					}, nil)
+				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
+					Return(ca, nil)
+				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
+					Return(&certificate.CredStoreData{
+						Keystore:   []byte("my-keystore"),
+						Truststore: []byte("my-truststore"),
+						Secret:     credStoreSecret,
+					}, nil)
+
+				application := applicationBuilder.Build()
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, &sharedSecret, logger)
+
+				Expect(err).ToNot(HaveOccurred())
+
+				expected := corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							ServiceUserAnnotation: serviceUserName,
+							PoolAnnotation:        pool,
+						},
+						Finalizers: []string{constants.AivenatorFinalizer},
+					},
+					// Check these individually
+					Data:       sharedSecret.Data,
+					StringData: sharedSecret.StringData,
+				}
+
+				Expect(expected).To(Equal(sharedSecret))
+				Expect(individualSecrets).To(BeNil())
+				Expect(utils.KeysFromStringMap(sharedSecret.StringData)).To(ConsistOf(
+					KafkaCA, KafkaPrivateKey, KafkaCredStorePassword, KafkaSchemaRegistry, KafkaSchemaUser, KafkaSchemaPassword,
+					KafkaBrokers, KafkaSecretUpdated, KafkaCertificate,
+				))
+				Expect(keysFromByteMap(sharedSecret.Data)).To(ConsistOf(
+					KafkaKeystore, KafkaTruststore,
+				))
 			})
 		})
 	})
@@ -242,41 +351,6 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 
 func (suite *KafkaHandlerTestSuite) TearDownTest() {
 	suite.cancel()
-}
-
-func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
-	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores, ServiceUsersGetNotFound))
-	application := suite.applicationBuilder.
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Kafka: &aiven_nais_io_v1.KafkaSpec{
-				Pool: pool,
-			},
-		}).
-		Build()
-	sharedSecret := &corev1.Secret{}
-	individualSecrets, err := suite.kafkaHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
-
-	suite.NoError(err)
-	expected := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				ServiceUserAnnotation: serviceUserName,
-				PoolAnnotation:        pool,
-			},
-			Finalizers: []string{constants.AivenatorFinalizer},
-		},
-		// Check these individually
-		Data:       sharedSecret.Data,
-		StringData: sharedSecret.StringData,
-	}
-	suite.Equal(expected, sharedSecret)
-	suite.Nil(individualSecrets)
-
-	suite.ElementsMatch(utils.KeysFromStringMap(sharedSecret.StringData), []string{
-		KafkaCA, KafkaPrivateKey, KafkaCredStorePassword, KafkaSchemaRegistry, KafkaSchemaUser, KafkaSchemaPassword,
-		KafkaBrokers, KafkaSecretUpdated, KafkaCertificate,
-	})
-	suite.ElementsMatch(keysFromByteMap(sharedSecret.Data), []string{KafkaKeystore, KafkaTruststore})
 }
 
 func (suite *KafkaHandlerTestSuite) TestSecretExists() {
