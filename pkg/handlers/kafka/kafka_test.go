@@ -20,7 +20,6 @@ import (
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,14 +52,6 @@ type mockContainer struct {
 	generator          *certificate.MockGenerator
 }
 
-func enabled(elements ...int) map[int]struct{} {
-	m := make(map[int]struct{}, len(elements))
-	for _, element := range elements {
-		m[element] = struct{}{}
-	}
-	return m
-}
-
 func TestKafka(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Kafka Suite")
@@ -74,7 +65,6 @@ var _ = Describe("kafka handler", func() {
 	var sharedSecret corev1.Secret
 	var cancel context.CancelFunc
 	var kafkaHandler KafkaHandler
-	//var application aiven_nais_io_v1.AivenApplication
 
 	BeforeEach(func() {
 		sharedSecret = corev1.Secret{}
@@ -529,99 +519,6 @@ var _ = Describe("kafka handler", func() {
 		})
 	})
 })
-
-type KafkaHandlerTestSuite struct {
-	suite.Suite
-
-	logger             *log.Entry
-	mockProjects       *project.MockProjectManager
-	mockServiceUsers   *serviceuser.MockServiceUserManager
-	mockServices       *service.MockServiceManager
-	mockGenerator      *certificate.MockGenerator
-	mockNameResolver   *liberator_service.MockNameResolver
-	kafkaHandler       KafkaHandler
-	applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
-	ctx                context.Context
-	cancel             context.CancelFunc
-}
-
-func (suite *KafkaHandlerTestSuite) SetupSuite() {
-	suite.logger = log.NewEntry(log.New())
-}
-
-func (suite *KafkaHandlerTestSuite) addDefaultMocks(enabled map[int]struct{}) {
-	if _, ok := enabled[ServicesGetAddresses]; ok {
-		suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
-			Return(&service.ServiceAddresses{
-				ServiceURI: serviceURI,
-				SchemaRegistry: service.ServiceAddress{
-					URI:  "",
-					Host: "",
-					Port: 0,
-				},
-			}, nil)
-	}
-	if _, ok := enabled[ProjectGetCA]; ok {
-		suite.mockProjects.On("GetCA", mock.Anything, mock.Anything).
-			Return(ca, nil)
-	}
-	if _, ok := enabled[ServiceUsersCreate]; ok {
-		suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(&aiven.ServiceUser{
-				Username: serviceUserName,
-			}, nil)
-	}
-	if _, ok := enabled[ServiceUsersGet]; ok {
-		suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(&aiven.ServiceUser{
-				Username: serviceUserName,
-			}, nil)
-	}
-	if _, ok := enabled[ServiceUsersGetNotFound]; ok {
-		suite.mockServiceUsers.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(nil, aiven.Error{
-				Message:  "aiven-error",
-				MoreInfo: "aiven-more-info",
-				Status:   404,
-			})
-	}
-	if _, ok := enabled[GeneratorMakeCredStores]; ok {
-		suite.mockGenerator.Mock.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
-			Return(&certificate.CredStoreData{
-				Keystore:   []byte("my-keystore"),
-				Truststore: []byte("my-truststore"),
-				Secret:     credStoreSecret,
-			}, nil)
-	}
-}
-
-func (suite *KafkaHandlerTestSuite) SetupTest() {
-	suite.mockServiceUsers = &serviceuser.MockServiceUserManager{}
-	suite.mockServices = &service.MockServiceManager{}
-	suite.mockProjects = &project.MockProjectManager{}
-	suite.mockGenerator = &certificate.MockGenerator{}
-	suite.mockNameResolver = liberator_service.NewMockNameResolver(suite.T())
-	suite.mockNameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Maybe().Return("kafka", nil)
-	suite.kafkaHandler = KafkaHandler{
-		project:      suite.mockProjects,
-		serviceuser:  suite.mockServiceUsers,
-		service:      suite.mockServices,
-		generator:    suite.mockGenerator,
-		nameResolver: suite.mockNameResolver,
-		projects:     []string{"dev-nais-dev", "my-testing-pool"},
-	}
-	suite.applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
-	suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 5*time.Second)
-}
-
-func (suite *KafkaHandlerTestSuite) TearDownTest() {
-	suite.cancel()
-}
-
-func TestKafkaHandler(t *testing.T) {
-	kafkaTestSuite := new(KafkaHandlerTestSuite)
-	suite.Run(t, kafkaTestSuite)
-}
 
 func keysFromByteMap(m map[string][]byte) []string {
 	keys := make([]string, 0, len(m))
