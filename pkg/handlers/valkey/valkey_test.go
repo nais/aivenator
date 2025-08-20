@@ -189,7 +189,8 @@ var _ = Describe("valkey.Handler", func() {
 							Instance: data.instanceName,
 							Access:   data.access,
 						},
-					}}).
+					},
+				}).
 				Build()
 		})
 
@@ -244,9 +245,9 @@ var _ = Describe("valkey.Handler", func() {
 							Instance: data.instanceName,
 							Access:   data.access,
 						},
-					}}).
+					},
+				}).
 				Build()
-
 		})
 
 		assertHappy := func(secret *corev1.Secret, err error) {
@@ -266,7 +267,6 @@ var _ = Describe("valkey.Handler", func() {
 			Expect(secret.StringData).To(HaveKeyWithValue(data.redisUriKey, data.redisServiceURI))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.redisHostKey, data.serviceHost))
 			Expect(secret.StringData).To(HaveKeyWithValue(data.redisPortKey, strconv.Itoa(data.servicePort)))
-
 		}
 
 		Context("and the service user already exists", func() {
@@ -310,21 +310,14 @@ var _ = Describe("valkey.Handler", func() {
 	})
 	When("it receives a spec with multiple newstyle instances", func() {
 		BeforeEach(func() {
-			var specs []*aiven_nais_io_v1.ValkeySpec
-			for _, data := range testInstances {
-				specs = append(specs, &aiven_nais_io_v1.ValkeySpec{
-					Instance: data.instanceName,
-					Access:   data.access,
-				})
-			}
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
-						&aiven_nais_io_v1.ValkeySpec{
+						{
 							Instance:   "my-instance1",
 							Access:     "read",
 							SecretName: "first-secret",
-						}, &aiven_nais_io_v1.ValkeySpec{
+						}, {
 							Instance:   "session-store",
 							Access:     "readwrite",
 							SecretName: "second-secret",
@@ -361,11 +354,9 @@ var _ = Describe("valkey.Handler", func() {
 						Return("my-ca", nil)
 
 				}
-
 			})
 
 			It("uses the existing user", func() {
-
 				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
 				for i, data := range testInstances {
 					assertHappy(&individualSecrets[i], data, err)

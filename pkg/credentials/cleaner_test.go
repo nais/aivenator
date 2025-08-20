@@ -320,8 +320,8 @@ func (suite *JanitorTestSuite) TestKafkaIndividualSecret() {
 func (suite *JanitorTestSuite) TestErrors() {
 	type interaction struct {
 		method     string
-		arguments  []interface{}
-		returnArgs []interface{}
+		arguments  []any
+		returnArgs []any
 		runFunc    func(arguments mock.Arguments)
 	}
 	tests := []struct {
@@ -334,8 +334,8 @@ func (suite *JanitorTestSuite) TestErrors() {
 			interactions: []interaction{
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-					[]interface{}{fmt.Errorf("api error")},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+					[]any{fmt.Errorf("api error")},
 					nil,
 				},
 			},
@@ -346,38 +346,38 @@ func (suite *JanitorTestSuite) TestErrors() {
 			interactions: []interaction{
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.PodList")},
-					[]interface{}{fmt.Errorf("api error")},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
+					[]any{fmt.Errorf("api error")},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 			},
@@ -388,8 +388,8 @@ func (suite *JanitorTestSuite) TestErrors() {
 			interactions: []interaction{
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+					[]any{nil},
 					func(arguments mock.Arguments) {
 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
 							secretList.Items = []corev1.Secret{*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName)}
@@ -398,38 +398,38 @@ func (suite *JanitorTestSuite) TestErrors() {
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.PodList")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"Delete",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.Secret")},
-					[]interface{}{errors.NewNotFound(corev1.Resource("secret"), UnusedSecret)},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.Secret")},
+					[]any{errors.NewNotFound(corev1.Resource("secret"), UnusedSecret)},
 					nil,
 				},
 			},
@@ -440,8 +440,8 @@ func (suite *JanitorTestSuite) TestErrors() {
 			interactions: []interaction{
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+					[]any{nil},
 					func(arguments mock.Arguments) {
 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
 							secretList.Items = []corev1.Secret{
@@ -453,48 +453,48 @@ func (suite *JanitorTestSuite) TestErrors() {
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.PodList")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"List",
-					[]interface{}{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]interface{}{nil},
+					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
+					[]any{nil},
 					nil,
 				},
 				{
 					"Delete",
-					[]interface{}{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
+					[]any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
 						return s.GetName() == UnusedSecret
 					})},
-					[]interface{}{fmt.Errorf("api error")},
+					[]any{fmt.Errorf("api error")},
 					nil,
 				},
 				{
 					"Delete",
-					[]interface{}{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
+					[]any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
 						return s.GetName() == NotOurSecretTypeSecret
 					})},
-					[]interface{}{nil},
+					[]any{nil},
 					nil,
 				},
 			},
