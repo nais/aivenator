@@ -20,7 +20,7 @@ import (
 
 type Handler interface {
 	Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error)
-	Cleanup(ctx context.Context, secret *v1.Secret, logger *log.Entry) error
+	Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error
 }
 
 type Manager struct {
@@ -38,7 +38,7 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 	}
 }
 
-func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *v1.Secret, logger *log.Entry) ([]v1.Secret, error) {
+func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error) {
 	var finalSecrets []v1.Secret
 	for _, handler := range c.handlers {
 		processingStart := time.Now()
@@ -66,7 +66,7 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 	return append(finalSecrets, *sharedSecret), nil
 }
 
-func (c Manager) Cleanup(ctx context.Context, s *v1.Secret, logger *log.Entry) error {
+func (c Manager) Cleanup(ctx context.Context, s *v1.Secret, logger log.FieldLogger) error {
 	for _, handler := range c.handlers {
 		err := handler.Cleanup(ctx, s, logger)
 		if err != nil {

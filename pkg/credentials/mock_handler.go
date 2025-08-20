@@ -89,7 +89,7 @@ func (_c *MockHandler_Apply_Call) RunAndReturn(run func(context.Context, *aiven_
 }
 
 // Cleanup provides a mock function with given fields: ctx, secret, logger
-func (_m *MockHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *logrus.Entry) error {
+func (_m *MockHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger logrus.FieldLogger) error {
 	ret := _m.Called(ctx, secret, logger)
 
 	if len(ret) == 0 {
@@ -97,7 +97,7 @@ func (_m *MockHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger *l
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *v1.Secret, *logrus.Entry) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *v1.Secret, logrus.FieldLogger) error); ok {
 		r0 = rf(ctx, secret, logger)
 	} else {
 		r0 = ret.Error(0)
@@ -114,14 +114,14 @@ type MockHandler_Cleanup_Call struct {
 // Cleanup is a helper method to define mock.On call
 //   - ctx context.Context
 //   - secret *v1.Secret
-//   - logger *logrus.Entry
+//   - logger logrus.FieldLogger
 func (_e *MockHandler_Expecter) Cleanup(ctx interface{}, secret interface{}, logger interface{}) *MockHandler_Cleanup_Call {
 	return &MockHandler_Cleanup_Call{Call: _e.mock.On("Cleanup", ctx, secret, logger)}
 }
 
-func (_c *MockHandler_Cleanup_Call) Run(run func(ctx context.Context, secret *v1.Secret, logger *logrus.Entry)) *MockHandler_Cleanup_Call {
+func (_c *MockHandler_Cleanup_Call) Run(run func(ctx context.Context, secret *v1.Secret, logger logrus.FieldLogger)) *MockHandler_Cleanup_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*v1.Secret), args[2].(*logrus.Entry))
+		run(args[0].(context.Context), args[1].(*v1.Secret), args[2].(logrus.FieldLogger))
 	})
 	return _c
 }
@@ -131,7 +131,7 @@ func (_c *MockHandler_Cleanup_Call) Return(_a0 error) *MockHandler_Cleanup_Call 
 	return _c
 }
 
-func (_c *MockHandler_Cleanup_Call) RunAndReturn(run func(context.Context, *v1.Secret, *logrus.Entry) error) *MockHandler_Cleanup_Call {
+func (_c *MockHandler_Cleanup_Call) RunAndReturn(run func(context.Context, *v1.Secret, logrus.FieldLogger) error) *MockHandler_Cleanup_Call {
 	_c.Call.Return(run)
 	return _c
 }

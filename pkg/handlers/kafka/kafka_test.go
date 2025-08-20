@@ -16,10 +16,12 @@ import (
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -43,6 +45,12 @@ const (
 	GeneratorMakeCredStores
 )
 
+type mockContainer struct {
+	projectManager     *project.MockProjectManager
+	serviceUserManager *serviceuser.MockServiceUserManager
+	serviceManager     *service.MockServiceManager
+}
+
 func enabled(elements ...int) map[int]struct{} {
 	m := make(map[int]struct{}, len(elements))
 	for _, element := range elements {
@@ -50,6 +58,55 @@ func enabled(elements ...int) map[int]struct{} {
 	}
 	return m
 }
+
+func TestKafka(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Kafka Suite")
+}
+
+var _ = Describe("kafka handler", func() {
+	var mocks mockContainer
+	var logger log.FieldLogger
+	//var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
+	var ctx context.Context
+	var sharedSecret corev1.Secret
+	var cancel context.CancelFunc
+	var kafkaHandler KafkaHandler
+	//var application aiven_nais_io_v1.AivenApplication
+
+	BeforeEach(func() {
+		sharedSecret = corev1.Secret{}
+
+		root := log.New()
+		root.Out = GinkgoWriter
+		logger = log.NewEntry(root)
+		mocks = mockContainer{
+			projectManager:     project.NewMockProjectManager(GinkgoT()),
+			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
+			serviceManager:     service.NewMockServiceManager(GinkgoT()),
+		}
+		kafkaHandler = KafkaHandler{
+			project:      mocks.projectManager,
+			serviceuser:  mocks.serviceUserManager,
+			service:      mocks.serviceManager,
+			generator:    nil,
+			nameResolver: nil,
+			projects:     nil,
+		}
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	})
+	AfterEach(func() {
+		cancel()
+	})
+
+	When("no kafka is configured", func() {
+		It("no error on cleanup", func() {
+			err := kafkaHandler.Cleanup(ctx, &sharedSecret, logger)
+
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+})
 
 type KafkaHandlerTestSuite struct {
 	suite.Suite
@@ -139,15 +196,8 @@ func (suite *KafkaHandlerTestSuite) TearDownTest() {
 	suite.cancel()
 }
 
-func (suite *KafkaHandlerTestSuite) TestCleanupNoKafka() {
-	secret := &v1.Secret{}
-	err := suite.kafkaHandler.Cleanup(suite.ctx, secret, suite.logger)
-
-	suite.NoError(err)
-}
-
 func (suite *KafkaHandlerTestSuite) TestCleanupServiceUser() {
-	secret := &v1.Secret{}
+	secret := &corev1.Secret{}
 	secret.SetAnnotations(map[string]string{
 		ServiceUserAnnotation: serviceUserName,
 		PoolAnnotation:        pool,
@@ -162,7 +212,7 @@ func (suite *KafkaHandlerTestSuite) TestCleanupServiceUser() {
 }
 
 func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
-	secret := &v1.Secret{}
+	secret := &corev1.Secret{}
 	secret.SetAnnotations(map[string]string{
 		ServiceUserAnnotation: serviceUserName,
 		PoolAnnotation:        pool,
@@ -181,11 +231,11 @@ func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
 
 func (suite *KafkaHandlerTestSuite) TestNoKafka() {
 	application := suite.applicationBuilder.Build()
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	individualSecrets, err := suite.kafkaHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
-	suite.Equal(&v1.Secret{}, sharedSecret)
+	suite.Equal(&corev1.Secret{}, sharedSecret)
 	suite.Nil(individualSecrets)
 }
 
@@ -198,11 +248,11 @@ func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	individualSecrets, err := suite.kafkaHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
-	expected := &v1.Secret{
+	expected := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -232,7 +282,7 @@ func (suite *KafkaHandlerTestSuite) TestSecretExists() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{
+	sharedSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -257,7 +307,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceGetFailed() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	suite.addDefaultMocks(enabled(ProjectGetCA, ServiceUsersCreate, GeneratorMakeCredStores))
 	suite.mockServices.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, aiven.Error{
@@ -281,7 +331,7 @@ func (suite *KafkaHandlerTestSuite) TestProjectGetCAFailed() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ServiceUsersCreate, GeneratorMakeCredStores))
 	suite.mockProjects.On("GetCA", mock.Anything, mock.Anything).
 		Return("", aiven.Error{
@@ -305,7 +355,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUsersCreateFailed() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, GeneratorMakeCredStores, ServiceUsersGetNotFound))
 	suite.mockServiceUsers.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, aiven.Error{
@@ -329,7 +379,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserNotFound() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{
+	sharedSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -341,7 +391,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserNotFound() {
 	individualSecrets, err := suite.kafkaHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
 
 	suite.NoError(err)
-	expected := &v1.Secret{
+	expected := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -364,7 +414,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{
+	sharedSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{},
 		},
@@ -379,7 +429,7 @@ func (suite *KafkaHandlerTestSuite) TestServiceUserCollision() {
 
 	suite.mockServiceUsers.AssertNotCalled(suite.T(), "Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	suite.NoError(err)
-	expected := &v1.Secret{
+	expected := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
 				ServiceUserAnnotation: serviceUserName,
@@ -405,7 +455,7 @@ func (suite *KafkaHandlerTestSuite) TestInvalidPool() {
 			},
 		}).
 		Build()
-	secret := &v1.Secret{}
+	secret := &corev1.Secret{}
 	individualSecrets, err := suite.kafkaHandler.Apply(suite.ctx, &application, secret, suite.logger)
 
 	suite.Error(err)
@@ -421,7 +471,7 @@ func (suite *KafkaHandlerTestSuite) TestGeneratorMakeCredStoresFailed() {
 			},
 		}).
 		Build()
-	sharedSecret := &v1.Secret{}
+	sharedSecret := &corev1.Secret{}
 	suite.addDefaultMocks(enabled(ServicesGetAddresses, ProjectGetCA, ServiceUsersCreate, ServiceUsersGetNotFound))
 	suite.mockGenerator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("local-fail"))

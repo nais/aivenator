@@ -15,9 +15,8 @@ import (
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -203,7 +202,7 @@ func getValkeyACLCategories(access string) []string {
 	return categories
 }
 
-func (h ValkeyHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger *log.Entry) error {
+func (h ValkeyHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
 	annotations := secret.GetAnnotations()
 	projectName, okProjectName := annotations[ProjectAnnotation]
 
