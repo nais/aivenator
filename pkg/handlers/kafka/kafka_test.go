@@ -68,7 +68,7 @@ func TestKafka(t *testing.T) {
 var _ = Describe("kafka handler", func() {
 	var mocks mockContainer
 	var logger log.FieldLogger
-	//var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
+	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var ctx context.Context
 	var sharedSecret corev1.Secret
 	var cancel context.CancelFunc
@@ -96,6 +96,8 @@ var _ = Describe("kafka handler", func() {
 			projects:     nil,
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+
+		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
 	})
 	AfterEach(func() {
 		cancel()
@@ -117,9 +119,38 @@ var _ = Describe("kafka handler", func() {
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
 
 			})
-			It("", func() {
+			It("should not error", func() {
 				err := kafkaHandler.Cleanup(ctx, &sharedSecret, logger)
 				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+		Context("delete serviceUser on cleanup, but already gone", func() {
+			BeforeEach(func() {
+				sharedSecret.SetAnnotations(map[string]string{
+					ServiceUserAnnotation: serviceUserName,
+					PoolAnnotation:        pool,
+				})
+				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, pool, mock.Anything, mock.Anything).Return(aiven.Error{
+					Message: "Not Found",
+					Status:  404,
+				})
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+			})
+			It("should not return an error", func() {
+				err := kafkaHandler.Cleanup(ctx, &sharedSecret, logger)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+	})
+	When("there is an aiven application", func() {
+		Context("that has no kafka configured", func() {
+			It("should not return an error", func() {
+				application := applicationBuilder.Build()
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, &sharedSecret, logger)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(individualSecrets).To(BeNil())
+				Expect(sharedSecret).To(Equal(corev1.Secret{}))
 			})
 		})
 	})
@@ -211,34 +242,6 @@ func (suite *KafkaHandlerTestSuite) SetupTest() {
 
 func (suite *KafkaHandlerTestSuite) TearDownTest() {
 	suite.cancel()
-}
-
-func (suite *KafkaHandlerTestSuite) TestCleanupServiceUserAlreadyGone() {
-	secret := &corev1.Secret{}
-	secret.SetAnnotations(map[string]string{
-		ServiceUserAnnotation: serviceUserName,
-		PoolAnnotation:        pool,
-	})
-	suite.mockServiceUsers.On("Delete", mock.Anything, serviceUserName, pool, mock.Anything, mock.Anything).
-		Return(aiven.Error{
-			Message: "Not Found",
-			Status:  404,
-		})
-
-	err := suite.kafkaHandler.Cleanup(suite.ctx, secret, suite.logger)
-
-	suite.NoError(err)
-	suite.mockServiceUsers.AssertCalled(suite.T(), "Delete", mock.Anything, serviceUserName, pool, mock.Anything, mock.Anything)
-}
-
-func (suite *KafkaHandlerTestSuite) TestNoKafka() {
-	application := suite.applicationBuilder.Build()
-	sharedSecret := &corev1.Secret{}
-	individualSecrets, err := suite.kafkaHandler.Apply(suite.ctx, &application, sharedSecret, suite.logger)
-
-	suite.NoError(err)
-	suite.Equal(&corev1.Secret{}, sharedSecret)
-	suite.Nil(individualSecrets)
 }
 
 func (suite *KafkaHandlerTestSuite) TestKafkaOk() {
