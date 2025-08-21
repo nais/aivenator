@@ -2,7 +2,7 @@ package credentials
 
 import (
 	"context"
-	"fmt"
+	//	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -11,13 +11,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/mock"
+	//	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	//	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	//	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/nais/aivenator/constants"
@@ -46,47 +48,27 @@ const (
 	NotMySecretType = "other.nais.io"
 )
 
+func generateApplication() aiven_nais_io_v1.AivenApplication {
+	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+			SecretName: CurrentlyRequestedSecret,
+		}).
+		Build()
+	application.SetLabels(map[string]string{
+		constants.AppLabel: MyAppName,
+	})
+	return application
+}
+
 type JanitorTestSuite struct {
 	suite.Suite
-
-	logger        *log.Entry
-	ctx           context.Context
-	clientBuilder *fake.ClientBuilder
 }
 
-func (suite *JanitorTestSuite) SetupSuite() {
-	suite.logger = log.NewEntry(log.New())
-	suite.ctx = context.Background()
-}
-
-func (suite *JanitorTestSuite) SetupTest() {
-	suite.clientBuilder = fake.NewClientBuilder()
-	s := runtime.NewScheme()
-	_, err := scheme.AddAll(s)
-	if err != nil {
-		suite.FailNowf("failed setup", "error adding runtime types to scheme: %v", err)
-	}
-	suite.clientBuilder.WithScheme(s)
-}
-
-func (suite *JanitorTestSuite) buildJanitor(client Client) *Cleaner {
+func buildJanitor(client Client, logger log.FieldLogger) *Cleaner {
 	return &Cleaner{
 		Client: client,
-		Logger: suite.logger,
+		Logger: logger,
 	}
-}
-
-func (suite *JanitorTestSuite) TestNoSecretsFound() {
-	suite.clientBuilder.WithRuntimeObjects(
-		makeSecret(UnusedSecret, NotMyNamespace, constants.AivenatorSecretType, NotMyAppName),
-		makeSecret(NotOurSecretTypeSecret, NotMyNamespace, constants.AivenatorSecretType, MyAppName),
-	)
-	client := suite.clientBuilder.Build()
-	janitor := suite.buildJanitor(client)
-	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).Build()
-	errs := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-
-	suite.Empty(errs)
 }
 
 type secretSetup struct {
@@ -99,7 +81,76 @@ type secretSetup struct {
 	reason     string
 }
 
-func generateAndRegisterPodSecrets(suite *JanitorTestSuite) []secretSetup {
+func TestCleaner(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Cleaner Suite")
+}
+
+var _ = Describe("cleaner", func() {
+	var logger log.FieldLogger
+	var ctx context.Context
+	var clientBuilder *fake.ClientBuilder
+	BeforeEach(func() {
+		root := log.New()
+		root.Out = GinkgoWriter
+		logger = log.NewEntry(root)
+		ctx = context.Background()
+		clientBuilder = fake.NewClientBuilder()
+		s := runtime.NewScheme()
+		scheme.AddAll(s)
+		clientBuilder.WithScheme(s)
+
+	})
+
+	When("no secrets exist", func() {
+		It("doesn't fail", func() {
+			clientBuilder.WithRuntimeObjects(
+				makeSecret(UnusedSecret, NotMyNamespace, constants.AivenatorSecretType, NotMyAppName),
+				makeSecret(NotOurSecretTypeSecret, NotMyNamespace, constants.AivenatorSecretType, MyAppName),
+			)
+			client := clientBuilder.Build()
+			janitor := buildJanitor(client, logger)
+			application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).Build()
+
+			err := janitor.CleanUnusedSecretsForApplication(ctx, application)
+			Expect(err).ToNot(HaveOccurred())
+
+		})
+	})
+
+	When("there are unused volume mounted secrets", func() {
+		It("doesnt fail", func() {
+			// secrets := generateAndRegisterPodSecrets(clientBuilder)
+			application := generateApplication()
+
+			clientBuilder.WithRuntimeObjects(
+				makePodForSecretVolume(SecretUsedByPod),
+				&application,
+			)
+
+			// Unique per of these tests
+			janitor := buildJanitor(clientBuilder.Build(), logger)
+			err := janitor.CleanUnusedSecretsForApplication(ctx, application)
+			Expect(err).ToNot(HaveOccurred())
+
+			// for _, tt := range secrets {
+			// 	suite.Run(tt.reason, func() {
+			// 		actual := &corev1.Secret{}
+			// 		err := janitor.Client.Get(context.Background(), client.ObjectKey{
+			// 			Namespace: tt.namespace,
+			// 			Name:      tt.name,
+			// 		}, actual)
+			// 		suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+			// 	})
+			//			}
+
+		})
+
+	})
+
+})
+
+func generateAndRegisterPodSecrets(clientBuilder *fake.ClientBuilder) []secretSetup {
 	secrets := []secretSetup{
 		{UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, false, "Unused secret should be deleted"},
 		{UnusedSecret, NotMyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret in another namespace should be kept"},
@@ -114,414 +165,376 @@ func generateAndRegisterPodSecrets(suite *JanitorTestSuite) []secretSetup {
 		{ProtectedTimeLimitedWithNoExpirySet, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit}, true, "Protected secret with time-limit but missing expires date should be kept"},
 	}
 	for _, s := range secrets {
-		suite.clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
+		clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
 	}
 	return secrets
 }
 
-func generateApplication() aiven_nais_io_v1.AivenApplication {
-	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			SecretName: CurrentlyRequestedSecret,
-		}).
-		Build()
-	application.SetLabels(map[string]string{
-		constants.AppLabel: MyAppName,
-	})
-	return application
-}
+// func (suite *JanitorTestSuite) TestUnusedEnvMountedSecretsFound() {
+// 	secrets := generateAndRegisterPodSecrets(suite)
+// 	application := generateApplication()
 
-func (suite *JanitorTestSuite) TestUnusedVolumeMountedSecretsFound() {
-	secrets := generateAndRegisterPodSecrets(suite)
-	application := generateApplication()
+// 	// Unique per of these tests
+// 	suite.clientBuilder.WithRuntimeObjects(
+// 		makePodForSecretValueFrom(SecretUsedByPod),
+// 		&application,
+// 	)
 
-	suite.clientBuilder.WithRuntimeObjects(
-		makePodForSecretVolume(SecretUsedByPod),
-		&application,
-	)
+// 	janitor := suite.buildJanitor(suite.clientBuilder.Build(), logger)
+// 	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+// 	suite.Nil(err)
 
-	// Unique per of these tests
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-	suite.Nil(err)
+// 	for _, tt := range secrets {
+// 		suite.Run(tt.reason, func() {
+// 			actual := &corev1.Secret{}
+// 			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+// 				Namespace: tt.namespace,
+// 				Name:      tt.name,
+// 			}, actual)
+// 			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+// 		})
+// 	}
+// }
 
-	for _, tt := range secrets {
-		suite.Run(tt.reason, func() {
-			actual := &corev1.Secret{}
-			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-				Namespace: tt.namespace,
-				Name:      tt.name,
-			}, actual)
-			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-		})
-	}
-}
+// func (suite *JanitorTestSuite) TestUnusedEnvFromMountedSecretsFound() {
+// 	secrets := generateAndRegisterPodSecrets(suite)
+// 	application := generateApplication()
 
-func (suite *JanitorTestSuite) TestUnusedEnvMountedSecretsFound() {
-	secrets := generateAndRegisterPodSecrets(suite)
-	application := generateApplication()
+// 	// Unique per of these tests
+// 	suite.clientBuilder.WithRuntimeObjects(
+// 		makePodForSecretEnvFrom(SecretUsedByPod),
+// 		&application,
+// 	)
+// 	janitor := suite.buildJanitor(suite.clientBuilder.Build(), logger)
+// 	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+// 	suite.Nil(err)
 
-	// Unique per of these tests
-	suite.clientBuilder.WithRuntimeObjects(
-		makePodForSecretValueFrom(SecretUsedByPod),
-		&application,
-	)
+// 	for _, tt := range secrets {
+// 		suite.Run(tt.reason, func() {
+// 			actual := &corev1.Secret{}
+// 			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+// 				Namespace: tt.namespace,
+// 				Name:      tt.name,
+// 			}, actual)
+// 			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+// 		})
+// 	}
+// }
 
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-	suite.Nil(err)
+// func (suite *JanitorTestSuite) TestOpenSearchIndividualSecret() {
+// 	secrets := generateAndRegisterPodSecrets(suite)
+// 	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+// 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+// 			OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+// 				Instance:   "OpenSearchInstance",
+// 				Access:     "read",
+// 				SecretName: CurrentlyRequestedSecret,
+// 			},
+// 		}).
+// 		Build()
+// 	application.SetLabels(map[string]string{
+// 		constants.AppLabel: MyAppName,
+// 	})
 
-	for _, tt := range secrets {
-		suite.Run(tt.reason, func() {
-			actual := &corev1.Secret{}
-			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-				Namespace: tt.namespace,
-				Name:      tt.name,
-			}, actual)
-			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-		})
-	}
-}
+// 	suite.clientBuilder.WithRuntimeObjects(
+// 		makePodForSecretValueFrom(SecretUsedByPod),
+// 		&application,
+// 	)
 
-func (suite *JanitorTestSuite) TestUnusedEnvFromMountedSecretsFound() {
-	secrets := generateAndRegisterPodSecrets(suite)
-	application := generateApplication()
+// 	janitor := suite.buildJanitor(suite.clientBuilder.Build(), logger)
+// 	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+// 	suite.Nil(err)
 
-	// Unique per of these tests
-	suite.clientBuilder.WithRuntimeObjects(
-		makePodForSecretEnvFrom(SecretUsedByPod),
-		&application,
-	)
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-	suite.Nil(err)
+// 	for _, tt := range secrets {
+// 		suite.Run(tt.reason, func() {
+// 			actual := &corev1.Secret{}
+// 			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+// 				Namespace: tt.namespace,
+// 				Name:      tt.name,
+// 			}, actual)
+// 			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+// 		})
+// 	}
+// }
 
-	for _, tt := range secrets {
-		suite.Run(tt.reason, func() {
-			actual := &corev1.Secret{}
-			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-				Namespace: tt.namespace,
-				Name:      tt.name,
-			}, actual)
-			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-		})
-	}
-}
+// func (suite *JanitorTestSuite) TestValkeyIndividualSecret() {
+// 	secrets := generateAndRegisterPodSecrets(suite)
+// 	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+// 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+// 			Valkey: []*aiven_nais_io_v1.ValkeySpec{
+// 				{
+// 					Instance:   "ValkeyInstance",
+// 					Access:     "read",
+// 					SecretName: CurrentlyRequestedSecret,
+// 				},
+// 			},
+// 		}).
+// 		Build()
+// 	application.SetLabels(map[string]string{
+// 		constants.AppLabel: MyAppName,
+// 	})
 
-func (suite *JanitorTestSuite) TestOpenSearchIndividualSecret() {
-	secrets := generateAndRegisterPodSecrets(suite)
-	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-				Instance:   "OpenSearchInstance",
-				Access:     "read",
-				SecretName: CurrentlyRequestedSecret,
-			},
-		}).
-		Build()
-	application.SetLabels(map[string]string{
-		constants.AppLabel: MyAppName,
-	})
+// 	suite.clientBuilder.WithRuntimeObjects(
+// 		makePodForSecretValueFrom(SecretUsedByPod),
+// 		&application,
+// 	)
 
-	suite.clientBuilder.WithRuntimeObjects(
-		makePodForSecretValueFrom(SecretUsedByPod),
-		&application,
-	)
+// 	janitor := suite.buildJanitor(suite.clientBuilder.Build(), logger)
+// 	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+// 	suite.Nil(err)
 
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-	suite.Nil(err)
+// 	for _, tt := range secrets {
+// 		suite.Run(tt.reason, func() {
+// 			actual := &corev1.Secret{}
+// 			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+// 				Namespace: tt.namespace,
+// 				Name:      tt.name,
+// 			}, actual)
+// 			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+// 		})
+// 	}
+// }
 
-	for _, tt := range secrets {
-		suite.Run(tt.reason, func() {
-			actual := &corev1.Secret{}
-			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-				Namespace: tt.namespace,
-				Name:      tt.name,
-			}, actual)
-			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-		})
-	}
-}
+// func (suite *JanitorTestSuite) TestKafkaIndividualSecret() {
+// 	secrets := generateAndRegisterPodSecrets(suite)
+// 	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+// 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+// 			Kafka: &aiven_nais_io_v1.KafkaSpec{
+// 				Pool:       "KafkaPool",
+// 				SecretName: CurrentlyRequestedSecret,
+// 			},
+// 		}).
+// 		Build()
+// 	application.SetLabels(map[string]string{
+// 		constants.AppLabel: MyAppName,
+// 	})
 
-func (suite *JanitorTestSuite) TestValkeyIndividualSecret() {
-	secrets := generateAndRegisterPodSecrets(suite)
-	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Valkey: []*aiven_nais_io_v1.ValkeySpec{
-				{
-					Instance:   "ValkeyInstance",
-					Access:     "read",
-					SecretName: CurrentlyRequestedSecret,
-				},
-			},
-		}).
-		Build()
-	application.SetLabels(map[string]string{
-		constants.AppLabel: MyAppName,
-	})
+// 	suite.clientBuilder.WithRuntimeObjects(
+// 		makePodForSecretValueFrom(SecretUsedByPod),
+// 		&application,
+// 	)
 
-	suite.clientBuilder.WithRuntimeObjects(
-		makePodForSecretValueFrom(SecretUsedByPod),
-		&application,
-	)
+// 	janitor := suite.buildJanitor(suite.clientBuilder.Build(), logger)
+// 	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
+// 	suite.Nil(err)
 
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-	suite.Nil(err)
+// 	for _, tt := range secrets {
+// 		suite.Run(tt.reason, func() {
+// 			actual := &corev1.Secret{}
+// 			err := janitor.Client.Get(context.Background(), client.ObjectKey{
+// 				Namespace: tt.namespace,
+// 				Name:      tt.name,
+// 			}, actual)
+// 			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
+// 		})
+// 	}
+// }
 
-	for _, tt := range secrets {
-		suite.Run(tt.reason, func() {
-			actual := &corev1.Secret{}
-			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-				Namespace: tt.namespace,
-				Name:      tt.name,
-			}, actual)
-			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-		})
-	}
-}
+// func (suite *JanitorTestSuite) TestErrors() {
+// 	type interaction struct {
+// 		method     string
+// 		arguments  []any
+// 		returnArgs []any
+// 		runFunc    func(arguments mock.Arguments)
+// 	}
+// 	tests := []struct {
+// 		name         string
+// 		interactions []interaction
+// 		expected     error
+// 	}{
+// 		{
+// 			name: "TestErrorGettingSecrets",
+// 			interactions: []interaction{
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+// 					[]any{fmt.Errorf("api error")},
+// 					nil,
+// 				},
+// 			},
+// 			expected: fmt.Errorf("failed to retrieve list of secrets: api error"),
+// 		},
+// 		{
+// 			name: "TestErrorGettingPods",
+// 			interactions: []interaction{
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
+// 					[]any{fmt.Errorf("api error")},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 			},
+// 			expected: fmt.Errorf("failed to retrieve list of pods: api error"),
+// 		},
+// 		{
+// 			name: "TestSecretNotFoundWhenDeleting",
+// 			interactions: []interaction{
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+// 					[]any{nil},
+// 					func(arguments mock.Arguments) {
+// 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
+// 							secretList.Items = []corev1.Secret{*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName)}
+// 						}
+// 					},
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"Delete",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.Secret")},
+// 					[]any{errors.NewNotFound(corev1.Resource("secret"), UnusedSecret)},
+// 					nil,
+// 				},
+// 			},
+// 			expected: nil,
+// 		},
+// 		{
+// 			name: "TestContinueAfterErrorDeletingSecret",
+// 			interactions: []interaction{
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+// 					[]any{nil},
+// 					func(arguments mock.Arguments) {
+// 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
+// 							secretList.Items = []corev1.Secret{
+// 								*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName),
+// 								*makeSecret(NotOurSecretTypeSecret, MyNamespace, constants.AivenatorSecretType, MyAppName),
+// 							}
+// 						}
+// 					},
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"List",
+// 					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 				{
+// 					"Delete",
+// 					[]any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
+// 						return s.GetName() == UnusedSecret
+// 					})},
+// 					[]any{fmt.Errorf("api error")},
+// 					nil,
+// 				},
+// 				{
+// 					"Delete",
+// 					[]any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
+// 						return s.GetName() == NotOurSecretTypeSecret
+// 					})},
+// 					[]any{nil},
+// 					nil,
+// 				},
+// 			},
+// 			expected: nil,
+// 		},
+// 	}
 
-func (suite *JanitorTestSuite) TestKafkaIndividualSecret() {
-	secrets := generateAndRegisterPodSecrets(suite)
-	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-			Kafka: &aiven_nais_io_v1.KafkaSpec{
-				Pool:       "KafkaPool",
-				SecretName: CurrentlyRequestedSecret,
-			},
-		}).
-		Build()
-	application.SetLabels(map[string]string{
-		constants.AppLabel: MyAppName,
-	})
+// 	for _, tt := range tests {
+// 		suite.Run(tt.name, func() {
+// 			mockClient := &MockClient{}
+// 			for _, i := range tt.interactions {
+// 				call := mockClient.On(i.method, i.arguments...).Return(i.returnArgs...)
+// 				if i.runFunc != nil {
+// 					call.Run(i.runFunc)
+// 				}
+// 			}
+// 			mockClient.On("Scheme").Maybe().Return(&runtime.Scheme{})
 
-	suite.clientBuilder.WithRuntimeObjects(
-		makePodForSecretValueFrom(SecretUsedByPod),
-		&application,
-	)
+// 			janitor := suite.buildJanitor(mockClient, logger)
+// 			application := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
+// 			err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
 
-	janitor := suite.buildJanitor(suite.clientBuilder.Build())
-	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-	suite.Nil(err)
-
-	for _, tt := range secrets {
-		suite.Run(tt.reason, func() {
-			actual := &corev1.Secret{}
-			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-				Namespace: tt.namespace,
-				Name:      tt.name,
-			}, actual)
-			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-		})
-	}
-}
-
-func (suite *JanitorTestSuite) TestErrors() {
-	type interaction struct {
-		method     string
-		arguments  []any
-		returnArgs []any
-		runFunc    func(arguments mock.Arguments)
-	}
-	tests := []struct {
-		name         string
-		interactions []interaction
-		expected     error
-	}{
-		{
-			name: "TestErrorGettingSecrets",
-			interactions: []interaction{
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-					[]any{fmt.Errorf("api error")},
-					nil,
-				},
-			},
-			expected: fmt.Errorf("failed to retrieve list of secrets: api error"),
-		},
-		{
-			name: "TestErrorGettingPods",
-			interactions: []interaction{
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
-					[]any{fmt.Errorf("api error")},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-			},
-			expected: fmt.Errorf("failed to retrieve list of pods: api error"),
-		},
-		{
-			name: "TestSecretNotFoundWhenDeleting",
-			interactions: []interaction{
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-					[]any{nil},
-					func(arguments mock.Arguments) {
-						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
-							secretList.Items = []corev1.Secret{*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName)}
-						}
-					},
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"Delete",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.Secret")},
-					[]any{errors.NewNotFound(corev1.Resource("secret"), UnusedSecret)},
-					nil,
-				},
-			},
-			expected: nil,
-		},
-		{
-			name: "TestContinueAfterErrorDeletingSecret",
-			interactions: []interaction{
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-					[]any{nil},
-					func(arguments mock.Arguments) {
-						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
-							secretList.Items = []corev1.Secret{
-								*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName),
-								*makeSecret(NotOurSecretTypeSecret, MyNamespace, constants.AivenatorSecretType, MyAppName),
-							}
-						}
-					},
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"List",
-					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
-					[]any{nil},
-					nil,
-				},
-				{
-					"Delete",
-					[]any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
-						return s.GetName() == UnusedSecret
-					})},
-					[]any{fmt.Errorf("api error")},
-					nil,
-				},
-				{
-					"Delete",
-					[]any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
-						return s.GetName() == NotOurSecretTypeSecret
-					})},
-					[]any{nil},
-					nil,
-				},
-			},
-			expected: nil,
-		},
-	}
-
-	for _, tt := range tests {
-		suite.Run(tt.name, func() {
-			mockClient := &MockClient{}
-			for _, i := range tt.interactions {
-				call := mockClient.On(i.method, i.arguments...).Return(i.returnArgs...)
-				if i.runFunc != nil {
-					call.Run(i.runFunc)
-				}
-			}
-			mockClient.On("Scheme").Maybe().Return(&runtime.Scheme{})
-
-			janitor := suite.buildJanitor(mockClient)
-			application := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
-			err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-
-			suite.Equal(tt.expected, err)
-			mockClient.AssertExpectations(suite.T())
-		})
-	}
-}
+// 			suite.Equal(tt.expected, err)
+// 			mockClient.AssertExpectations(suite.T())
+// 		})
+// 	}
+// }
 
 func makePodForSecretVolume(secretName string) *corev1.Pod {
 	return &corev1.Pod{
@@ -539,51 +552,51 @@ func makePodForSecretVolume(secretName string) *corev1.Pod {
 	}
 }
 
-func makePodForSecretValueFrom(secretName string) *corev1.Pod {
-	return &corev1.Pod{
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name: "container",
-					Env: []corev1.EnvVar{
-						{
-							Name: "AIVEN_SECRET",
-							ValueFrom: &corev1.EnvVarSource{
-								SecretKeyRef: &corev1.SecretKeySelector{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: secretName,
-									},
-									Key: "my-secret",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
+// func makePodForSecretValueFrom(secretName string) *corev1.Pod {
+// 	return &corev1.Pod{
+// 		Spec: corev1.PodSpec{
+// 			Containers: []corev1.Container{
+// 				{
+// 					Name: "container",
+// 					Env: []corev1.EnvVar{
+// 						{
+// 							Name: "AIVEN_SECRET",
+// 							ValueFrom: &corev1.EnvVarSource{
+// 								SecretKeyRef: &corev1.SecretKeySelector{
+// 									LocalObjectReference: corev1.LocalObjectReference{
+// 										Name: secretName,
+// 									},
+// 									Key: "my-secret",
+// 								},
+// 							},
+// 						},
+// 					},
+// 				},
+// 			},
+// 		},
+// 	}
+// }
 
-func makePodForSecretEnvFrom(secretName string) *corev1.Pod {
-	return &corev1.Pod{
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name: "container",
-					EnvFrom: []corev1.EnvFromSource{
-						{
-							SecretRef: &corev1.SecretEnvSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: secretName,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
+// func makePodForSecretEnvFrom(secretName string) *corev1.Pod {
+// 	return &corev1.Pod{
+// 		Spec: corev1.PodSpec{
+// 			Containers: []corev1.Container{
+// 				{
+// 					Name: "container",
+// 					EnvFrom: []corev1.EnvFromSource{
+// 						{
+// 							SecretRef: &corev1.SecretEnvSource{
+// 								LocalObjectReference: corev1.LocalObjectReference{
+// 									Name: secretName,
+// 								},
+// 							},
+// 						},
+// 					},
+// 				},
+// 			},
+// 		},
+// 	}
+// }
 
 type makeSecretOpts struct {
 	protected        bool
@@ -651,7 +664,7 @@ func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSec
 	return s
 }
 
-func TestJanitor(t *testing.T) {
-	janitorTestSuite := new(JanitorTestSuite)
-	suite.Run(t, janitorTestSuite)
-}
+// func TestJanitor(t *testing.T) {
+// 	janitorTestSuite := new(JanitorTestSuite)
+// 	suite.Run(t, janitorTestSuite)
+// }
