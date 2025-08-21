@@ -7,23 +7,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nais/liberator/pkg/scheme"
-	"k8s.io/apimachinery/pkg/runtime"
-
+	"github.com/nais/aivenator/constants"
+	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	"github.com/nais/liberator/pkg/scheme"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	//	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	//	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8sClient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-
-	"github.com/nais/aivenator/constants"
-	"github.com/nais/aivenator/pkg/utils"
 )
 
 const (
@@ -120,7 +119,7 @@ var _ = Describe("cleaner", func() {
 
 	When("there are unused volume mounted secrets", func() {
 		It("doesnt fail", func() {
-			// secrets := generateAndRegisterPodSecrets(clientBuilder)
+			secrets := generateAndRegisterPodSecrets(clientBuilder)
 			application := generateApplication()
 
 			clientBuilder.WithRuntimeObjects(
@@ -133,21 +132,24 @@ var _ = Describe("cleaner", func() {
 			err := janitor.CleanUnusedSecretsForApplication(ctx, application)
 			Expect(err).ToNot(HaveOccurred())
 
-			// for _, tt := range secrets {
-			// 	suite.Run(tt.reason, func() {
-			// 		actual := &corev1.Secret{}
-			// 		err := janitor.Client.Get(context.Background(), client.ObjectKey{
-			// 			Namespace: tt.namespace,
-			// 			Name:      tt.name,
-			// 		}, actual)
-			// 		suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-			// 	})
-			//			}
+			for _, tt := range secrets {
+				By(tt.reason)
+				actual := &corev1.Secret{}
+				err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					Namespace: tt.namespace,
+					Name:      tt.name,
+				}, actual)
+				// Gomega: wanted==true means we expect the secret to exist (err == nil)
+				if tt.wanted {
+					Expect(errors.IsNotFound(err)).To(BeFalse(), tt.reason)
+				} else {
+					Expect(errors.IsNotFound(err)).To(BeTrue(), tt.reason)
+				}
+			}
 
 		})
 
 	})
-
 })
 
 func generateAndRegisterPodSecrets(clientBuilder *fake.ClientBuilder) []secretSetup {
