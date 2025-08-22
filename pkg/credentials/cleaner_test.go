@@ -2,7 +2,7 @@ package credentials
 
 import (
 	"context"
-	//	"fmt"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -14,8 +14,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sClient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -112,11 +114,39 @@ func generateAndRegisterDeletedPodSecrets(clientBuilder *fake.ClientBuilder) []s
 }
 
 var _ = Describe("cleaner", func() {
-	var logger log.FieldLogger
-	var ctx context.Context
-	var clientBuilder *fake.ClientBuilder
-	var secrets []secretSetup
-	var application aiven_nais_io_v1.AivenApplication
+	var (
+		logger        log.FieldLogger
+		ctx           context.Context
+		clientBuilder *fake.ClientBuilder
+		secrets       []secretSetup
+		application   aiven_nais_io_v1.AivenApplication
+	)
+
+	type interaction struct {
+		method     string
+		arguments  []any
+		returnArgs []any
+		runFunc    func(arguments mock.Arguments)
+	}
+
+	newJanitorWithInteractions := func(interactions []interaction) (*Cleaner, *MockClient) {
+		mockClient := &MockClient{}
+		for _, i := range interactions {
+			call := mockClient.On(i.method, i.arguments...).Return(i.returnArgs...)
+			if i.runFunc != nil {
+				call.Run(i.runFunc)
+			}
+		}
+		mockClient.On("Scheme").Maybe().Return(&runtime.Scheme{})
+
+		root := log.New()
+		root.Out = GinkgoWriter
+		logger = log.NewEntry(root)
+		ctx = context.Background()
+
+		return buildJanitor(mockClient, logger), mockClient
+	}
+
 	BeforeEach(func() {
 		root := log.New()
 		root.Out = GinkgoWriter
@@ -689,213 +719,181 @@ var _ = Describe("cleaner", func() {
 			})
 		})
 	})
+	It("returns error when listing secrets fails", func() {
+		interactions := []interaction{
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+				returnArgs: []any{fmt.Errorf("api error")},
+			},
+		}
+
+		janitor, mockClient := newJanitorWithInteractions(interactions)
+		app := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
+
+		err := janitor.CleanUnusedSecretsForApplication(ctx, app)
+		Expect(err).To(MatchError("failed to retrieve list of secrets: api error"))
+		mockClient.AssertExpectations(GinkgoT())
+	})
+
+	It("returns error when listing pods fails", func() {
+		interactions := []interaction{
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
+				returnArgs: []any{fmt.Errorf("api error")},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+		}
+
+		janitor, mockClient := newJanitorWithInteractions(interactions)
+		app := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
+
+		err := janitor.CleanUnusedSecretsForApplication(ctx, app)
+		Expect(err).To(MatchError("failed to retrieve list of pods: api error"))
+		mockClient.AssertExpectations(GinkgoT())
+	})
+
+	It("ignores NotFound when deleting a secret", func() {
+		interactions := []interaction{
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+				returnArgs: []any{nil},
+				runFunc: func(arguments mock.Arguments) {
+					if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
+						secretList.Items = []corev1.Secret{*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName)}
+					}
+				},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "Delete",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.Secret")},
+				returnArgs: []any{errors.NewNotFound(corev1.Resource("secret"), UnusedSecret)},
+			},
+		}
+
+		janitor, mockClient := newJanitorWithInteractions(interactions)
+		app := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
+
+		err := janitor.CleanUnusedSecretsForApplication(ctx, app)
+		Expect(err).To(Succeed())
+		mockClient.AssertExpectations(GinkgoT())
+	})
+
+	It("continues after an error deleting a secret", func() {
+		interactions := []interaction{
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+				returnArgs: []any{nil},
+				runFunc: func(arguments mock.Arguments) {
+					if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
+						secretList.Items = []corev1.Secret{
+							*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName),
+							*makeSecret(NotOurSecretTypeSecret, MyNamespace, constants.AivenatorSecretType, MyAppName),
+						}
+					}
+				},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method:     "List",
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
+				returnArgs: []any{nil},
+			},
+			{
+				method: "Delete",
+				arguments: []any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
+					return s.GetName() == UnusedSecret
+				})},
+				returnArgs: []any{fmt.Errorf("api error")},
+			},
+			{
+				method: "Delete",
+				arguments: []any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
+					return s.GetName() == NotOurSecretTypeSecret
+				})},
+				returnArgs: []any{nil},
+			},
+		}
+
+		janitor, mockClient := newJanitorWithInteractions(interactions)
+		app := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
+
+		err := janitor.CleanUnusedSecretsForApplication(ctx, app)
+		Expect(err).To(Succeed())
+		mockClient.AssertExpectations(GinkgoT())
+	})
 })
-
-// func (suite *JanitorTestSuite) TestErrors() {
-// 	type interaction struct {
-// 		method     string
-// 		arguments  []any
-// 		returnArgs []any
-// 		runFunc    func(arguments mock.Arguments)
-// 	}
-// 	tests := []struct {
-// 		name         string
-// 		interactions []interaction
-// 		expected     error
-// 	}{
-// 		{
-// 			name: "TestErrorGettingSecrets",
-// 			interactions: []interaction{
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-// 					[]any{fmt.Errorf("api error")},
-// 					nil,
-// 				},
-// 			},
-// 			expected: fmt.Errorf("failed to retrieve list of secrets: api error"),
-// 		},
-// 		{
-// 			name: "TestErrorGettingPods",
-// 			interactions: []interaction{
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
-// 					[]any{fmt.Errorf("api error")},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 			},
-// 			expected: fmt.Errorf("failed to retrieve list of pods: api error"),
-// 		},
-// 		{
-// 			name: "TestSecretNotFoundWhenDeleting",
-// 			interactions: []interaction{
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-// 					[]any{nil},
-// 					func(arguments mock.Arguments) {
-// 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
-// 							secretList.Items = []corev1.Secret{*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName)}
-// 						}
-// 					},
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"Delete",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.Secret")},
-// 					[]any{errors.NewNotFound(corev1.Resource("secret"), UnusedSecret)},
-// 					nil,
-// 				},
-// 			},
-// 			expected: nil,
-// 		},
-// 		{
-// 			name: "TestContinueAfterErrorDeletingSecret",
-// 			interactions: []interaction{
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
-// 					[]any{nil},
-// 					func(arguments mock.Arguments) {
-// 						if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
-// 							secretList.Items = []corev1.Secret{
-// 								*makeSecret(UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName),
-// 								*makeSecret(NotOurSecretTypeSecret, MyNamespace, constants.AivenatorSecretType, MyAppName),
-// 							}
-// 						}
-// 					},
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"List",
-// 					[]any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 				{
-// 					"Delete",
-// 					[]any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
-// 						return s.GetName() == UnusedSecret
-// 					})},
-// 					[]any{fmt.Errorf("api error")},
-// 					nil,
-// 				},
-// 				{
-// 					"Delete",
-// 					[]any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
-// 						return s.GetName() == NotOurSecretTypeSecret
-// 					})},
-// 					[]any{nil},
-// 					nil,
-// 				},
-// 			},
-// 			expected: nil,
-// 		},
-// 	}
-
-// 	for _, tt := range tests {
-// 		suite.Run(tt.name, func() {
-// 			mockClient := &MockClient{}
-// 			for _, i := range tt.interactions {
-// 				call := mockClient.On(i.method, i.arguments...).Return(i.returnArgs...)
-// 				if i.runFunc != nil {
-// 					call.Run(i.runFunc)
-// 				}
-// 			}
-// 			mockClient.On("Scheme").Maybe().Return(&runtime.Scheme{})
-
-// 			janitor := suite.buildJanitor(mockClient, logger)
-// 			application := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
-// 			err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-
-// 			suite.Equal(tt.expected, err)
-// 			mockClient.AssertExpectations(suite.T())
-// 		})
-// 	}
-// }
 
 func makePodForSecretVolume(secretName string) *corev1.Pod {
 	return &corev1.Pod{
