@@ -3,122 +3,123 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"testing"
+	"maps"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 )
 
-func TestManager_Apply(t *testing.T) {
-	// given
-	mockHandler := MockHandler{}
-	expectedAnnotations := make(map[string]string)
-	expectedAnnotations["one"] = "1"
-	mockHandler.
-		On("Apply",
-			mock.Anything,
-			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*v1.Secret"),
-			mock.Anything).
-		Return(nil, nil).
-		Run(func(args mock.Arguments) {
-			secret := args.Get(2).(*corev1.Secret)
-			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
-			for key, value := range expectedAnnotations {
-				secret.ObjectMeta.Annotations[key] = value
-			}
-		})
-	application := aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
-	manager := Manager{handlers: []Handler{&mockHandler}}
+var _ = Describe("Manager", func() {
+	var application aiven_nais_io_v1.AivenApplication
 
-	// when
-	sharedSecret := &corev1.Secret{}
-	individualSecrets, err := manager.CreateSecret(context.Background(), &application, sharedSecret, nil)
+	BeforeEach(func() {
+		application = aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
+	})
 
-	// then
-	assert.NoError(t, err)
-	assert.NotEmpty(t, individualSecrets)
-	assert.Equal(t, sharedSecret.ObjectMeta.Annotations, expectedAnnotations)
-	assert.Equal(t, individualSecrets[0].ObjectMeta.Annotations, expectedAnnotations)
-}
+	It("Apply propagates annotations to shared and individual secrets", func() {
+		mockHandler := MockHandler{}
+		expectedAnnotations := map[string]string{"one": "1"}
 
-func TestManager_ApplyFailed(t *testing.T) {
-	// given
-	mockHandler := MockHandler{}
-	failingHandler := MockHandler{}
-	expectedAnnotations := make(map[string]string)
-	expectedAnnotations["one"] = "1"
-	mockHandler.
-		On("Apply",
-			mock.Anything,
-			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*v1.Secret"),
-			mock.Anything).
-		Return(nil, nil).
-		Run(func(args mock.Arguments) {
-			secret := args.Get(2).(*corev1.Secret)
-			secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
-			for key, value := range expectedAnnotations {
-				secret.ObjectMeta.Annotations[key] = value
-			}
-		})
-	mockHandler.
-		On("Cleanup",
-			mock.Anything,
-			mock.AnythingOfType("*v1.Secret"),
-			mock.Anything).
-		Return(nil)
-	handlerError := fmt.Errorf("failing handler")
-	failingHandler.
-		On("Apply",
-			mock.Anything,
-			mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
-			mock.AnythingOfType("*v1.Secret"),
-			mock.Anything).
-		Return(nil, handlerError)
-	failingHandler.
-		On("Cleanup",
-			mock.Anything,
-			mock.AnythingOfType("*v1.Secret"),
-			mock.Anything).
-		Return(nil)
-	application := aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
-	manager := Manager{handlers: []Handler{&mockHandler, &failingHandler}}
+		mockHandler.
+			On("Apply",
+				mock.Anything,
+				mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
+				mock.AnythingOfType("*v1.Secret"),
+				mock.Anything).
+			Return(nil, nil).
+			Run(func(args mock.Arguments) {
+				secret := args.Get(2).(*corev1.Secret)
+				secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
+				maps.Copy(secret.ObjectMeta.Annotations, expectedAnnotations)
+			})
 
-	// when
-	secret := &corev1.Secret{}
-	_, err := manager.CreateSecret(context.Background(), &application, secret, nil)
+		manager := Manager{handlers: []Handler{&mockHandler}}
 
-	// then
-	assert.Error(t, err)
-	assert.EqualError(t, err, handlerError.Error())
-	failingHandler.AssertCalled(t, "Cleanup",
-		mock.Anything,
-		mock.AnythingOfType("*v1.Secret"),
-		mock.Anything)
-}
+		sharedSecret := &corev1.Secret{}
+		individualSecrets, err := manager.CreateSecret(context.Background(), &application, sharedSecret, nil)
 
-func TestManager_Cleanup(t *testing.T) {
-	// given
-	mockHandler := MockHandler{}
-	mockHandler.
-		On("Cleanup",
+		Expect(err).NotTo(HaveOccurred())
+		Expect(individualSecrets).NotTo(BeEmpty())
+		Expect(sharedSecret.ObjectMeta.Annotations).To(Equal(expectedAnnotations))
+		Expect(individualSecrets[0].ObjectMeta.Annotations).To(Equal(expectedAnnotations))
+	})
+
+	It("ApplyFailed cleans up on error", func() {
+		mockHandler := MockHandler{}
+		failingHandler := MockHandler{}
+		expectedAnnotations := map[string]string{"one": "1"}
+
+		mockHandler.
+			On("Apply",
+				mock.Anything,
+				mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
+				mock.AnythingOfType("*v1.Secret"),
+				mock.Anything).
+			Return(nil, nil).
+			Run(func(args mock.Arguments) {
+				secret := args.Get(2).(*corev1.Secret)
+				secret.ObjectMeta.Annotations = make(map[string]string, len(expectedAnnotations))
+				maps.Copy(secret.ObjectMeta.Annotations, expectedAnnotations)
+			})
+
+		mockHandler.
+			On("Cleanup",
+				mock.Anything,
+				mock.AnythingOfType("*v1.Secret"),
+				mock.Anything).
+			Return(nil)
+
+		handlerError := fmt.Errorf("failing handler")
+
+		failingHandler.
+			On("Apply",
+				mock.Anything,
+				mock.AnythingOfType("*aiven_nais_io_v1.AivenApplication"),
+				mock.AnythingOfType("*v1.Secret"),
+				mock.Anything).
+			Return(nil, handlerError)
+
+		failingHandler.
+			On("Cleanup",
+				mock.Anything,
+				mock.AnythingOfType("*v1.Secret"),
+				mock.Anything).
+			Return(nil)
+
+		manager := Manager{handlers: []Handler{&mockHandler, &failingHandler}}
+
+		secret := &corev1.Secret{}
+		_, err := manager.CreateSecret(context.Background(), &application, secret, nil)
+
+		Expect(err).To(MatchError(handlerError))
+
+		failingHandler.AssertCalled(GinkgoT(), "Cleanup",
 			mock.Anything,
 			mock.AnythingOfType("*v1.Secret"),
-			mock.Anything).
-		Return(nil)
-	secret := corev1.Secret{}
-	manager := Manager{handlers: []Handler{&mockHandler}}
+			mock.Anything)
+	})
 
-	// when
-	err := manager.Cleanup(context.Background(), &secret, nil)
+	It("Cleanup delegates to handlers", func() {
+		mockHandler := MockHandler{}
+		mockHandler.
+			On("Cleanup",
+				mock.Anything,
+				mock.AnythingOfType("*v1.Secret"),
+				mock.Anything).
+			Return(nil)
 
-	// then
-	assert.NoError(t, err)
-	mockHandler.AssertCalled(t, "Cleanup",
-		mock.Anything,
-		mock.AnythingOfType("*v1.Secret"),
-		mock.Anything)
-}
+		manager := Manager{handlers: []Handler{&mockHandler}}
+		secret := corev1.Secret{}
+
+		err := manager.Cleanup(context.Background(), &secret, nil)
+		Expect(err).NotTo(HaveOccurred())
+
+		mockHandler.AssertCalled(GinkgoT(), "Cleanup",
+			mock.Anything,
+			mock.AnythingOfType("*v1.Secret"),
+			mock.Anything)
+	})
+})
