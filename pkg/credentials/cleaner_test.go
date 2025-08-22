@@ -551,42 +551,145 @@ var _ = Describe("cleaner", func() {
 			})
 		})
 	})
+	When("Kafka instance with an individual secret", func() {
+		Context("that are supposed to be kept", func() {
+			BeforeEach(func() {
+				secrets = generateAndRegisterKeptPodSecrets(clientBuilder)
+				application = aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+						Kafka: &aiven_nais_io_v1.KafkaSpec{
+							Pool:       "KafkaPool",
+							SecretName: CurrentlyRequestedSecret,
+						},
+					}).
+					Build()
+				application.SetLabels(map[string]string{
+					constants.AppLabel: MyAppName,
+				})
+			})
+			It("should succeed, when the secrets are mounted as SecretVolume", func() {
+				clientBuilder.WithRuntimeObjects(
+					makePodForSecretVolume(SecretUsedByPod),
+					&application,
+				)
+				janitor := buildJanitor(clientBuilder.Build(), logger)
+				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
+				Expect(err).ToNot(HaveOccurred())
+
+				for _, tt := range secrets {
+					By(tt.reason)
+					actual := &corev1.Secret{}
+					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+						Namespace: tt.namespace,
+						Name:      tt.name,
+					}, actual)
+					Expect(err).ToNot(HaveOccurred())
+				}
+			})
+			It("should succeed, when the secrets are mounted as SecretValueFrom", func() {
+				clientBuilder.WithRuntimeObjects(
+					makePodForSecretValueFrom(SecretUsedByPod),
+					&application,
+				)
+				janitor := buildJanitor(clientBuilder.Build(), logger)
+				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
+				Expect(err).ToNot(HaveOccurred())
+
+				for _, tt := range secrets {
+					By(tt.reason)
+					actual := &corev1.Secret{}
+					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+						Namespace: tt.namespace,
+						Name:      tt.name,
+					}, actual)
+					Expect(err).ToNot(HaveOccurred())
+				}
+			})
+			It("should succeed, when the secrets are mounted as SecretEnvFrom", func() {
+				clientBuilder.WithRuntimeObjects(
+					makePodForSecretEnvFrom(SecretUsedByPod),
+					&application,
+				)
+				janitor := buildJanitor(clientBuilder.Build(), logger)
+				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
+				Expect(err).ToNot(HaveOccurred())
+
+				for _, tt := range secrets {
+					By(tt.reason)
+					actual := &corev1.Secret{}
+					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+						Namespace: tt.namespace,
+						Name:      tt.name,
+					}, actual)
+					Expect(err).ToNot(HaveOccurred())
+				}
+			})
+		})
+		Context("that are not supposed to be kept", func() {
+			BeforeEach(func() {
+				secrets = generateAndRegisterDeletedPodSecrets(clientBuilder)
+				application = generateApplication()
+			})
+			It("should fail, when the secrets are mounted as SecretVolume", func() {
+				clientBuilder.WithRuntimeObjects(
+					makePodForSecretVolume(SecretUsedByPod),
+					&application,
+				)
+				janitor := buildJanitor(clientBuilder.Build(), logger)
+				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
+				Expect(err).ToNot(HaveOccurred())
+
+				for _, tt := range secrets {
+					By(tt.reason)
+					actual := &corev1.Secret{}
+					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+						Namespace: tt.namespace,
+						Name:      tt.name,
+					}, actual)
+					Expect(err).To(HaveOccurred())
+				}
+			})
+			It("should fail, when the secrets are mounted as SecretValueFrom", func() {
+				clientBuilder.WithRuntimeObjects(
+					makePodForSecretValueFrom(SecretUsedByPod),
+					&application,
+				)
+				janitor := buildJanitor(clientBuilder.Build(), logger)
+				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
+				Expect(err).ToNot(HaveOccurred())
+
+				for _, tt := range secrets {
+					By(tt.reason)
+					actual := &corev1.Secret{}
+					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+						Namespace: tt.namespace,
+						Name:      tt.name,
+					}, actual)
+					Expect(err).To(HaveOccurred())
+				}
+			})
+			It("should fail, when the secrets are mounted as SecretEnvFrom", func() {
+				clientBuilder.WithRuntimeObjects(
+					makePodForSecretEnvFrom(SecretUsedByPod),
+					&application,
+				)
+				janitor := buildJanitor(clientBuilder.Build(), logger)
+				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
+				Expect(err).ToNot(HaveOccurred())
+
+				for _, tt := range secrets {
+					By(tt.reason)
+					actual := &corev1.Secret{}
+					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+						Namespace: tt.namespace,
+						Name:      tt.name,
+					}, actual)
+					Expect(err).To(HaveOccurred())
+				}
+			})
+		})
+	})
 })
-
-// func (suite *JanitorTestSuite) TestKafkaIndividualSecret() {
-// 	secrets := generateAndRegisterPodSecrets(suite)
-// 	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
-// 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-// 			Kafka: &aiven_nais_io_v1.KafkaSpec{
-// 				Pool:       "KafkaPool",
-// 				SecretName: CurrentlyRequestedSecret,
-// 			},
-// 		}).
-// 		Build()
-// 	application.SetLabels(map[string]string{
-// 		constants.AppLabel: MyAppName,
-// 	})
-
-// 	suite.clientBuilder.WithRuntimeObjects(
-// 		makePodForSecretValueFrom(SecretUsedByPod),
-// 		&application,
-// 	)
-
-// 	janitor := suite.buildJanitor(suite.clientBuilder.Build(), logger)
-// 	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-// 	suite.Nil(err)
-
-// 	for _, tt := range secrets {
-// 		suite.Run(tt.reason, func() {
-// 			actual := &corev1.Secret{}
-// 			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-// 				Namespace: tt.namespace,
-// 				Name:      tt.name,
-// 			}, actual)
-// 			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-// 		})
-// 	}
-// }
 
 // func (suite *JanitorTestSuite) TestErrors() {
 // 	type interaction struct {
@@ -921,8 +1024,3 @@ func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSec
 	}
 	return s
 }
-
-// func TestJanitor(t *testing.T) {
-// 	janitorTestSuite := new(JanitorTestSuite)
-// 	suite.Run(t, janitorTestSuite)
-// }
