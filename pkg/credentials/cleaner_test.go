@@ -85,6 +85,26 @@ func TestCleaner(t *testing.T) {
 	RunSpecs(t, "Cleaner Suite")
 }
 
+func generateAndRegisterPodSecrets(clientBuilder *fake.ClientBuilder) []secretSetup {
+	secrets := []secretSetup{
+		{UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, false, "Unused secret should be deleted"},
+		{UnusedSecret, NotMyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret in another namespace should be kept"},
+		{NotOurSecretTypeSecret, MyNamespace, NotMySecretType, MyAppName, []MakeSecretOption{}, true, "Unrelated secret should be kept"},
+		{SecretUsedByPod, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Used secret should be kept"},
+		{ProtectedNotTimeLimited, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected}, true, "Protected secret should be kept"},
+		{UnusedSecretWithNoAnnotations, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretHasNoAnnotations}, false, "Unused secret should be deleted, even if annotations are nil"},
+		{SecretBelongingToOtherApp, MyNamespace, constants.AivenatorSecretType, NotMyAppName, []MakeSecretOption{}, true, "Secret belonging to different app should be kept"},
+		{CurrentlyRequestedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret currently requested should be kept"},
+		{ProtectedNotExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(time.Now().Add(48 * time.Hour))}, true, "Protected secret with time-limit that isn't expired should be kept"},
+		{ProtectedExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(time.Now().Add(-48 * time.Hour))}, false, "Protected secret with time-limit that is expired should be deleted"},
+		{ProtectedTimeLimitedWithNoExpirySet, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit}, true, "Protected secret with time-limit but missing expires date should be kept"},
+	}
+	for _, s := range secrets {
+		clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
+	}
+	return secrets
+}
+
 var _ = Describe("cleaner", func() {
 	var logger log.FieldLogger
 	var ctx context.Context
@@ -98,7 +118,6 @@ var _ = Describe("cleaner", func() {
 		s := runtime.NewScheme()
 		scheme.AddAll(s)
 		clientBuilder.WithScheme(s)
-
 	})
 
 	When("no secrets exist", func() {
@@ -113,12 +132,11 @@ var _ = Describe("cleaner", func() {
 
 			err := janitor.CleanUnusedSecretsForApplication(ctx, application)
 			Expect(err).ToNot(HaveOccurred())
-
 		})
 	})
 
-	When("there are unused volume mounted secrets", func() {
-		It("doesnt fail", func() {
+	When("the secrets list", func() {
+		It("doesn't fail when they are mounted as SecretVolume", func() {
 			secrets := generateAndRegisterPodSecrets(clientBuilder)
 			application := generateApplication()
 
@@ -146,57 +164,38 @@ var _ = Describe("cleaner", func() {
 					Expect(errors.IsNotFound(err)).To(BeTrue(), tt.reason)
 				}
 			}
-
 		})
+		It("doesn't fail when they are mounted as SecretValueFrom", func() {
+			secrets := generateAndRegisterPodSecrets(clientBuilder)
+			application := generateApplication()
 
+			// Unique per of these tests
+			clientBuilder.WithRuntimeObjects(
+				makePodForSecretValueFrom(SecretUsedByPod),
+				&application,
+			)
+
+			janitor := buildJanitor(clientBuilder.Build(), logger)
+			err := janitor.CleanUnusedSecretsForApplication(ctx, application)
+			Expect(err).ToNot(HaveOccurred())
+
+			for _, tt := range secrets {
+				By(tt.reason)
+				actual := &corev1.Secret{}
+				err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					Namespace: tt.namespace,
+					Name:      tt.name,
+				}, actual)
+				// Gomega: wanted==true means we expect the secret to exist (err == nil)
+				if tt.wanted {
+					Expect(errors.IsNotFound(err)).To(BeFalse(), tt.reason)
+				} else {
+					Expect(errors.IsNotFound(err)).To(BeTrue(), tt.reason)
+				}
+			}
+		})
 	})
 })
-
-func generateAndRegisterPodSecrets(clientBuilder *fake.ClientBuilder) []secretSetup {
-	secrets := []secretSetup{
-		{UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, false, "Unused secret should be deleted"},
-		{UnusedSecret, NotMyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret in another namespace should be kept"},
-		{NotOurSecretTypeSecret, MyNamespace, NotMySecretType, MyAppName, []MakeSecretOption{}, true, "Unrelated secret should be kept"},
-		{SecretUsedByPod, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Used secret should be kept"},
-		{ProtectedNotTimeLimited, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected}, true, "Protected secret should be kept"},
-		{UnusedSecretWithNoAnnotations, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretHasNoAnnotations}, false, "Unused secret should be deleted, even if annotations are nil"},
-		{SecretBelongingToOtherApp, MyNamespace, constants.AivenatorSecretType, NotMyAppName, []MakeSecretOption{}, true, "Secret belonging to different app should be kept"},
-		{CurrentlyRequestedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret currently requested should be kept"},
-		{ProtectedNotExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(time.Now().Add(48 * time.Hour))}, true, "Protected secret with time-limit that isn't expired should be kept"},
-		{ProtectedExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(time.Now().Add(-48 * time.Hour))}, false, "Protected secret with time-limit that is expired should be deleted"},
-		{ProtectedTimeLimitedWithNoExpirySet, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit}, true, "Protected secret with time-limit but missing expires date should be kept"},
-	}
-	for _, s := range secrets {
-		clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
-	}
-	return secrets
-}
-
-// func (suite *JanitorTestSuite) TestUnusedEnvMountedSecretsFound() {
-// 	secrets := generateAndRegisterPodSecrets(suite)
-// 	application := generateApplication()
-
-// 	// Unique per of these tests
-// 	suite.clientBuilder.WithRuntimeObjects(
-// 		makePodForSecretValueFrom(SecretUsedByPod),
-// 		&application,
-// 	)
-
-// 	janitor := suite.buildJanitor(suite.clientBuilder.Build(), logger)
-// 	err := janitor.CleanUnusedSecretsForApplication(suite.ctx, application)
-// 	suite.Nil(err)
-
-// 	for _, tt := range secrets {
-// 		suite.Run(tt.reason, func() {
-// 			actual := &corev1.Secret{}
-// 			err := janitor.Client.Get(context.Background(), client.ObjectKey{
-// 				Namespace: tt.namespace,
-// 				Name:      tt.name,
-// 			}, actual)
-// 			suite.NotEqualf(tt.wanted, errors.IsNotFound(err), tt.reason)
-// 		})
-// 	}
-// }
 
 // func (suite *JanitorTestSuite) TestUnusedEnvFromMountedSecretsFound() {
 // 	secrets := generateAndRegisterPodSecrets(suite)
@@ -554,30 +553,30 @@ func makePodForSecretVolume(secretName string) *corev1.Pod {
 	}
 }
 
-// func makePodForSecretValueFrom(secretName string) *corev1.Pod {
-// 	return &corev1.Pod{
-// 		Spec: corev1.PodSpec{
-// 			Containers: []corev1.Container{
-// 				{
-// 					Name: "container",
-// 					Env: []corev1.EnvVar{
-// 						{
-// 							Name: "AIVEN_SECRET",
-// 							ValueFrom: &corev1.EnvVarSource{
-// 								SecretKeyRef: &corev1.SecretKeySelector{
-// 									LocalObjectReference: corev1.LocalObjectReference{
-// 										Name: secretName,
-// 									},
-// 									Key: "my-secret",
-// 								},
-// 							},
-// 						},
-// 					},
-// 				},
-// 			},
-// 		},
-// 	}
-// }
+func makePodForSecretValueFrom(secretName string) *corev1.Pod {
+	return &corev1.Pod{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "container",
+					Env: []corev1.EnvVar{
+						{
+							Name: "AIVEN_SECRET",
+							ValueFrom: &corev1.EnvVarSource{
+								SecretKeyRef: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: "my-secret",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
 
 // func makePodForSecretEnvFrom(secretName string) *corev1.Pod {
 // 	return &corev1.Pod{
