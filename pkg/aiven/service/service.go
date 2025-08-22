@@ -9,7 +9,7 @@ import (
 	"github.com/nais/aivenator/pkg/metrics"
 )
 
-const serviceAddressCacheTTL = 1 * time.Hour
+const serviceAddressCacheTTL = 5 * time.Minute
 
 type ServiceManager interface {
 	Get(ctx context.Context, projectName, serviceName string) (*aiven.Service, error)
