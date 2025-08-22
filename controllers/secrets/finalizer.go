@@ -23,7 +23,7 @@ const (
 
 type SecretsFinalizer struct {
 	client.Client
-	Logger  *log.Entry
+	Logger  log.FieldLogger
 	Manager credentials.Manager
 }
 

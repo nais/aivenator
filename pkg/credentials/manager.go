@@ -27,7 +27,7 @@ type Manager struct {
 	handlers []Handler
 }
 
-func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger *log.Entry) Manager {
+func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger) Manager {
 	return Manager{
 		handlers: []Handler{
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
