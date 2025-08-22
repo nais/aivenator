@@ -74,9 +74,10 @@ type secretSetup struct {
 	reason     string
 }
 
-func TestCleaner(t *testing.T) {
+// This is also the entrypoint for the other tests in the credentials package, hence the name
+func TestCredentials(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Cleaner Suite")
+	RunSpecs(t, "credentials Suite")
 }
 
 func generateAndRegisterKeptPodSecrets(clientBuilder *fake.ClientBuilder) []secretSetup {
