@@ -14,11 +14,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
-	//	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	//	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sClient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -146,14 +143,13 @@ var _ = Describe("cleaner", func() {
 		})
 	})
 
-	// When("the secrets in the secrets list", func() {
-	When("the secrets in the hardcoded list of secrets", func() {
+	When("aivenator `sharedsecret`s", func() {
 		Context("that are supposed to be kept", func() {
 			BeforeEach(func() {
 				secrets = generateAndRegisterKeptPodSecrets(clientBuilder)
 				application = generateApplication()
 			})
-			It("are mounted as SecretVolume", func() {
+			It("should succeed, when the secrets are mounted as SecretVolume", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretVolume(SecretUsedByPod),
 					&application,
@@ -169,10 +165,10 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeFalse(), tt.reason)
+					Expect(err).ToNot(HaveOccurred())
 				}
 			})
-			It("mounted as SecretValueFrom", func() {
+			It("should succeed, when the secrets are mounted as SecretValueFrom", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretValueFrom(SecretUsedByPod),
 					&application,
@@ -188,10 +184,10 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeFalse(), tt.reason)
+					Expect(err).ToNot(HaveOccurred())
 				}
 			})
-			It("mounted as SecretEnvFrom", func() {
+			It("should succeed, when the secrets are mounted as SecretEnvFrom", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretEnvFrom(SecretUsedByPod),
 					&application,
@@ -207,7 +203,7 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeFalse(), tt.reason)
+					Expect(err).ToNot(HaveOccurred())
 				}
 			})
 		})
@@ -216,7 +212,7 @@ var _ = Describe("cleaner", func() {
 				secrets = generateAndRegisterDeletedPodSecrets(clientBuilder)
 				application = generateApplication()
 			})
-			It("are mounted as SecretVolume", func() {
+			It("should fail, when the secrets are mounted as SecretVolume", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretVolume(SecretUsedByPod),
 					&application,
@@ -232,10 +228,10 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeTrue(), tt.reason)
+					Expect(err).To(HaveOccurred())
 				}
 			})
-			It("mounted as SecretValueFrom", func() {
+			It("should fail, when the secrets are mounted as SecretValueFrom", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretValueFrom(SecretUsedByPod),
 					&application,
@@ -251,10 +247,10 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeTrue(), tt.reason)
+					Expect(err).To(HaveOccurred())
 				}
 			})
-			It("mounted as SecretEnvFrom", func() {
+			It("should fail, when the secrets are mounted as SecretEnvFrom", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretEnvFrom(SecretUsedByPod),
 					&application,
@@ -270,12 +266,12 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeTrue(), tt.reason)
+					Expect(err).To(HaveOccurred())
 				}
 			})
 		})
 	})
-	When("for an Opensearch instance with an individual secret, the secrets in the hardcoded list of secrets", func() {
+	When("Opensearch instance with an individual secret", func() {
 		Context("that are supposed to be kept", func() {
 			BeforeEach(func() {
 				secrets = generateAndRegisterKeptPodSecrets(clientBuilder)
@@ -292,7 +288,7 @@ var _ = Describe("cleaner", func() {
 					constants.AppLabel: MyAppName,
 				})
 			})
-			It("are mounted as SecretVolume", func() {
+			It("should succeed, when the secrets are mounted as SecretVolume", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretVolume(SecretUsedByPod),
 					&application,
@@ -308,10 +304,10 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeFalse(), tt.reason)
+					Expect(err).ToNot(HaveOccurred())
 				}
 			})
-			It("mounted as SecretValueFrom", func() {
+			It("should succeed, when the secrets are mounted as SecretValueFrom", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretValueFrom(SecretUsedByPod),
 					&application,
@@ -327,10 +323,10 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeFalse(), tt.reason)
+					Expect(err).ToNot(HaveOccurred())
 				}
 			})
-			It("mounted as SecretEnvFrom", func() {
+			It("should succeed, when the secrets are mounted as SecretEnvFrom", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretEnvFrom(SecretUsedByPod),
 					&application,
@@ -346,7 +342,7 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeFalse(), tt.reason)
+					Expect(err).ToNot(HaveOccurred())
 				}
 			})
 		})
@@ -355,7 +351,7 @@ var _ = Describe("cleaner", func() {
 				secrets = generateAndRegisterDeletedPodSecrets(clientBuilder)
 				application = generateApplication()
 			})
-			It("are mounted as SecretVolume", func() {
+			It("should fail, when the secrets are mounted as SecretVolume", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretVolume(SecretUsedByPod),
 					&application,
@@ -371,10 +367,10 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeTrue(), tt.reason)
+					Expect(err).To(HaveOccurred())
 				}
 			})
-			It("mounted as SecretValueFrom", func() {
+			It("should fail, when the secrets are mounted as SecretValueFrom", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretValueFrom(SecretUsedByPod),
 					&application,
@@ -390,10 +386,10 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeTrue(), tt.reason)
+					Expect(err).To(HaveOccurred())
 				}
 			})
-			It("mounted as SecretEnvFrom", func() {
+			It("should fail, when the secrets are mounted as SecretEnvFrom", func() {
 				clientBuilder.WithRuntimeObjects(
 					makePodForSecretEnvFrom(SecretUsedByPod),
 					&application,
@@ -409,7 +405,7 @@ var _ = Describe("cleaner", func() {
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
-					Expect(errors.IsNotFound(err)).To(BeTrue(), tt.reason)
+					Expect(err).To(HaveOccurred())
 				}
 			})
 		})
