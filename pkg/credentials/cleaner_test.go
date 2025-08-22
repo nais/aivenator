@@ -15,7 +15,6 @@ import (
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -56,10 +55,6 @@ func generateApplication() aiven_nais_io_v1.AivenApplication {
 		constants.AppLabel: MyAppName,
 	})
 	return application
-}
-
-type JanitorTestSuite struct {
-	suite.Suite
 }
 
 func buildJanitor(client Client, logger log.FieldLogger) *Cleaner {
