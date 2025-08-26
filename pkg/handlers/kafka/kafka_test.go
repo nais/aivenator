@@ -326,7 +326,8 @@ var _ = Describe("kafka handler", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
-							Pool: pool,
+							Pool:       pool,
+							SecretName: secretName,
 						},
 					}).
 					Build()
@@ -365,7 +366,8 @@ var _ = Describe("kafka handler", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
-							Pool: pool,
+							Pool:       pool,
+							SecretName: secretName,
 						},
 					}).
 					Build()
@@ -404,24 +406,30 @@ var _ = Describe("kafka handler", func() {
 
 				expected := corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
+						Name:      application.Spec.Kafka.SecretName,
+						Namespace: application.GetNamespace(),
 						Annotations: map[string]string{
-							ServiceUserAnnotation: serviceUserName,
-							PoolAnnotation:        pool,
+							ServiceUserAnnotation:             serviceUserName,
+							constants.AivenatorProtectedKey:   "false",
+							"nais.io/deploymentCorrelationID": "",
+							PoolAnnotation:                    pool,
 						},
+						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
 					},
-					Data:       sharedSecret.Data,
-					StringData: sharedSecret.StringData,
+					Data:       individualSecrets[0].Data,
+					StringData: individualSecrets[0].StringData,
 				}
 
-				Expect(sharedSecret).To(Equal(expected))
-				Expect(individualSecrets).To(BeNil())
+				Expect(individualSecrets[0]).To(Equal(expected))
+				Expect(sharedSecret).To(BeNil())
 			})
 			It("doesnt create a new serviceUser if already extant", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
-							Pool: pool,
+							Pool:       pool,
+							SecretName: secretName,
 						},
 					}).
 					Build()
@@ -460,18 +468,23 @@ var _ = Describe("kafka handler", func() {
 
 				expected := corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
+						Name:      application.Spec.Kafka.SecretName,
+						Namespace: application.GetNamespace(),
 						Annotations: map[string]string{
-							ServiceUserAnnotation: serviceUserName,
-							PoolAnnotation:        pool,
+							"nais.io/deploymentCorrelationID": "",
+							constants.AivenatorProtectedKey:   "false",
+							ServiceUserAnnotation:             serviceUserName,
+							PoolAnnotation:                    pool,
 						},
+						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
 					},
-					Data:       sharedSecret.Data,
-					StringData: sharedSecret.StringData,
+					Data:       individualSecrets[0].Data,
+					StringData: individualSecrets[0].StringData,
 				}
 
-				Expect(sharedSecret).To(Equal(expected))
-				Expect(individualSecrets).To(BeNil())
+				Expect(individualSecrets[0]).To(Equal(expected))
+				Expect(sharedSecret).To(BeNil())
 			})
 
 			It("Errors on specifically the pool called not-my-testing-pool", func() {
@@ -497,7 +510,8 @@ var _ = Describe("kafka handler", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
-							Pool: pool,
+							Pool:       pool,
+							SecretName: secretName,
 						},
 					}).
 					Build()
