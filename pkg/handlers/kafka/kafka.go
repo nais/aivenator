@@ -70,17 +70,18 @@ type KafkaHandler struct {
 
 func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "kafka"})
-	if application.Spec.Kafka == nil {
+	spec := application.Spec.Kafka
+	if spec == nil {
 		return nil, nil
 	}
 
-	projectName := application.Spec.Kafka.Pool
+	projectName := spec.Pool
 	if projectName == "" {
 		logger.Debugf("No Kafka pool specified; noop")
 		return nil, nil
 	}
 
-	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, application.Spec.Kafka.Pool)
+	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, spec.Pool)
 	if err != nil {
 		return nil, utils.AivenFail("ResolveServiceName", application, err, false, logger)
 	}
@@ -102,7 +103,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	}
 
 	finalSecret := sharedSecret
-	if application.Spec.SecretName != "" {
+	if spec.SecretName != "" {
 		logger = logger.WithField("secret_name", application.Spec.SecretName)
 		finalSecret = &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -128,7 +129,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 	finalSecret.SetAnnotations(utils.MergeStringMap(finalSecret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenUser.Username,
-		PoolAnnotation:        application.Spec.Kafka.Pool,
+		PoolAnnotation:        spec.Pool,
 	}))
 	logger.Infof("Created service user %s", aivenUser.Username)
 
@@ -157,7 +158,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 	controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
 
-	if application.Spec.SecretName != "" {
+	if spec.SecretName != "" {
 		return []corev1.Secret{*finalSecret}, nil
 	}
 	logger.Infof("Applied secret: %s", application.Spec.SecretName)
