@@ -104,10 +104,10 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 	finalSecret := sharedSecret
 	if spec.SecretName != "" {
-		logger = logger.WithField("secret_name", application.Spec.SecretName)
+		logger = logger.WithField("secret_name", spec.SecretName)
 		finalSecret = &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      application.Spec.SecretName,
+				Name:      spec.SecretName,
 				Namespace: application.GetNamespace(),
 			},
 		}
