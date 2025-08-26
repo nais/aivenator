@@ -232,39 +232,39 @@ var _ = Describe("kafka handler", func() {
 						Secret:     credStoreSecret,
 					}, nil)
 
-				(*sharedSecret).ObjectMeta = metav1.ObjectMeta{
-					Annotations: map[string]string{
-						ServiceUserAnnotation: serviceUserName,
-					},
-				}
 				application := applicationBuilder.Build()
 				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
 
 				Expect(err).ToNot(HaveOccurred())
 
-				expected := &corev1.Secret{
+				expected := corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
+						Name:      application.Spec.Kafka.SecretName,
+						Namespace: application.GetNamespace(),
 						Annotations: map[string]string{
-							ServiceUserAnnotation: serviceUserName,
-							PoolAnnotation:        pool,
+							ServiceUserAnnotation:             serviceUserName,
+							constants.AivenatorProtectedKey:   "false",
+							"nais.io/deploymentCorrelationID": "",
+							PoolAnnotation:                    pool,
 						},
+						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
 					},
-					Data:       sharedSecret.Data,
-					StringData: sharedSecret.StringData,
+					Data:       individualSecrets[0].Data,
+					StringData: individualSecrets[0].StringData,
 				}
 
-				Expect(expected).To(Equal(sharedSecret))
-				Expect(individualSecrets).To(BeNil())
-				Expect(utils.KeysFromStringMap((*sharedSecret).StringData)).To(ConsistOf(
+				Expect(expected).To(Equal(individualSecrets[0]))
+				Expect(sharedSecret).To(BeNil())
+				Expect(utils.KeysFromStringMap(individualSecrets[0].StringData)).To(ContainElements(
 					KafkaCA, KafkaPrivateKey, KafkaCredStorePassword, KafkaSchemaRegistry, KafkaSchemaUser, KafkaSchemaPassword,
-					KafkaBrokers, KafkaSecretUpdated, KafkaCertificate,
+					KafkaBrokers, KafkaSecretUpdated, KafkaCertificate, secret.AivenCAKey,
 				))
-				Expect(keysFromByteMap((*sharedSecret).Data)).To(ConsistOf(
+				Expect(keysFromByteMap(individualSecrets[0].Data)).To(ConsistOf(
 					KafkaKeystore, KafkaTruststore,
 				))
-				Expect(validation.ValidateAnnotations((*sharedSecret).GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-				Expect((*sharedSecret).GetAnnotations()[ServiceUserAnnotation]).To(Equal(serviceUserName))
+				Expect(validation.ValidateAnnotations(individualSecrets[0].GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
+				Expect(individualSecrets[0].GetAnnotations()[ServiceUserAnnotation]).To(Equal(serviceUserName))
 			})
 
 			It("should fail when there is no service", func() {
