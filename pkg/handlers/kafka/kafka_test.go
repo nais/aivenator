@@ -89,9 +89,9 @@ var _ = Describe("kafka handler", func() {
 			nameResolver: mocks.nameResolver,
 			secretHandler: secret.Handler{
 				Project:     mocks.projectManager,
-				ProjectName: projectName,
+				ProjectName: pool,
 			},
-			projects: []string{"dev-nais-dev", "my-testing-pool"},
+			projects: []string{"dev-nais-dev", pool},
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 
