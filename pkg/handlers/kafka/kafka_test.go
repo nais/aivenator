@@ -291,6 +291,7 @@ var _ = Describe("kafka handler", func() {
 			})
 
 			It("fails when there is no CA", func() {
+				sharedSecret = &corev1.Secret{}
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
