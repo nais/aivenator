@@ -69,7 +69,6 @@ type KafkaHandler struct {
 }
 
 func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
-	logger = logger.WithFields(log.Fields{"handler": "kafka"})
 	spec := application.Spec.Kafka
 	if spec == nil {
 		return nil, nil
@@ -105,6 +104,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	finalSecret := sharedSecret
 	if spec.SecretName != "" {
 		logger = logger.WithField("secret_name", spec.SecretName)
+		logger.Info("Creating individual secret for Kafka")
 		finalSecret = &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      spec.SecretName,
@@ -115,6 +115,8 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		if err != nil {
 			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 		}
+	} else {
+		logger.Infof("Using shared secret %s ", sharedSecret.Name)
 	}
 
 	ca, err := h.project.GetCA(ctx, projectName)

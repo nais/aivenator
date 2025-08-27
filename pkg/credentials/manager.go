@@ -42,6 +42,8 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 	var finalSecrets []v1.Secret
 	for _, handler := range c.handlers {
 		processingStart := time.Now()
+		logger = logger.WithField("aivenService", reflect.TypeOf(handler).String())
+		logger.Info("Processing individual secrets.")
 		individualSecrets, err := handler.Apply(ctx, application, sharedSecret, logger)
 		if err != nil {
 			cleanupError := handler.Cleanup(ctx, sharedSecret, logger)
@@ -50,6 +52,9 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 			}
 
 			return nil, err
+		}
+		for _, s := range individualSecrets {
+			logger.Infof("Individual secret processed: %s", s.Name)
 		}
 
 		used := time.Since(processingStart)
