@@ -44,15 +44,16 @@ const (
 	PoolAnnotation        = "kafka.aiven.nais.io/pool"
 )
 
-func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger log.FieldLogger) KafkaHandler {
+func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, projectName string, logger log.FieldLogger) KafkaHandler {
 	generator := certificate.NewNativeGenerator()
 	handler := KafkaHandler{
-		project:      project.NewManager(aiven.CA),
-		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:      service.NewManager(aiven.Services),
-		generator:    generator,
-		nameResolver: liberator_service.NewCachedNameResolver(aiven.Services),
-		projects:     projects,
+		project:       project.NewManager(aiven.CA),
+		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:       service.NewManager(aiven.Services),
+		generator:     generator,
+		nameResolver:  liberator_service.NewCachedNameResolver(aiven.Services),
+		projects:      projects,
+		secretHandler: secret.NewHandler(aiven, projectName),
 	}
 	handler.StartUserCounter(ctx, logger)
 	return handler
