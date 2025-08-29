@@ -120,16 +120,18 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		logger.Infof("Using shared secret %s ", sharedSecret.Name)
 	}
 
+	logger.Infof("Fetching project CA")
 	ca, err := h.project.GetCA(ctx, projectName)
 	if err != nil {
 		return nil, utils.AivenFail("GetCA", application, err, false, logger)
 	}
-
+	logger.Infof("Fetched project CA")
 	aivenUser, err := h.provideServiceUser(ctx, application, projectName, serviceName, finalSecret, logger)
 	if err != nil {
 		return nil, err
 	}
 
+	logger.Infof("Annotating secret with serviceuser: %s and pool: %s ", aivenUser.Username, spec.Pool)
 	finalSecret.SetAnnotations(utils.MergeStringMap(finalSecret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenUser.Username,
 		PoolAnnotation:        spec.Pool,
