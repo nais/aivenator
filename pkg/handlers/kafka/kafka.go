@@ -120,7 +120,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		logger.Infof("Using shared secret %s ", sharedSecret.Name)
 	}
 
-	logger.Infof("Fetching project CA")
+	logger.Infof("Fetching project CA with %s", projectName)
 	ca, err := h.project.GetCA(ctx, projectName)
 	if err != nil {
 		return nil, utils.AivenFail("GetCA", application, err, false, logger)
