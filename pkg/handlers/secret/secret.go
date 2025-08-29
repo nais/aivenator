@@ -62,27 +62,18 @@ func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenA
 }
 
 func (s Handler) ApplyIndividualSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
-	logger.Info("Applying individual secret.")
 	errors := validation.IsDNS1123Label(secret.Name)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secret.Name, utils.ErrUnrecoverable, errors)
 	}
 
-	logger.Info("Updating metadata for individual secret.")
 	updateObjectMeta(application, &secret.ObjectMeta)
 
-	logger.Infof("Fetching project CA for individual secret in project %s.", s.ProjectName)
 	projectCa, err := s.Project.GetCA(ctx, s.ProjectName)
 	if err != nil {
-		logger.Errorf("Err in fething project CA for individual secret in project %w.", err)
-	}
-	if err != nil {
-		logger.Info("CA fetch failed for individual secret.")
-		logger.Infof("unable to get project CA: %v", err)
 		return nil, fmt.Errorf("unable to get project CA: %w", err)
 	}
 
-	logger.Info("Updating individual secret data.")
 	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
 		AivenCAKey:            projectCa,
