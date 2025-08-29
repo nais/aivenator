@@ -71,8 +71,11 @@ func (s Handler) ApplyIndividualSecret(ctx context.Context, application *aiven_n
 	logger.Info("Updating metadata for individual secret.")
 	updateObjectMeta(application, &secret.ObjectMeta)
 
-	logger.Info("Fetching project CA for individual secret.")
+	logger.Infof("Fetching project CA for individual secret in project %s.", s.ProjectName)
 	projectCa, err := s.Project.GetCA(ctx, s.ProjectName)
+	if err != nil {
+		logger.Errorf("Err in fething project CA for individual secret in project %w.", err)
+	}
 	if err != nil {
 		logger.Info("CA fetch failed for individual secret.")
 		logger.Infof("unable to get project CA: %v", err)
