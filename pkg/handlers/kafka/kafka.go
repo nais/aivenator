@@ -113,6 +113,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		}
 		_, err := h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
 		if err != nil {
+			logger.Errorf("failed to apply Kafka individual secret: %v", err)
 			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 		}
 	} else {
