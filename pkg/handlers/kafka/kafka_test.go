@@ -32,7 +32,7 @@ const (
 	credStoreSecret = "my-secret"
 	serviceURI      = "http://example.com"
 	ca              = "my-ca"
-	pool            = "my-testing-pool"
+	pool            = "name-of-my-kafka-cluster-and-also-aiven-service"
 	invalidPool     = "not-my-testing-pool"
 	secretName      = "my-individual-secret"
 )
@@ -114,7 +114,7 @@ var _ = Describe("kafka handler", func() {
 					PoolAnnotation:        pool,
 				})
 				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, pool, mock.Anything, mock.Anything).Return(nil)
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, pool).Return("kafka", nil)
 			})
 			It("should not error", func() {
 				err := kafkaHandler.Cleanup(ctx, sharedSecret, logger)
@@ -131,7 +131,7 @@ var _ = Describe("kafka handler", func() {
 					Message: "Not Found",
 					Status:  404,
 				})
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, pool).Return("kafka", nil)
 			})
 			It("should not return an error", func() {
 				err := kafkaHandler.Cleanup(ctx, sharedSecret, logger)
@@ -178,7 +178,7 @@ var _ = Describe("kafka handler", func() {
 			})
 
 			It("should return an error if the service user creation fails", func() {
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, pool).Return("kafka", nil)
 
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
@@ -213,7 +213,7 @@ var _ = Describe("kafka handler", func() {
 			It("should re-use supplied secret", func() {
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(&aiven.ServiceUser{Username: serviceUserName}, nil)
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, pool).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
@@ -275,7 +275,7 @@ var _ = Describe("kafka handler", func() {
 						},
 					}).
 					Build()
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, pool).Return("kafka", nil)
 
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
@@ -299,7 +299,7 @@ var _ = Describe("kafka handler", func() {
 						},
 					}).
 					Build()
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, pool).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
@@ -332,7 +332,7 @@ var _ = Describe("kafka handler", func() {
 						},
 					}).
 					Build()
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, pool).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
@@ -372,7 +372,7 @@ var _ = Describe("kafka handler", func() {
 						},
 					}).
 					Build()
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, pool).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
@@ -435,7 +435,7 @@ var _ = Describe("kafka handler", func() {
 					}).
 					Build()
 
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, pool).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
@@ -517,7 +517,7 @@ var _ = Describe("kafka handler", func() {
 					}).
 					Build()
 
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, "my-testing-pool").Return("kafka", nil)
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, pool).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
