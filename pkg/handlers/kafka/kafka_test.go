@@ -28,13 +28,14 @@ import (
 )
 
 const (
-	serviceUserName = "service-user-name"
-	credStoreSecret = "my-secret"
-	serviceURI      = "http://example.com"
-	ca              = "my-ca"
-	pool            = "name-of-my-kafka-cluster-and-also-aiven-service"
-	invalidPool     = "not-my-testing-pool"
-	secretName      = "my-individual-secret"
+	aivenServiceName = "kafka"
+	ca               = "my-ca"
+	credStoreSecret  = "my-secret"
+	invalidPool      = "not-my-testing-pool"
+	pool             = "name-of-my-kafka-cluster-and-also-aiven-service"
+	secretName       = "my-individual-secret"
+	serviceURI       = "http://example.com"
+	serviceUserName  = "service-user-name"
 )
 
 const (
@@ -245,6 +246,8 @@ var _ = Describe("kafka handler", func() {
 							ServiceUserAnnotation:             serviceUserName,
 							constants.AivenatorProtectedKey:   "false",
 							"nais.io/deploymentCorrelationID": "",
+							ProjectNameAnnotation:             pool,
+							ServiceNameAnnotation:             aivenServiceName,
 							PoolAnnotation:                    pool,
 						},
 						Labels:     individualSecrets[0].Labels,
@@ -414,6 +417,8 @@ var _ = Describe("kafka handler", func() {
 							constants.AivenatorProtectedKey:   "false",
 							"nais.io/deploymentCorrelationID": "",
 							PoolAnnotation:                    pool,
+							ProjectNameAnnotation:             pool,
+							ServiceNameAnnotation:             aivenServiceName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
@@ -476,6 +481,8 @@ var _ = Describe("kafka handler", func() {
 							constants.AivenatorProtectedKey:   "false",
 							ServiceUserAnnotation:             serviceUserName,
 							PoolAnnotation:                    pool,
+							ProjectNameAnnotation:             pool,
+							ServiceNameAnnotation:             aivenServiceName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},

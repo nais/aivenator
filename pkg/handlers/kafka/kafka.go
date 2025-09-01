@@ -42,6 +42,8 @@ const (
 const (
 	ServiceUserAnnotation = "kafka.aiven.nais.io/serviceUser"
 	PoolAnnotation        = "kafka.aiven.nais.io/pool"
+	ProjectNameAnnotation = "kafka.aiven.nais.io/projectName"
+	ServiceNameAnnotation = "kafka.aiven.nais.io/serviceName"
 )
 
 func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, projectName string, logger log.FieldLogger) KafkaHandler {
@@ -81,7 +83,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		return nil, nil
 	}
 
-	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, spec.Pool)
+	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, projectName)
 	if err != nil {
 		return nil, utils.AivenFail("ResolveServiceName", application, err, false, logger)
 	}
@@ -131,8 +133,10 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	}
 
 	finalSecret.SetAnnotations(utils.MergeStringMap(finalSecret.GetAnnotations(), map[string]string{
-		ServiceUserAnnotation: aivenUser.Username,
 		PoolAnnotation:        spec.Pool,
+		ProjectNameAnnotation: projectName,
+		ServiceNameAnnotation: serviceName,
+		ServiceUserAnnotation: aivenUser.Username,
 	}))
 	logger.Infof("Created service user %s", aivenUser.Username)
 
@@ -210,30 +214,39 @@ func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven
 
 func (h KafkaHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
 	annotations := secret.GetAnnotations()
-	if serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]; okServiceUser {
-		if projectName, okPool := annotations[PoolAnnotation]; okPool {
-			serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, projectName)
-			if err != nil {
-				return err
-			}
-			logger = logger.WithFields(log.Fields{
-				"pool":    projectName,
-				"service": serviceName,
-			})
-			err = h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger)
-			if err != nil {
-				if aiven.IsNotFound(err) {
-					logger.Infof("Service user %s does not exist", serviceUserName)
-					return nil
-				}
-				return err
-			}
-			logger.Infof("Deleted service user %s", serviceUserName)
-		} else {
-			return fmt.Errorf("missing pool annotation on secret %s in namespace %s, unable to delete service user %s",
-				secret.GetName(), secret.GetNamespace(), serviceUserName)
-		}
+	serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]
+	if !okServiceUser {
+		return nil
 	}
+
+	projectName, okPool := annotations[PoolAnnotation]
+	if !okPool {
+		return fmt.Errorf("missing pool annotation on secret %s in namespace %s, unable to delete service user %s",
+			secret.GetName(), secret.GetNamespace(), serviceUserName)
+	}
+
+	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, projectName)
+	if err != nil {
+		return err
+	}
+
+	logger = logger.WithFields(log.Fields{
+		"pool":         projectName, // Remove?
+		"service":      serviceName, // Remove?
+		"aivenProject": projectName,
+		"aivenService": serviceName,
+	})
+
+	err = h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger)
+	if err != nil {
+		if aiven.IsNotFound(err) {
+			logger.Infof("Service user %s does not exist", serviceUserName)
+			return nil
+		}
+		return err
+	}
+	logger.Infof("Deleted service user %s", serviceUserName)
+
 	return nil
 }
 
