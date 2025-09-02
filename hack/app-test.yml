@@ -6,13 +6,28 @@ metadata:
   labels:
     team: "basseng"
 spec:
-  image: europe-north1-docker.pkg.dev/nais-io/nais/images/kafka-debug:2025-09-02-132537-70fc795
+  image: europe-north1-docker.pkg.dev/nais-io/nais/images/kafka-debug:2025-09-02-134418-771f27a
   replicas:
     min: 2
     max: 2
     cpuThresholdPercentage: 50
   prometheus:
     enabled: false
+  env:
+    - name: KAFKA_CTL_CONFIG
+      value: /tmp/empty.yaml
+    - name: KAFKA_CTL_WRITABLE_CONFIG
+      value: /tmp/writable.yaml
+    - name: BROKERS
+      value: $(KAFKA_BROKERS)
+    - name: CONTEXTS_DEFAULT_TLS_ENABLED
+      value: "true"
+    - name: CONTEXTS_DEFAULT_TLS_CERT
+      value: $(KAFKA_CERTIFICATE_PATH)
+    - name: CONTEXTS_DEFAULT_TLS_CERTKEY
+      value: $(KAFKA_PRIVATE_KEY_PATH)
+    - name: CONTEXTS_DEFAULT_TLS_CA
+      value: $(KAFKA_CA_PATH)
   resources:
     limits:
       cpu: "200m"
