@@ -29,23 +29,12 @@ import (
 
 const (
 	aivenProjectName = "a-project-name"
-	aivenServiceName = "kafka"
 	ca               = "my-ca"
 	credStoreSecret  = "my-secret"
 	invalidPool      = "not-my-testing-pool"
-	pool             = "name-of-my-kafka-cluster-and-also-aiven-service"
 	secretName       = "my-individual-secret"
 	serviceURI       = "http://example.com"
 	serviceUserName  = "service-user-name"
-)
-
-const (
-	ServicesGetAddresses = iota
-	ServiceUsersCreate
-	ServiceUsersGet
-	ServiceUsersGetNotFound
-	ProjectGetCA
-	GeneratorMakeCredStores
 )
 
 type mockContainer struct {
@@ -93,7 +82,7 @@ var _ = Describe("kafka handler", func() {
 				Project:     mocks.projectManager,
 				ProjectName: aivenProjectName,
 			},
-			projects: []string{"dev-nais-dev", "another-project"},
+			projects: []string{"dev-nais-dev", aivenProjectName},
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 
@@ -247,9 +236,7 @@ var _ = Describe("kafka handler", func() {
 							ServiceUserAnnotation:             serviceUserName,
 							constants.AivenatorProtectedKey:   "false",
 							"nais.io/deploymentCorrelationID": "",
-							ProjectNameAnnotation:             pool,
-							ServiceNameAnnotation:             aivenServiceName,
-							PoolAnnotation:                    pool,
+							PoolAnnotation:                    aivenProjectName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
@@ -275,7 +262,7 @@ var _ = Describe("kafka handler", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
-							Pool: pool,
+							Pool: aivenProjectName,
 						},
 					}).
 					Build()
@@ -299,7 +286,7 @@ var _ = Describe("kafka handler", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
-							Pool: pool,
+							Pool: aivenProjectName,
 						},
 					}).
 					Build()
@@ -331,7 +318,7 @@ var _ = Describe("kafka handler", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
-							Pool:       pool,
+							Pool:       aivenProjectName,
 							SecretName: secretName,
 						},
 					}).
@@ -371,7 +358,7 @@ var _ = Describe("kafka handler", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
-							Pool:       pool,
+							Pool:       aivenProjectName,
 							SecretName: secretName,
 						},
 					}).
@@ -417,9 +404,7 @@ var _ = Describe("kafka handler", func() {
 							ServiceUserAnnotation:             serviceUserName,
 							constants.AivenatorProtectedKey:   "false",
 							"nais.io/deploymentCorrelationID": "",
-							PoolAnnotation:                    pool,
-							ProjectNameAnnotation:             pool,
-							ServiceNameAnnotation:             aivenServiceName,
+							PoolAnnotation:                    aivenProjectName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
@@ -435,7 +420,7 @@ var _ = Describe("kafka handler", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
-							Pool:       pool,
+							Pool:       aivenProjectName,
 							SecretName: secretName,
 						},
 					}).
@@ -481,9 +466,7 @@ var _ = Describe("kafka handler", func() {
 							"nais.io/deploymentCorrelationID": "",
 							constants.AivenatorProtectedKey:   "false",
 							ServiceUserAnnotation:             serviceUserName,
-							PoolAnnotation:                    pool,
-							ProjectNameAnnotation:             pool,
-							ServiceNameAnnotation:             aivenServiceName,
+							PoolAnnotation:                    aivenProjectName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
@@ -519,7 +502,7 @@ var _ = Describe("kafka handler", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
-							Pool:       pool,
+							Pool:       aivenProjectName,
 							SecretName: secretName,
 						},
 					}).

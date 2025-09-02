@@ -42,8 +42,6 @@ const (
 const (
 	ServiceUserAnnotation = "kafka.aiven.nais.io/serviceUser"
 	PoolAnnotation        = "kafka.aiven.nais.io/pool"
-	ProjectNameAnnotation = "kafka.aiven.nais.io/projectName"
-	ServiceNameAnnotation = "kafka.aiven.nais.io/serviceName"
 )
 
 func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, projectName string, logger log.FieldLogger) KafkaHandler {
@@ -83,7 +81,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		return nil, nil
 	}
 
-	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, projectName)
+	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, spec.Pool)
 	if err != nil {
 		return nil, utils.AivenFail("ResolveServiceName", application, err, false, logger)
 	}
@@ -133,10 +131,8 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	}
 
 	finalSecret.SetAnnotations(utils.MergeStringMap(finalSecret.GetAnnotations(), map[string]string{
-		PoolAnnotation:        spec.Pool,
-		ProjectNameAnnotation: projectName,
-		ServiceNameAnnotation: serviceName,
 		ServiceUserAnnotation: aivenUser.Username,
+		PoolAnnotation:        spec.Pool,
 	}))
 	logger.Infof("Created service user %s", aivenUser.Username)
 
@@ -231,10 +227,8 @@ func (h KafkaHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger
 	}
 
 	logger = logger.WithFields(log.Fields{
-		"pool":         projectName, // Remove?
-		"service":      serviceName, // Remove?
-		"aivenProject": projectName,
-		"aivenService": serviceName,
+		"aivenProject(pool)": projectName,
+		"aivenService":       serviceName,
 	})
 
 	err = h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger)
