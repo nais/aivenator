@@ -6,7 +6,7 @@ metadata:
   labels:
     team: "basseng"
 spec:
-  image: europe-north1-docker.pkg.dev/nais-io/nais/images/kafka-debug:2025-01-22-132723-a7c7314
+  image: europe-north1-docker.pkg.dev/nais-io/nais/images/kafka-debug:2025-09-02-132537-70fc795
   replicas:
     min: 2
     max: 2
