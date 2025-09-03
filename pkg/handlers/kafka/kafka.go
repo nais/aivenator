@@ -11,13 +11,15 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/certificate"
+	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
 	"github.com/nais/liberator/pkg/strings"
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -42,42 +44,44 @@ const (
 	PoolAnnotation        = "kafka.aiven.nais.io/pool"
 )
 
-func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, logger log.FieldLogger) KafkaHandler {
+func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, projectName string, logger log.FieldLogger) KafkaHandler {
 	generator := certificate.NewNativeGenerator()
 	handler := KafkaHandler{
-		project:      project.NewManager(aiven.CA),
-		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:      service.NewManager(aiven.Services),
-		generator:    generator,
-		nameResolver: liberator_service.NewCachedNameResolver(aiven.Services),
-		projects:     projects,
+		project:       project.NewManager(aiven.CA),
+		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:       service.NewManager(aiven.Services),
+		generator:     generator,
+		nameResolver:  liberator_service.NewCachedNameResolver(aiven.Services),
+		projects:      projects,
+		secretHandler: secret.NewHandler(aiven, projectName),
 	}
 	handler.StartUserCounter(ctx, logger)
 	return handler
 }
 
 type KafkaHandler struct {
-	project      project.ProjectManager
-	serviceuser  serviceuser.ServiceUserManager
-	service      service.ServiceManager
-	generator    certificate.Generator
-	nameResolver liberator_service.NameResolver
-	projects     []string
+	project       project.ProjectManager
+	serviceuser   serviceuser.ServiceUserManager
+	service       service.ServiceManager
+	generator     certificate.Generator
+	nameResolver  liberator_service.NameResolver
+	projects      []string
+	secretHandler secret.Handler
 }
 
-func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error) {
-	logger = logger.WithFields(log.Fields{"handler": "kafka"})
-	if application.Spec.Kafka == nil {
+func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
+	spec := application.Spec.Kafka
+	if spec == nil {
 		return nil, nil
 	}
 
-	projectName := application.Spec.Kafka.Pool
+	projectName := spec.Pool
 	if projectName == "" {
 		logger.Debugf("No Kafka pool specified; noop")
 		return nil, nil
 	}
 
-	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, application.Spec.Kafka.Pool)
+	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, spec.Pool)
 	if err != nil {
 		return nil, utils.AivenFail("ResolveServiceName", application, err, false, logger)
 	}
@@ -98,19 +102,37 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		return nil, utils.AivenFail("GetService", application, err, false, logger)
 	}
 
+	finalSecret := sharedSecret
+	if spec.SecretName != "" {
+		logger = logger.WithField("secret_name", spec.SecretName)
+		logger.Info("Creating individual secret for Kafka")
+		finalSecret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      spec.SecretName,
+				Namespace: application.GetNamespace(),
+			},
+		}
+		_, err := h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
+		if err != nil {
+			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
+		}
+	} else {
+		logger.Infof("Using shared secret %s ", sharedSecret.Name)
+	}
+
 	ca, err := h.project.GetCA(ctx, projectName)
 	if err != nil {
 		return nil, utils.AivenFail("GetCA", application, err, false, logger)
 	}
 
-	aivenUser, err := h.provideServiceUser(ctx, application, projectName, serviceName, secret, logger)
+	aivenUser, err := h.provideServiceUser(ctx, application, projectName, serviceName, finalSecret, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	secret.SetAnnotations(utils.MergeStringMap(secret.GetAnnotations(), map[string]string{
+	finalSecret.SetAnnotations(utils.MergeStringMap(finalSecret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenUser.Username,
-		PoolAnnotation:        application.Spec.Kafka.Pool,
+		PoolAnnotation:        spec.Pool,
 	}))
 	logger.Infof("Created service user %s", aivenUser.Username)
 
@@ -120,7 +142,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		return nil, err
 	}
 
-	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
+	finalSecret.StringData = utils.MergeStringMap(finalSecret.StringData, map[string]string{
 		KafkaCertificate:       aivenUser.AccessCert,
 		KafkaPrivateKey:        aivenUser.AccessKey,
 		KafkaBrokers:           addresses.ServiceURI,
@@ -132,17 +154,22 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		KafkaSecretUpdated:     time.Now().Format(time.RFC3339),
 	})
 
-	secret.Data = utils.MergeByteMap(secret.Data, map[string][]byte{
+	finalSecret.Data = utils.MergeByteMap(finalSecret.Data, map[string][]byte{
 		KafkaKeystore:   credStore.Keystore,
 		KafkaTruststore: credStore.Truststore,
 	})
 
-	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
+	controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
+
+	if spec.SecretName != "" {
+		return []corev1.Secret{*finalSecret}, nil
+	}
+	logger.Infof("Applied secret: %s", application.Spec.SecretName)
 
 	return nil, nil
 }
 
-func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *v1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	var aivenUser *aiven.ServiceUser
 	var err error
 
@@ -181,32 +208,39 @@ func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven
 	return aivenUser, nil
 }
 
-func (h KafkaHandler) Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error {
+func (h KafkaHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
 	annotations := secret.GetAnnotations()
-	if serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]; okServiceUser {
-		if projectName, okPool := annotations[PoolAnnotation]; okPool {
-			serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, projectName)
-			if err != nil {
-				return err
-			}
-			logger = logger.WithFields(log.Fields{
-				"pool":    projectName,
-				"service": serviceName,
-			})
-			err = h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger)
-			if err != nil {
-				if aiven.IsNotFound(err) {
-					logger.Infof("Service user %s does not exist", serviceUserName)
-					return nil
-				}
-				return err
-			}
-			logger.Infof("Deleted service user %s", serviceUserName)
-		} else {
-			return fmt.Errorf("missing pool annotation on secret %s in namespace %s, unable to delete service user %s",
-				secret.GetName(), secret.GetNamespace(), serviceUserName)
-		}
+	serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]
+	if !okServiceUser {
+		return nil
 	}
+
+	projectName, okPool := annotations[PoolAnnotation]
+	if !okPool {
+		return fmt.Errorf("missing pool annotation on secret %s in namespace %s, unable to delete service user %s",
+			secret.GetName(), secret.GetNamespace(), serviceUserName)
+	}
+
+	serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, projectName)
+	if err != nil {
+		return err
+	}
+
+	logger = logger.WithFields(log.Fields{
+		"aivenProject(pool)": projectName,
+		"aivenService":       serviceName,
+	})
+
+	err = h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger)
+	if err != nil {
+		if aiven.IsNotFound(err) {
+			logger.Infof("Service user %s does not exist", serviceUserName)
+			return nil
+		}
+		return err
+	}
+	logger.Infof("Deleted service user %s", serviceUserName)
+
 	return nil
 }
 

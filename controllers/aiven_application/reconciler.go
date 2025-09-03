@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-
+	"github.com/nais/aivenator/pkg/credentials"
+	"github.com/nais/aivenator/pkg/metrics"
+	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -16,12 +17,9 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
-	"github.com/nais/aivenator/pkg/credentials"
-	"github.com/nais/aivenator/pkg/metrics"
-	"github.com/nais/aivenator/pkg/utils"
 )
 
 const (
@@ -159,7 +157,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger.Infof("Creating secret(s)")
 	sharedSecret := r.initSecret(ctx, application, logger)
-	logger = logger.WithField("secret_name", sharedSecret.Name)
+	logger = logger.WithField("sharedSecret", sharedSecret.Name)
 	finalSecrets, err := r.Manager.CreateSecret(ctx, &application, sharedSecret, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
