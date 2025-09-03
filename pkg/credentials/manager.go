@@ -30,7 +30,7 @@ type Manager struct {
 func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger) Manager {
 	return Manager{
 		handlers: []Handler{
-			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, mainProjectName, logger),
+			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, logger),
 			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
 			secret.NewHandler(aiven, mainProjectName),
 			valkey.NewValkeyHandler(ctx, aiven, mainProjectName),
@@ -42,8 +42,6 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 	var finalSecrets []v1.Secret
 	for _, handler := range c.handlers {
 		processingStart := time.Now()
-		logger = logger.WithField("aivenService", reflect.TypeOf(handler).String())
-		logger.Info("Processing individual secrets.")
 		individualSecrets, err := handler.Apply(ctx, application, sharedSecret, logger)
 		if err != nil {
 			cleanupError := handler.Cleanup(ctx, sharedSecret, logger)
@@ -52,9 +50,6 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 			}
 
 			return nil, err
-		}
-		for _, s := range individualSecrets {
-			logger.Infof("Individual secret processed: %s", s.Name)
 		}
 
 		used := time.Since(processingStart)
