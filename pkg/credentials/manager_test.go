@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("Manager", func() {
@@ -43,7 +44,11 @@ var _ = Describe("Manager", func() {
 
 		manager := Manager{handlers: []Handler{&mockHandler}}
 
-		sharedSecret := &corev1.Secret{}
+		sharedSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "shared-secret",
+			},
+		}
 		individualSecrets, err := manager.CreateSecret(context.Background(), &application, sharedSecret, logger)
 
 		Expect(err).NotTo(HaveOccurred())
