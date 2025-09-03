@@ -167,6 +167,7 @@ func inUse(object client.Object, secretName string) (bool, error) {
 func (j *Cleaner) cleanUnusedSecret(ctx context.Context, oldSecret corev1.Secret, counts counters, objects []client.Object) error {
 	logger := j.Logger.WithFields(log.Fields{
 		"secret_name": oldSecret.GetName(),
+		"app":         oldSecret.Labels["app"],
 		"team":        oldSecret.GetNamespace(),
 	})
 

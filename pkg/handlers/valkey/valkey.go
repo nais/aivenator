@@ -75,7 +75,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		})
 		finalSecret := sharedSecret
 		if valkeySpec.SecretName != "" {
-			logger = logger.WithField("secret_name", valkeySpec.SecretName)
+			logger = logger.WithField("individualSecret", valkeySpec.SecretName)
 			finalSecret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      valkeySpec.SecretName,
@@ -128,7 +128,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 
 		if valkeySpec.SecretName != "" {
 			secrets = append(secrets, *finalSecret)
-			logger.Infof("Applied secret: %s", valkeySpec.SecretName)
+			logger.Infof("Applied individualSecret")
 		}
 	}
 

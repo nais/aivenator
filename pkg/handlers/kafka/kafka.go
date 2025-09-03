@@ -138,6 +138,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	})
 
 	controllerutil.AddFinalizer(secret, constants.AivenatorFinalizer)
+	logger.Infof("Applied sharedSecret")
 
 	return nil, nil
 }

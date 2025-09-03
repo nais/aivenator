@@ -78,7 +78,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	finalSecret := sharedSecret
 	if spec.SecretName != "" {
-		logger = logger.WithField("secret_name", spec.SecretName)
+		logger = logger.WithField("individualSecret", spec.SecretName)
 		finalSecret = &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      spec.SecretName,
@@ -112,9 +112,10 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
 
 	if spec.SecretName != "" {
+		logger.Infof("Applied individualSecret")
 		return []corev1.Secret{*finalSecret}, nil
 	}
-	logger.Infof("Applied secret: %s", spec.SecretName)
+	logger.Infof("Applied sharedSecret")
 
 	return nil, nil
 }
