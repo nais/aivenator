@@ -27,7 +27,7 @@ import (
 
 const (
 	requeueInterval    = time.Second * 10
-	secretWriteTimeout = time.Second * 2
+	secretWriteTimeout = time.Second * 5
 	reconcileTimeout   = time.Minute * 2
 	rolloutComplete    = "RolloutComplete"
 	rolloutFailed      = "RolloutFailed"
