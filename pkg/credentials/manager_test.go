@@ -8,15 +8,20 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 )
 
 var _ = Describe("Manager", func() {
 	var application aiven_nais_io_v1.AivenApplication
+	var logger log.FieldLogger
 
 	BeforeEach(func() {
 		application = aiven_nais_io_v1.NewAivenApplicationBuilder("app", "ns").Build()
+		root := log.New()
+		root.Out = GinkgoWriter
+		logger = log.NewEntry(root)
 	})
 
 	It("Apply propagates annotations to shared and individual secrets", func() {
@@ -39,7 +44,7 @@ var _ = Describe("Manager", func() {
 		manager := Manager{handlers: []Handler{&mockHandler}}
 
 		sharedSecret := &corev1.Secret{}
-		individualSecrets, err := manager.CreateSecret(context.Background(), &application, sharedSecret, nil)
+		individualSecrets, err := manager.CreateSecret(context.Background(), &application, sharedSecret, logger)
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(individualSecrets).NotTo(BeEmpty())
@@ -92,7 +97,7 @@ var _ = Describe("Manager", func() {
 		manager := Manager{handlers: []Handler{&mockHandler, &failingHandler}}
 
 		secret := &corev1.Secret{}
-		_, err := manager.CreateSecret(context.Background(), &application, secret, nil)
+		_, err := manager.CreateSecret(context.Background(), &application, secret, logger)
 
 		Expect(err).To(MatchError(handlerError))
 
@@ -114,7 +119,7 @@ var _ = Describe("Manager", func() {
 		manager := Manager{handlers: []Handler{&mockHandler}}
 		secret := corev1.Secret{}
 
-		err := manager.Cleanup(context.Background(), &secret, nil)
+		err := manager.Cleanup(context.Background(), &secret, logger)
 		Expect(err).NotTo(HaveOccurred())
 
 		mockHandler.AssertCalled(GinkgoT(), "Cleanup",

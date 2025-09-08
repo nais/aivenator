@@ -2,11 +2,13 @@ package secrets
 
 import (
 	"context"
+	"time"
+
 	"github.com/nais/aivenator/pkg/credentials"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
 )
 
 const (
@@ -46,6 +48,7 @@ func (j *Janitor) Start(ctx context.Context) error {
 			}
 		case app := <-j.appChanges:
 			// Clean secrets for app
+			j.logger = j.logger.WithField(nais_io_v1.DeploymentCorrelationIDAnnotation, app.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation])
 			j.logger.Infof("Running cleaner for secrets belonging to aivenapp %s/%s", app.GetNamespace(), app.GetName())
 			err := j.cleaner.CleanUnusedSecretsForApplication(ctx, app)
 			if err != nil {

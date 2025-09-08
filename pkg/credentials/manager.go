@@ -40,8 +40,10 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 
 func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error) {
 	var finalSecrets []v1.Secret
+	logger.Info("Processing secrets.")
 	for _, handler := range c.handlers {
 		processingStart := time.Now()
+		logger.Info("Processing %s secrets.", reflect.TypeOf(handler).String())
 		individualSecrets, err := handler.Apply(ctx, application, sharedSecret, logger)
 		if err != nil {
 			cleanupError := handler.Cleanup(ctx, sharedSecret, logger)

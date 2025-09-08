@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -130,6 +131,8 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	r.appChanges <- application
 
+	logger = logger.WithField(nais_io_v1.DeploymentCorrelationIDAnnotation, application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation])
+
 	hash, err := application.Hash()
 	if err != nil {
 		utils.LocalFail("Hash", &application, err, logger)
@@ -188,10 +191,12 @@ func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application
 	})
 	switch {
 	case k8serrors.IsNotFound(err):
+		logger.Infof("Initializing new secret")
 		return &secret
 	case err != nil:
 		logger.Warnf("error retrieving existing secret from cluster: %w", err)
 	}
+	logger.Infof("Using existing sharedSecret %s", secret.Name)
 	return &secret
 }
 
