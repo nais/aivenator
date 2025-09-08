@@ -120,6 +120,11 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			return r.Status().Update(ctx, &application)
 		})
 		if err != nil {
+			metrics.KubernetesResourcesNotWritten.With(prometheus.Labels{
+				metrics.LabelResourceType: "AivenApplication",
+				metrics.LabelNamespace:    application.GetNamespace(),
+			}).Inc()
+
 			logger.Errorf("Unable to update status of application: %s\nWanted to save status: %+v", err, application.Status)
 		} else {
 			metrics.KubernetesResourcesWritten.With(prometheus.Labels{
