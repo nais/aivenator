@@ -161,6 +161,7 @@ func Register(registry prometheus.Registerer) {
 		AivenLatency,
 		KubernetesLatency,
 		KubernetesResourcesWritten,
+		KubernetesResourcesNotWritten,
 		KubernetesResourcesDeleted,
 		ServiceUsersCreated,
 		ServiceUsersDeleted,
