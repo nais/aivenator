@@ -14,7 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -114,7 +114,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger.Infof("Application exists; processing")
 	defer func() {
-		application.Status.SynchronizationTime = &v1.Time{Time: time.Now()}
+		application.Status.SynchronizationTime = &metav1.Time{Time: time.Now()}
 		application.Status.ObservedGeneration = application.GetGeneration()
 		err := metrics.ObserveKubernetesLatency("AivenApplication_Update", func() error {
 			return r.Status().Update(ctx, &application)
@@ -186,6 +186,13 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *corev1.Secret {
 	secret := corev1.Secret{}
+
+	secret.ObjectMeta = metav1.ObjectMeta{
+		Name:      application.SecretKey().Name,
+		Namespace: application.SecretKey().Namespace,
+	}
+
+	application.SecretKey()
 	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
 		return r.Get(ctx, application.SecretKey(), &secret)
 	})
