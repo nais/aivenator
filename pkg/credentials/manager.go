@@ -54,6 +54,9 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 
 			return nil, err
 		}
+		for _, s := range individualSecrets {
+			logger.Infof("Individual secret processed: %s", s.Name)
+		}
 
 		used := time.Since(processingStart)
 		handlerName := reflect.TypeOf(handler).String()
