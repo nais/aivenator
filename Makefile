@@ -4,10 +4,10 @@ os          := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 testbin_dir := ./.testbin/
 tools_archive := kubebuilder-tools-${K8S_VERSION}-$(os)-$(arch).tar.gz
 
-all: aivenator mocks test check
-
 aivenator:
 	go build -o bin/aivenator cmd/aivenator/*.go
+
+all: aivenator mocks test check
 
 test:
 	go test ./... -v -count=1 -coverprofile cover.out
