@@ -99,6 +99,12 @@ var (
 		Help:      "number of kubernetes resources written to the cluster",
 	}, []string{LabelNamespace, LabelResourceType})
 
+	KubernetesResourcesNotWritten = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      "kubernetes_resources_not_written",
+		Namespace: Namespace,
+		Help:      "number of kubernetes resources not written to the cluster",
+	}, []string{LabelNamespace, LabelResourceType})
+
 	KubernetesResourcesDeleted = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:      "kubernetes_resources_deleted",
 		Namespace: Namespace,

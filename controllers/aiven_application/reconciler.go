@@ -314,6 +314,10 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 		}).Inc()
 	}
 
+	metrics.KubernetesResourcesNotWritten.With(prometheus.Labels{
+		metrics.LabelResourceType: "Secret",
+		metrics.LabelNamespace:    secret.GetNamespace(),
+	}).Inc()
 	return err
 }
 
