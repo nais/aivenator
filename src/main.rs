@@ -1,9 +1,8 @@
 use anyhow::Result;
-use k8s_openapi::api::{core::v1::Pod, discovery::v1::EndpointSlice};
 use kube::{api::{ApiResource, DynamicObject, GroupVersionKind}, runtime::{watcher, WatchStreamExt}, Api};
+use tracing_subscriber::util::SubscriberInitExt;
 use std::env;
-use kube::kube_runtime::WatchStreamExt;
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt};
 
 #[derive(Debug, Clone)]
 struct Config {
@@ -32,22 +31,37 @@ impl Config {
     }
 }
 
+fn init_tracing() -> Result<()> {
+    tracing_subscriber::registry().init();
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    let _config = Config::new()?;
+    let _ = init_tracing()?;
+    //    let _config = Config::new()?;
+    tracing::info!("client");
     let client = kube::client::Client::try_default().await?;
-    let wc = watcher::Config::default();
+    tracing::info!("wc");
+
+let wc = watcher::Config::default();
+
+    tracing::info!("started api");
+
     let api = Api::<DynamicObject>::all_with(client,
-        &ApiResource::from_gvk(&GroupVersionKind { group: "aiven.nais.io".to_string(), version: "1".to_string(), kind: "Aiven.Application".to_string() })
+        &ApiResource::from_gvk(&GroupVersionKind { group: "aiven.nais.io".to_string(), version: "v1".to_string(), kind: "AivenApplication".to_string() })
     );
+
+    tracing::info!("make stream");
 
     let mut stream = Box::new(watcher(api, wc)
         .default_backoff()
-        .applied_objects()
+        .applied_objects().map_err(anyhow::Error::from)
         .boxed());
 
+    tracing::info!("started watcher");
     while let Some(aivenapp) = stream.try_next().await?  {
-        aivenapp
+        tracing::info!("foo {}", aivenapp.metadata.name.unwrap() )
 
     }
     Ok(())
