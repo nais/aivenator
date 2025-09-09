@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/metrics"
 )

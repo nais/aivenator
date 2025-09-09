@@ -2,6 +2,9 @@ package aiven_application
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/credentials"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -14,8 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"testing"
-	"time"
 )
 
 const (
@@ -29,7 +30,7 @@ const (
 type schemeAdders func(s *runtime.Scheme) error
 
 func setupScheme() *runtime.Scheme {
-	var scheme = runtime.NewScheme()
+	scheme := runtime.NewScheme()
 
 	adders := []schemeAdders{
 		metav1.AddMetaToScheme,

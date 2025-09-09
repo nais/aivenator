@@ -83,7 +83,8 @@ func (_c *MockProjectManager_GetCA_Call) RunAndReturn(run func(context.Context, 
 func NewMockProjectManager(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *MockProjectManager {
+},
+) *MockProjectManager {
 	mock := &MockProjectManager{}
 	mock.Mock.Test(t)
 

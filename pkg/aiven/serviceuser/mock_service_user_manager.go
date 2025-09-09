@@ -288,7 +288,8 @@ func (_c *MockServiceUserManager_ObserveServiceUsersCount_Call) RunAndReturn(run
 func NewMockServiceUserManager(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *MockServiceUserManager {
+},
+) *MockServiceUserManager {
 	mock := &MockServiceUserManager{}
 	mock.Mock.Test(t)
 

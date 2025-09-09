@@ -3,10 +3,7 @@
   "slug": "aivenator",
   "title": "Aivenator",
   "originalTitle": "",
-  "tags": [
-    "generated",
-    "yaml"
-  ],
+  "tags": ["generated", "yaml"],
   "style": "dark",
   "timezone": "",
   "editable": true,
@@ -34,11 +31,7 @@
           "title": "Healthy",
           "transparent": true,
           "type": "singlestat",
-          "colors": [
-            "#299c46",
-            "rgba(237, 129, 40, 0.89)",
-            "#d44a3a"
-          ],
+          "colors": ["#299c46", "rgba(237, 129, 40, 0.89)", "#d44a3a"],
           "colorValue": false,
           "colorBackground": true,
           "decimals": 0,
@@ -109,11 +102,7 @@
           "title": "Running pods",
           "transparent": true,
           "type": "singlestat",
-          "colors": [
-            "#d44a3a",
-            "rgba(237, 129, 40, 0.89)",
-            "#299c46"
-          ],
+          "colors": ["#d44a3a", "rgba(237, 129, 40, 0.89)", "#299c46"],
           "colorValue": true,
           "colorBackground": false,
           "decimals": 0,
@@ -173,11 +162,7 @@
           "title": "Pending pods",
           "transparent": true,
           "type": "singlestat",
-          "colors": [
-            "#299c46",
-            "rgba(237, 129, 40, 0.89)",
-            "#d44a3a"
-          ],
+          "colors": ["#299c46", "rgba(237, 129, 40, 0.89)", "#d44a3a"],
           "colorValue": true,
           "colorBackground": false,
           "decimals": 0,
@@ -237,11 +222,7 @@
           "title": "# of restarts",
           "transparent": true,
           "type": "singlestat",
-          "colors": [
-            "#299c46",
-            "rgba(237, 129, 40, 0.89)",
-            "#d44a3a"
-          ],
+          "colors": ["#299c46", "rgba(237, 129, 40, 0.89)", "#d44a3a"],
           "colorValue": true,
           "colorBackground": false,
           "decimals": 0,
@@ -301,11 +282,7 @@
           "title": "App version",
           "transparent": true,
           "type": "singlestat",
-          "colors": [
-            "#299c46",
-            "rgba(237, 129, 40, 0.89)",
-            "#d44a3a"
-          ],
+          "colors": ["#299c46", "rgba(237, 129, 40, 0.89)", "#d44a3a"],
           "colorValue": false,
           "colorBackground": false,
           "decimals": 0,
@@ -1499,9 +1476,7 @@
         "query": "label_values(cluster_info, tenant)",
         "regex": "",
         "current": {
-          "text": [
-            "nav"
-          ],
+          "text": ["nav"],
           "value": "nav"
         },
         "label": "Tenant",
@@ -1555,9 +1530,7 @@
         "query": "label_values(aivenator_aiven_latency_bucket, operation)",
         "regex": "",
         "current": {
-          "text": [
-            "All"
-          ],
+          "text": ["All"],
           "value": "$__all"
         },
         "label": "Aiven Operation",
@@ -1584,9 +1557,7 @@
         "query": "label_values(aivenator_kubernetes_latency_bucket, operation)",
         "regex": "",
         "current": {
-          "text": [
-            "All"
-          ],
+          "text": ["All"],
           "value": "$__all"
         },
         "label": "Kubernetes Operation",
@@ -1619,16 +1590,6 @@
       "2h",
       "1d"
     ],
-    "time_options": [
-      "5m",
-      "15m",
-      "1h",
-      "6h",
-      "12h",
-      "24h",
-      "2d",
-      "7d",
-      "30d"
-    ]
+    "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
   }
 }

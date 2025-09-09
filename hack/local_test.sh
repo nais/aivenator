@@ -20,7 +20,7 @@ old_context=$(kubectl config current-context)
 kubectl config use-context "${AIVENATOR_KUBE_CONTEXT}"
 
 echo "You are ready to run Aivenator, pausing here until done ..."
-read -p "Press any key ..." -N 1 -s
+read -rp "Press any key ..." -N 1 -s
 echo
 
 kubectl config use-context "${old_context}"

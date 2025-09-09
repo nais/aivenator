@@ -57,7 +57,6 @@ const (
 )
 
 func init() {
-
 	// Automatically read configuration options from environment variables.
 	// i.e. --aiven-token will be configurable using AIVENATOR_AIVEN_TOKEN.
 	viper.SetEnvPrefix("AIVENATOR")
@@ -159,7 +158,6 @@ func main() {
 			BindAddress: viper.GetString(MetricsAddress),
 		},
 	})
-
 	if err != nil {
 		logger.Errorln(err)
 		os.Exit(ExitController)

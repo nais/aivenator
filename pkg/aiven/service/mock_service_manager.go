@@ -148,7 +148,8 @@ func (_c *MockServiceManager_GetServiceAddresses_Call) RunAndReturn(run func(con
 func NewMockServiceManager(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *MockServiceManager {
+},
+) *MockServiceManager {
 	mock := &MockServiceManager{}
 	mock.Mock.Test(t)
 

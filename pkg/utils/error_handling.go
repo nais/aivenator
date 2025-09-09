@@ -11,8 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/json"
 )
 
-var ErrUnrecoverable = errors.New("ErrUnrecoverable")
-var ErrNotFound = errors.New("ErrNotFound")
+var (
+	ErrUnrecoverable = errors.New("ErrUnrecoverable")
+	ErrNotFound      = errors.New("ErrNotFound")
+)
 
 func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, notFoundIsRecoverable bool, logger logrus.FieldLogger) error {
 	errorMessage := UnwrapAivenError(err, logger, notFoundIsRecoverable)

@@ -1,8 +1,12 @@
 use anyhow::Result;
-use kube::{api::{ApiResource, DynamicObject, GroupVersionKind}, runtime::{watcher, WatchStreamExt}, Api};
-use tracing_subscriber::util::SubscriberInitExt;
-use std::env;
 use futures::{StreamExt, TryStreamExt};
+use kube::{
+    api::{ApiResource, DynamicObject, GroupVersionKind},
+    runtime::{watcher, WatchStreamExt},
+    Api,
+};
+use std::env;
+use tracing_subscriber::util::SubscriberInitExt;
 
 #[derive(Debug, Clone)]
 struct Config {
@@ -48,21 +52,28 @@ async fn main() -> Result<()> {
 
     tracing::info!("started api");
 
-    let api = Api::<DynamicObject>::all_with(client,
-        &ApiResource::from_gvk(&GroupVersionKind { group: "aiven.nais.io".to_string(), version: "v1".to_string(), kind: "AivenApplication".to_string() })
+    let api = Api::<DynamicObject>::all_with(
+        client,
+        &ApiResource::from_gvk(&GroupVersionKind {
+            group: "aiven.nais.io".to_string(),
+            version: "v1".to_string(),
+            kind: "AivenApplication".to_string(),
+        }),
     );
 
     tracing::info!("make stream");
 
-    let mut stream = Box::new(watcher(api, wc)
-        .default_backoff()
-        .applied_objects().map_err(anyhow::Error::from)
-        .boxed());
+    let mut stream = Box::new(
+        watcher(api, wc)
+            .default_backoff()
+            .applied_objects()
+            .map_err(anyhow::Error::from)
+            .boxed(),
+    );
 
     tracing::info!("started watcher");
-    while let Some(aivenapp) = stream.try_next().await?  {
-        tracing::info!("foo {}", aivenapp.metadata.name.unwrap() )
-
+    while let Some(aivenapp) = stream.try_next().await? {
+        tracing::info!("foo {}", aivenapp.metadata.name.unwrap())
     }
     Ok(())
 }

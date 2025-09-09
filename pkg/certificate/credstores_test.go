@@ -4,12 +4,13 @@ package certificate
 
 import (
 	"encoding/base64"
-	"github.com/aiven/aiven-go-client/v2"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"path"
 	"testing"
 	"time"
+
+	"github.com/aiven/aiven-go-client/v2"
+	log "github.com/sirupsen/logrus"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -65,11 +66,11 @@ var _ = Describe("CredStoreGenerator", func() {
 		log.Infof("Generated CredStores using NativeGenerator")
 		log.Infof("Secret: '%v'", stores.Secret)
 		truststorePath := path.Join(workdir, "native.client.truststore.jks")
-		_ = os.WriteFile(truststorePath, stores.Truststore, 0644)
+		_ = os.WriteFile(truststorePath, stores.Truststore, 0o644)
 		log.Infof("Truststore (saved to %s):", truststorePath)
 		log.Info(base64.StdEncoding.EncodeToString(stores.Truststore))
 		keystorePath := path.Join(workdir, "native.client.keystore.p12")
-		_ = os.WriteFile(keystorePath, stores.Keystore, 0644)
+		_ = os.WriteFile(keystorePath, stores.Keystore, 0o644)
 		log.Infof("Keystore (saved to %s):", keystorePath)
 		log.Info(base64.StdEncoding.EncodeToString(stores.Keystore))
 	}, NodeTimeout(10*time.Second))

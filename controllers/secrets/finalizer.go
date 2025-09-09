@@ -3,6 +3,8 @@ package secrets
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/credentials"
 	log "github.com/sirupsen/logrus"
@@ -14,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"time"
 )
 
 const (

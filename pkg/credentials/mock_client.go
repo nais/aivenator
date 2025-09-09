@@ -264,7 +264,8 @@ func (_c *MockClient_Scheme_Call) RunAndReturn(run func() *runtime.Scheme) *Mock
 func NewMockClient(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *MockClient {
+},
+) *MockClient {
 	mock := &MockClient{}
 	mock.Mock.Test(t)
 

@@ -141,7 +141,8 @@ func (_c *MockHandler_Cleanup_Call) RunAndReturn(run func(context.Context, *v1.S
 func NewMockHandler(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *MockHandler {
+},
+) *MockHandler {
 	mock := &MockHandler{}
 	mock.Mock.Test(t)
 

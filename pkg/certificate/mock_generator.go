@@ -82,7 +82,8 @@ func (_c *MockGenerator_MakeCredStores_Call) RunAndReturn(run func(string, strin
 func NewMockGenerator(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *MockGenerator {
+},
+) *MockGenerator {
 	mock := &MockGenerator{}
 	mock.Mock.Test(t)
 

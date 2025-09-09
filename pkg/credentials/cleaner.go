@@ -42,7 +42,7 @@ type Client interface {
 
 func (j *Cleaner) CleanUnusedSecretsForApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication) error {
 	var secrets corev1.SecretList
-	var mLabels = client.MatchingLabels{
+	mLabels := client.MatchingLabels{
 		constants.AppLabel:        application.GetName(),
 		constants.SecretTypeLabel: constants.AivenatorSecretType,
 	}
@@ -65,7 +65,7 @@ func (j *Cleaner) CleanUnusedSecretsForApplication(ctx context.Context, applicat
 
 func (j *Cleaner) CleanUnusedSecrets(ctx context.Context) error {
 	var secrets corev1.SecretList
-	var mLabels = client.MatchingLabels{
+	mLabels := client.MatchingLabels{
 		constants.SecretTypeLabel: constants.AivenatorSecretType,
 	}
 
@@ -283,7 +283,7 @@ func (j *Cleaner) deleteSecret(ctx context.Context, oldSecret corev1.Secret, log
 }
 
 func getItemList(ctx context.Context, c Client, items client.ObjectList, appName string) error {
-	var mLabels = client.MatchingLabels{}
+	mLabels := client.MatchingLabels{}
 	if len(appName) > 0 {
 		mLabels[constants.AppLabel] = appName
 	}

@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+
 	"software.sslmate.com/src/go-pkcs12"
 )
 

@@ -149,7 +149,8 @@ func (_c *MockACLManager_Update_Call) RunAndReturn(run func(context.Context, str
 func NewMockACLManager(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *MockACLManager {
+},
+) *MockACLManager {
 	mock := &MockACLManager{}
 	mock.Mock.Test(t)
 
