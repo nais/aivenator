@@ -1,12 +1,15 @@
 use anyhow::Result;
 use futures::{StreamExt, TryStreamExt};
 use kube::{
-    api::{ApiResource, DynamicObject, GroupVersionKind},
-    runtime::{watcher, WatchStreamExt},
     Api,
+    api::{ApiResource, DynamicObject, GroupVersionKind},
+    runtime::{WatchStreamExt, watcher},
 };
-use std::env;
-use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::{EnvFilter, util::SubscriberInitExt};
+
+use std::{env, io::IsTerminal};
 
 #[derive(Debug, Clone)]
 struct Config {
@@ -36,14 +39,29 @@ impl Config {
 }
 
 fn init_tracing() -> Result<()> {
-    tracing_subscriber::registry().init();
+    let (json_fmt, std_fmt) = match std::io::stdout().is_terminal() {
+        true => (None, Some(tracing_subscriber::fmt::layer())),
+        false => (
+            Some(tracing_subscriber::fmt::layer().json().flatten_event(true)),
+            None,
+        ),
+    };
+    let env_filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(json_fmt)
+        .with(std_fmt)
+        .init();
     Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let _ = init_tracing()?;
-    //    let _config = Config::new()?;
+    // let _config = Config::new()?;
     tracing::info!("client");
     let client = kube::client::Client::try_default().await?;
     tracing::info!("wc");
