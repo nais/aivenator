@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
     let client = kube::client::Client::try_default().await?;
     tracing::info!("wc");
 
-let wc = watcher::Config::default();
+    let wc = watcher::Config::default();
 
     tracing::info!("started api");
 
