@@ -48,3 +48,8 @@ __pycache__
 # Nix stuffs
 .direnv/
 result*
+
+
+# Added by cargo
+
+/target
