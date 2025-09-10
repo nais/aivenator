@@ -5,6 +5,7 @@ use kube::{
         controller::{Action, Controller}, watcher, WatchStreamExt
     }, Api, Client, ResourceExt
 };
+use tracing::Instrument;
 use std::{sync::Arc, time::Duration};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
@@ -60,8 +61,17 @@ fn init_tracing() -> Result<()> {
 }
 
 
-async fn reconcile(_obj: Arc<DynamicObject>, _ctx: Arc<Ctx>) -> Result<Action, kube::Error> {
-    tracing::info!("reconcile");
+async fn reconcile(aiven_application_nais_v1: Arc<DynamicObject>, _ctx: Arc<Ctx>) -> Result<Action, kube::Error> {
+    assert_eq!(aiven_application_nais_v1.namespace().is_some(), true);
+    let app_namespace = aiven_application_nais_v1.namespace().unwrap();
+    let app_name = aiven_application_nais_v1.name_any();
+    let aiven_application_v1_spec = aiven_application_nais_v1.data.get("spec".to_owned());
+    match aiven_application_v1_spec.unwrap().get("opensearch") {
+        Some(a) => tracing::info!("wee {}", a),
+        None => tracing::warn!("not opensearch"),
+    };
+
+    tracing::info!("reconcile, {} - {}", &app_namespace, &app_name);
     Ok(Action::requeue(Duration::from_secs(200)))
 }
 
