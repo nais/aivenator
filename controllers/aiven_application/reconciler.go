@@ -134,6 +134,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	r.appChanges <- application
 
+	// TODO: OpenSearch aivenapps are often manually created w/o naiserator deployment correlation ID
 	logger = logger.WithField(nais_io_v1.DeploymentCorrelationIDAnnotation, application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation])
 
 	hash, err := application.Hash()

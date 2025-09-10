@@ -161,7 +161,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 	controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
 	if spec.SecretName != "" {
-		logger.Infof("Applied sharedSecret")
+		logger.Infof("Applied individualSecret")
 		return []corev1.Secret{*finalSecret}, nil
 	}
 	logger.Infof("Applied sharedSecret")
