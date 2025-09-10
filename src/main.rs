@@ -1,10 +1,11 @@
 use anyhow::Result;
 use futures::{StreamExt, TryStreamExt};
 use kube::{
-    Api,
-    api::{ApiResource, DynamicObject, GroupVersionKind},
-    runtime::{WatchStreamExt, watcher},
+    api::{ApiResource, DynamicObject, GroupVersionKind}, error, runtime::{
+        controller::{Action, Controller}, watcher, WatchStreamExt
+    }, Api, Client, ResourceExt
 };
+use std::{sync::Arc, time::Duration};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt};
@@ -58,40 +59,46 @@ fn init_tracing() -> Result<()> {
     Ok(())
 }
 
+
+async fn reconcile(_obj: Arc<DynamicObject>, _ctx: Arc<Ctx>) -> Result<Action, kube::Error> {
+    tracing::info!("reconcile");
+    Ok(Action::requeue(Duration::from_secs(200)))
+}
+
+fn error_policy(obj: Arc<DynamicObject>, _err: &kube::Error, _ctx: Arc<Ctx>) -> Action {
+    tracing::warn!(name=%obj.name_any(), "reconcile failed");
+    Action::requeue(Duration::from_secs(200))
+}
+
 #[tokio::main]
-async fn main() -> Result<()> {
-    let _ = init_tracing()?;
-    // let _config = Config::new()?;
-    tracing::info!("client");
-    let client = kube::client::Client::try_default().await?;
-    tracing::info!("wc");
+async fn main() -> anyhow::Result<()> {
+    init_tracing()?;
+    let client = Client::try_default().await?;
 
-    let wc = watcher::Config::default();
+    let gvk = GroupVersionKind {
+        group: "aiven.nais.io".into(),
+        version: "v1".into(),
+        kind: "AivenApplication".into(),
+    };
+    let ar = ApiResource::from_gvk(&gvk);
+    let api = Api::<DynamicObject>::all_with(client.clone(), &ar);
 
-    tracing::info!("started api");
+    let ctx = Arc::new(Ctx { client: client.clone() });
 
-    let api = Api::<DynamicObject>::all_with(
-        client,
-        &ApiResource::from_gvk(&GroupVersionKind {
-            group: "aiven.nais.io".to_string(),
-            version: "v1".to_string(),
-            kind: "AivenApplication".to_string(),
-        }),
-    );
+    Controller::<DynamicObject>::new_with(api, watcher::Config::default(), ar)
+        .run(reconcile, error_policy, ctx)
+        .for_each(|res| async move {
+            if let Err(err) = res {
+                tracing::error!(?err, "reconciliation error");
+            }
+        })
+        .await;
 
-    tracing::info!("make stream");
-
-    let mut stream = Box::new(
-        watcher(api, wc)
-            .default_backoff()
-            .applied_objects()
-            .map_err(anyhow::Error::from)
-            .boxed(),
-    );
-
-    tracing::info!("started watcher");
-    while let Some(aivenapp) = stream.try_next().await? {
-        tracing::info!("foo {}", aivenapp.metadata.name.unwrap())
-    }
     Ok(())
+}
+
+#[derive(Clone)]
+struct Ctx {
+    client: Client,
+    // config: Config,
 }
