@@ -1,12 +1,17 @@
 use anyhow::Result;
 use futures::{StreamExt, TryStreamExt};
 use kube::{
-    api::{ApiResource, DynamicObject, GroupVersionKind}, error, runtime::{
-        controller::{Action, Controller}, watcher, WatchStreamExt
-    }, Api, Client, ResourceExt
+    Api, Client, Resource, ResourceExt,
+    api::{ApiResource, DynamicObject, GroupVersionKind},
+    error,
+    runtime::{
+        WatchStreamExt,
+        controller::{Action, Controller},
+        watcher,
+    },
 };
-use tracing::Instrument;
 use std::{sync::Arc, time::Duration};
+use tracing::{Instrument, Level, info_span, span};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt};
@@ -60,18 +65,46 @@ fn init_tracing() -> Result<()> {
     Ok(())
 }
 
-
-async fn reconcile(aiven_application_nais_v1: Arc<DynamicObject>, _ctx: Arc<Ctx>) -> Result<Action, kube::Error> {
-    assert_eq!(aiven_application_nais_v1.namespace().is_some(), true);
-    let app_namespace = aiven_application_nais_v1.namespace().unwrap();
+async fn reconcile(
+    aiven_application_nais_v1: Arc<DynamicObject>,
+    _ctx: Arc<Ctx>,
+) -> Result<Action, kube::Error> {
+    let metadata = aiven_application_nais_v1.meta();
+    let Some(app_namespace) = aiven_application_nais_v1.namespace() else {
+        tracing::warn!("namespace missing from aivenapp: {:#?}", metadata);
+        return Ok(Action::requeue(Duration::from_secs(200)));
+    };
     let app_name = aiven_application_nais_v1.name_any();
-    let aiven_application_v1_spec = aiven_application_nais_v1.data.get("spec".to_owned());
-    match aiven_application_v1_spec.unwrap().get("opensearch") {
-        Some(a) => tracing::info!("wee {}", a),
-        None => tracing::warn!("not opensearch"),
+
+    // Configure log fields
+    let span = span!(Level::INFO, "reconciler", ?app_name, ?app_namespace);
+    let _enter = span.enter();
+    tracing::info!("in reconcile()");
+
+    let Some(aiven_application_v1_spec) = aiven_application_nais_v1.data.get("spec".to_owned())
+    else {
+        tracing::warn!(message = "no `spec` found", ?app_namespace, ?app_name);
+        return Ok(Action::requeue(Duration::from_secs(200)));
     };
 
-    tracing::info!("reconcile, {} - {}", &app_namespace, &app_name);
+    // Check for the interesting subsets of `spec`
+    match aiven_application_v1_spec.get("opensSarch") {
+        Some(opensearch) => {
+            tracing::info!(message = "opensearch spec found", ?opensearch)
+        }
+        None => tracing::warn!(message = "no opensearch in spec", ?app_name, ?app_namespace),
+    };
+    match aiven_application_v1_spec.get("kafka") {
+        Some(kafka) => tracing::info!(message = "kafka spec found", ?kafka),
+        None => tracing::warn!(message = "no kafka in spec", ?app_name, ?app_namespace),
+    };
+    match aiven_application_v1_spec.get("valkey") {
+        Some(valkey) => {
+            tracing::info!(message = "valkey(s) spec found", ?valkey)
+        }
+        None => tracing::warn!(message = "no valkey in spec", ?app_name, ?app_namespace),
+    };
+
     Ok(Action::requeue(Duration::from_secs(200)))
 }
 
@@ -93,7 +126,9 @@ async fn main() -> anyhow::Result<()> {
     let ar = ApiResource::from_gvk(&gvk);
     let api = Api::<DynamicObject>::all_with(client.clone(), &ar);
 
-    let ctx = Arc::new(Ctx { client: client.clone() });
+    let ctx = Arc::new(Ctx {
+        client: client.clone(),
+    });
 
     Controller::<DynamicObject>::new_with(api, watcher::Config::default(), ar)
         .run(reconcile, error_policy, ctx)
