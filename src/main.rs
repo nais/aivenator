@@ -1,17 +1,16 @@
 use anyhow::Result;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
+use k8s_openapi::serde_json::{self, Map, Value};
 use kube::{
     Api, Client, Resource, ResourceExt,
-    api::{ApiResource, DynamicObject, GroupVersionKind},
-    error,
+    api::{ApiResource, DynamicObject, GroupVersionKind, Object},
     runtime::{
-        WatchStreamExt,
         controller::{Action, Controller},
         watcher,
     },
 };
 use std::{sync::Arc, time::Duration};
-use tracing::{Instrument, Level, info_span, span};
+use tracing::{Level, instrument, span};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt};
@@ -65,6 +64,20 @@ fn init_tracing() -> Result<()> {
     Ok(())
 }
 
+#[instrument(skip(opensearch_spec))]
+fn reconcile_opensearch(
+    opensearch_spec: &Map<String, serde_json::Value>,
+    app_name: &str,
+    app_namespace: &str,
+) -> Result<Action, kube::Error> {
+    // let opensearch_name = opensearch_spec.;
+    let span = span!(Level::INFO, "opensearch");
+    let _enter = span.enter();
+    tracing::info!(message = "reconciling opensearch", ?opensearch_spec);
+
+    Ok(Action::requeue(Duration::from_secs(200)))
+}
+
 async fn reconcile(
     aiven_application_nais_v1: Arc<DynamicObject>,
     _ctx: Arc<Ctx>,
@@ -87,10 +100,19 @@ async fn reconcile(
         return Ok(Action::requeue(Duration::from_secs(200)));
     };
 
+    let mut action = Action::requeue(Duration::from_secs(200));
     // Check for the interesting subsets of `spec`
-    match aiven_application_v1_spec.get("opensSarch") {
+    if let Some(opensearch) = aiven_application_v1_spec.get("openSearch")
+        && let Some(opensearch_spec) = opensearch.as_object()
+    {
+        action = reconcile_opensearch(&opensearch_spec, &app_name, &app_namespace)?;
+    } else {
+        tracing::warn!(message = "no opensearch in spec", ?app_name, ?app_namespace);
+    }
+    match aiven_application_v1_spec.get("openSearch") {
         Some(opensearch) => {
-            tracing::info!(message = "opensearch spec found", ?opensearch)
+            tracing::info!(message = "opensearch spec found", ?opensearch);
+            action = reconcile_opensearch(&opensearch.as_object(), &app_name, &app_namespace)?;
         }
         None => tracing::warn!(message = "no opensearch in spec", ?app_name, ?app_namespace),
     };
