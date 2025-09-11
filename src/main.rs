@@ -127,16 +127,6 @@ fn error_policy(obj: Arc<DynamicObject>, _err: &kube::Error, _ctx: Arc<Ctx>) -> 
     Action::requeue(Duration::from_secs(200))
 }
 
-
-async fn doer(mut rx: Receiver<Effect>) -> Result<()> {
-
-    Ok(())
-}
-
-async fn plan(s: State, effects: [Effect]) {
-
-}
-
 #[derive(Debug, Clone)]
 enum Effect {
     GetCAa,
@@ -149,8 +139,6 @@ async fn main() -> anyhow::Result<()> {
     init_tracing()?;
     let client = Client::try_default().await?;
     let (tx, mut rx) = mpsc::channel::<Effect>(10_000);
-
-
 
     let gvk = GroupVersionKind {
         group: "aiven.nais.io".into(),
