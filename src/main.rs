@@ -7,38 +7,41 @@ use kube::{
         watcher,
     }, Api, Client, Resource, ResourceExt
 };
+
+use reqwest::{header, ClientBuilder};
 use tokio::sync::mpsc::{Receiver, Sender, self};
 use std::{sync::Arc, time::Duration};
 use tracing::{Level, instrument, span};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt};
+mod aiven;
 
 use std::{env, io::IsTerminal};
 
 #[derive(Debug, Clone)]
 struct Config {
     aiven_token: String,
-    kubernetes_write_retry_interval: String,
-    log_format: String,
-    log_level: String,
-    metrics_address: String,
-    sync_period: String,
-    main_project: String,
-    projects: String,
+    // kubernetes_write_retry_interval: String,
+    // log_format: String,
+    // log_level: String,
+    // metrics_address: String,
+    // sync_period: String,
+    // main_project: String,
+    // projects: String,
 }
 
 impl Config {
     fn new() -> Result<Self> {
         Ok(Self {
-            aiven_token: env::var("aiven-token")?,
-            kubernetes_write_retry_interval: env::var("kubernetes-write-retry-interval")?,
-            log_format: env::var("log-format")?,
-            log_level: env::var("log-level")?,
-            metrics_address: env::var("metrics-address")?,
-            sync_period: env::var("sync-period")?,
-            main_project: env::var("main-project")?,
-            projects: env::var("projects")?,
+            aiven_token: env::var("AIVEN_TOKEN")?,
+//            kubernetes_write_retry_interval: env::var("KUBERNETES_WRITE_RETRY_INTERVAL")?,
+//            log_format: env::var("LOG_FORMAT")?,
+//            log_level: env::var("LOG_LEVEL")?,
+//            metrics_address: env::var("METRICS_ADDRESS")?,
+//            sync_period: env::var("SYNC_PERIOD")?,
+//            main_project: env::var("MAIN_PROJECT")?,
+//            projects: env::var("PROJECTS")?,
         })
     }
 }
@@ -103,6 +106,8 @@ async fn reconcile(
     match aiven_application_v1_spec.get("openSearch") {
         Some(opensearch) => {
             tracing::info!(message = "opensearch spec found", ?opensearch);
+            let plan = plan(); // pure
+            execute(plan);  // only IO
             action = reconcile_opensearch(&opensearch.as_object().unwrap(), &app_name, &app_namespace)?;
         }
         None => tracing::info!(message = "no opensearch in spec", ?app_name, ?app_namespace),
@@ -138,7 +143,14 @@ enum Effect {
 async fn main() -> anyhow::Result<()> {
     init_tracing()?;
     let client = Client::try_default().await?;
-    let (tx, mut rx) = mpsc::channel::<Effect>(10_000);
+    let config = Config::new()?;
+
+    let mut headers = header::HeaderMap::new();
+    headers.insert(header::AUTHORIZATION, header::HeaderValue::from_str(&format!("Bearer {}", &config.aiven_token))?);
+    headers.insert(header::USER_AGENT, header::HeaderValue::from_str(&format!("aivenator"))?);
+
+    let reqwest_client = ClientBuilder::new().default_headers(headers).build();
+    let (tx, mut rx) = mpsc::channel::<Effect>(100);
 
     let gvk = GroupVersionKind {
         group: "aiven.nais.io".into(),
@@ -153,6 +165,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     Controller::<DynamicObject>::new_with(api, watcher::Config::default(), ar)
+   //    .owns(secrets, wc)  // <- We own secrets
         .run(reconcile, error_policy, ctx)
         .for_each(|res| async move {
             if let Err(err) = res {
