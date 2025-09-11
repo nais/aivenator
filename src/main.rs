@@ -1,14 +1,13 @@
 use anyhow::Result;
 use futures::StreamExt;
-use k8s_openapi::serde_json::{self, Map, Value};
+use k8s_openapi::serde_json::{self, Map};
 use kube::{
-    Api, Client, Resource, ResourceExt,
-    api::{ApiResource, DynamicObject, GroupVersionKind, Object},
-    runtime::{
+    api::{ApiResource, DynamicObject, GroupVersionKind, Object}, runtime::{
         controller::{Action, Controller},
         watcher,
-    },
+    }, Api, Client, Resource, ResourceExt
 };
+use tokio::sync::mpsc::{Receiver, Sender, self};
 use std::{sync::Arc, time::Duration};
 use tracing::{Level, instrument, span};
 use tracing_subscriber::filter::LevelFilter;
@@ -19,26 +18,26 @@ use std::{env, io::IsTerminal};
 
 #[derive(Debug, Clone)]
 struct Config {
-    aivenToken: String,
-    kubernetesWriteRetryInterval: String,
-    logFormat: String,
-    logLevel: String,
-    metricsAddress: String,
-    syncPeriod: String,
-    mainProject: String,
+    aiven_token: String,
+    kubernetes_write_retry_interval: String,
+    log_format: String,
+    log_level: String,
+    metrics_address: String,
+    sync_period: String,
+    main_project: String,
     projects: String,
 }
 
 impl Config {
     fn new() -> Result<Self> {
         Ok(Self {
-            aivenToken: env::var("aiven-token")?,
-            kubernetesWriteRetryInterval: env::var("kubernetes-write-retry-interval")?,
-            logFormat: env::var("log-format")?,
-            logLevel: env::var("log-level")?,
-            metricsAddress: env::var("metrics-address")?,
-            syncPeriod: env::var("sync-period")?,
-            mainProject: env::var("main-project")?,
+            aiven_token: env::var("aiven-token")?,
+            kubernetes_write_retry_interval: env::var("kubernetes-write-retry-interval")?,
+            log_format: env::var("log-format")?,
+            log_level: env::var("log-level")?,
+            metrics_address: env::var("metrics-address")?,
+            sync_period: env::var("sync-period")?,
+            main_project: env::var("main-project")?,
             projects: env::var("projects")?,
         })
     }
@@ -74,7 +73,6 @@ fn reconcile_opensearch(
     let span = span!(Level::INFO, "opensearch");
     let _enter = span.enter();
     tracing::info!(message = "reconciling opensearch", ?opensearch_spec);
-
     Ok(Action::requeue(Duration::from_secs(200)))
 }
 
@@ -102,43 +100,57 @@ async fn reconcile(
 
     let mut action = Action::requeue(Duration::from_secs(200));
     // Check for the interesting subsets of `spec`
-    if let Some(opensearch) = aiven_application_v1_spec.get("openSearch")
-        && let Some(opensearch_spec) = opensearch.as_object()
-    {
-        action = reconcile_opensearch(&opensearch_spec, &app_name, &app_namespace)?;
-    } else {
-        tracing::warn!(message = "no opensearch in spec", ?app_name, ?app_namespace);
-    }
     match aiven_application_v1_spec.get("openSearch") {
         Some(opensearch) => {
             tracing::info!(message = "opensearch spec found", ?opensearch);
-            action = reconcile_opensearch(&opensearch.as_object(), &app_name, &app_namespace)?;
+            action = reconcile_opensearch(&opensearch.as_object().unwrap(), &app_name, &app_namespace)?;
         }
-        None => tracing::warn!(message = "no opensearch in spec", ?app_name, ?app_namespace),
+        None => tracing::info!(message = "no opensearch in spec", ?app_name, ?app_namespace),
     };
     match aiven_application_v1_spec.get("kafka") {
-        Some(kafka) => tracing::info!(message = "kafka spec found", ?kafka),
-        None => tracing::warn!(message = "no kafka in spec", ?app_name, ?app_namespace),
+        Some(kafka) => tracing::info!(message = "kafka spec found {}", ?kafka ),
+        None => tracing::info!("no kafka in spec"),
     };
     match aiven_application_v1_spec.get("valkey") {
         Some(valkey) => {
             tracing::info!(message = "valkey(s) spec found", ?valkey)
         }
-        None => tracing::warn!(message = "no valkey in spec", ?app_name, ?app_namespace),
+        None => tracing::info!("no valkey in spec"),
     };
 
     Ok(Action::requeue(Duration::from_secs(200)))
 }
+
 
 fn error_policy(obj: Arc<DynamicObject>, _err: &kube::Error, _ctx: Arc<Ctx>) -> Action {
     tracing::warn!(name=%obj.name_any(), "reconcile failed");
     Action::requeue(Duration::from_secs(200))
 }
 
+
+async fn doer(mut rx: Receiver<Effect>) -> Result<()> {
+
+    Ok(())
+}
+
+async fn plan(s: State, effects: [Effect]) {
+
+}
+
+#[derive(Debug, Clone)]
+enum Effect {
+    GetCAa,
+    AddCA
+
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     init_tracing()?;
     let client = Client::try_default().await?;
+    let (tx, mut rx) = mpsc::channel::<Effect>(10_000);
+
+
 
     let gvk = GroupVersionKind {
         group: "aiven.nais.io".into(),
