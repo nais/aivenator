@@ -196,7 +196,6 @@ func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application
 		Namespace: application.SecretKey().Namespace,
 	}
 
-	application.SecretKey()
 	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
 		return r.Get(ctx, application.SecretKey(), &secret)
 	})
