@@ -16,20 +16,15 @@ print $"Aivenapps w/Kafka w/o individual secret: ($kafka_nais_apps_without_indiv
 
 let kafka_aivenapps_without_nais_app = $kafka_aivenapps | where {|app|
   do --ignore-errors {
-    kubectl get -n $app.namespace application.nais.io $app.name;
-    if $env.LAST_EXIT_CODE != 0 {
-      true
-    } else {
-      false
-    }
+    kubectl get -n $app.namespace application.nais.io $app.name
   }
 }
-print $"Aivenapps w/kafka w/o nais app: ($kafka_aivenapps_without_nais_app | length)"
+print $"Aivenapps w/kafka w/o nais app: ($kafka_aivenapps_without_nais_app)"
 
 print $"\nContinue w/patching of aivenapps w/nais app? [Y/n]: "
 let user_input = input
 if $user_input !~ "(?i)y?" {
-  return
+  exit 1
 };
 
 $kafka_nais_apps_without_individual_secret | each {|app|
