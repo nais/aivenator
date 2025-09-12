@@ -28,21 +28,19 @@ let kafka_aivenapps_without_nais_app = $kafka_aivenapps | where {|app|
 }
 print $"Aivenapps w/kafka w/o nais app: ($kafka_aivenapps_without_nais_app)"
 
-if match (input $"Patch all aivenapps that have nais app? [Y/n]:"
+match (
+  input $"Patch all aivenapps that have nais app? [Y/n]:"
     | str downcase
     | split chars
     | get -o 0
     | default ""
-  ) {
-    "" | "y" => true,
-    _ => false,
-} {
-  print "Continuing..."
-} else {
-  print "Exiting"
-  exit 1
+) {
+  "" | "y" => {print "Continuing..."},
+  _ => {
+    print "Exiting"
+    exit 1
+  },
 }
-
 $kafka_nais_apps_without_individual_secret | each {|app|
   do --ignore-errors {
     kubectl get -n $app.namespace application.nais.io $app.name
