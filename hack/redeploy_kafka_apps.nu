@@ -16,14 +16,14 @@ print "Fetched all AivenApps"
 let naisapps_matching_aivenapp = kubectl get -A application.nais.io --no-headers -o json
   | from json
   | get items
-  | each {|naisApp|
-    name: $naisApp.metadata.name,
-    namespace: $naisApp.metadata.namespace,
+  | each {|naisApp| {
+      name: $naisApp.metadata.name,
+      namespace: $naisApp.metadata.namespace,
+    }
   }
   | where {|naisApp|
     $kafka_aivenapps | any {|aivenApp|
-      $aivenApp.name == $naisApp.name
-      $aivenApp.namespace == $naisApp.namespace
+      $aivenApp.name == $naisApp.name and $aivenApp.namespace == $naisApp.namespace
     }
   }
 print "Fetched all Nais apps\n"
@@ -35,11 +35,9 @@ print $"Aivenapps w/Kafka w/o individual secret: ($kafka_aivenapps_without_indiv
 let aivenapps_without_naisapp = $kafka_aivenapps_without_individual_secret
   | where {|aivenApp|
     $naisapps_matching_aivenapp | all {|naisApp|
-      $aivenApp.name != $naisApp.name
-      $aivenApp.namespace != $naisApp.namespace
+      $aivenApp.name != $naisApp.name and $aivenApp.namespace != $naisApp.namespace
     }
   }
-  | reject spec
 print $"Aivenapps w/kafka w/o nais app: ($aivenapps_without_naisapp | length)\n"
 
 match (
