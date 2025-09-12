@@ -1,6 +1,7 @@
 #!/usr/bin/env nix-shell
 #!nix-shell -i nu -p nushell
 
+print "Fetching aivenapps & naisapps from k8s..."
 let kafka_aivenapps = kubectl get -A aivenapp --no-headers -o json
   | from json
   | get items
@@ -10,26 +11,39 @@ let kafka_aivenapps = kubectl get -A aivenapp --no-headers -o json
    spec: $aivenApp.spec,
   }}
   | where {|it| 'kafka' in $it.spec}
+print "Fetched all AivenApps"
 
-let kafka_nais_apps_without_individual_secret = $kafka_aivenapps | where {|it| 'secretName' not-in $it.spec.kafka}
-print $"Total aivenapps w/Kafka: ($kafka_aivenapps | length)"
-print $"Aivenapps w/Kafka w/o individual secret: ($kafka_nais_apps_without_individual_secret | length)"
-
-let kafka_aivenapps_without_nais_app = $kafka_aivenapps | where {|app|
-  do --ignore-errors {
-    print $"Checking for nais app ($app.namespace)/($app.name)"
-    kubectl get -n $app.namespace application.nais.io $app.name out> /dev/null
-    if $env.LAST_EXIT_CODE != 0 {
-      true
-    } else {
-      false
+let naisapps_matching_aivenapp = kubectl get -A application.nais.io --no-headers -o json
+  | from json
+  | get items
+  | each {|naisApp|
+    name: $naisApp.metadata.name,
+    namespace: $naisApp.metadata.namespace,
+  }
+  | where {|naisApp|
+    $kafka_aivenapps | any {|aivenApp|
+      $aivenApp.name == $naisApp.name
+      $aivenApp.namespace == $naisApp.namespace
     }
   }
-}
-print $"Aivenapps w/kafka w/o nais app: ($kafka_aivenapps_without_nais_app)\n"
+print "Fetched all Nais apps\n"
+
+let kafka_aivenapps_without_individual_secret = $kafka_aivenapps | where {|it| 'secretName' not-in $it.spec.kafka}
+print $"Total aivenapps w/Kafka: ($kafka_aivenapps | length)"
+print $"Aivenapps w/Kafka w/o individual secret: ($kafka_aivenapps_without_individual_secret | length)"
+
+let aivenapps_without_naisapp = $kafka_aivenapps_without_individual_secret
+  | where {|aivenApp|
+    $naisapps_matching_aivenapp | all {|naisApp|
+      $aivenApp.name != $naisApp.name
+      $aivenApp.namespace != $naisApp.namespace
+    }
+  }
+  | reject spec
+print $"Aivenapps w/kafka w/o nais app: ($aivenapps_without_naisapp | length)\n"
 
 match (
-  input $"Patch all aivenapps that have nais app? [Y/n]:"
+  input $"Patch all ($kafka_aivenapps_without_individual_secret | length) aivenapps that have nais app? [Y/n]:"
     | split chars
     | get -o 0
     | default ""
@@ -41,12 +55,14 @@ match (
     exit 1
   },
 }
-$kafka_nais_apps_without_individual_secret | each {|app|
+let patched_kafka_nais_apps = $kafka_aivenapps_without_individual_secret | each {|app|
   do --ignore-errors {
+    print $"Patching nais app ($app.namespace)/($app.name)"
     kubectl get -n $app.namespace application.nais.io $app.name out> /dev/null
     if $env.LAST_EXIT_CODE != 0 {
       return
     }
-    kubectl patch -n $app.namespace app $app.name --type="merge" --patch '{"status":{"synchronizationHash": ""}}' # --dry-run="server"
   }
+  kubectl patch -n $app.namespace app $app.name --type="merge" --patch '{"status":{"synchronizationHash": ""}}' # --dry-run="server"
 }
+print $"Patched nais apps w/aiven apps that use kafka shared secret: ($patched_kafka_nais_apps)"
