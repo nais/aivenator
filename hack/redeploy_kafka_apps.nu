@@ -1,3 +1,6 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i nu -p nushell
+
 let kafka_aivenapps = kubectl get -A aivenapp --no-headers -o json
  | from json
  | get items
