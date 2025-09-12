@@ -11,7 +11,7 @@ let kafka_aivenapps = kubectl get -A aivenapp --no-headers -o json
    spec: $aivenApp.spec,
   }}
   | where {|it| 'kafka' in $it.spec}
-print "Fetched all AivenApps"
+print $"Fetched all ($kafka_aivenapps | length) AivenApps w/Kafka"
 
 let naisapps_matching_aivenapp = kubectl get -A application.nais.io --no-headers -o json
   | from json
@@ -26,10 +26,9 @@ let naisapps_matching_aivenapp = kubectl get -A application.nais.io --no-headers
       $aivenApp.name == $naisApp.name and $aivenApp.namespace == $naisApp.namespace
     }
   }
-print "Fetched all Nais apps\n"
+print $"Fetched all ($naisapps_matching_aivenapp | length) Nais apps that have matching AivenApps w/Kafka\n"
 
 let kafka_aivenapps_without_individual_secret = $kafka_aivenapps | where {|it| 'secretName' not-in $it.spec.kafka}
-print $"Total aivenapps w/Kafka: ($kafka_aivenapps | length)"
 print $"Aivenapps w/Kafka w/o individual secret: ($kafka_aivenapps_without_individual_secret | length)"
 
 let aivenapps_without_naisapp = $kafka_aivenapps_without_individual_secret
@@ -39,9 +38,15 @@ let aivenapps_without_naisapp = $kafka_aivenapps_without_individual_secret
     }
   }
 print $"Aivenapps w/kafka w/o nais app: ($aivenapps_without_naisapp | length)\n"
+let aivenapps_with_naisapp = $kafka_aivenapps_without_individual_secret
+  | where {|aivenApp|
+    $naisapps_matching_aivenapp | all {|naisApp|
+      $aivenApp.name == $naisApp.name and $aivenApp.namespace == $naisApp.namespace
+    }
+  }
 
 match (
-  input $"Patch all ($kafka_aivenapps_without_individual_secret | length) aivenapps that have nais app? [Y/n]:"
+  input $"Patch all ($aivenapps_with_naisapp | length) aivenapps that have nais app? [Y/n]:"
     | split chars
     | get -o 0
     | default ""
@@ -53,7 +58,7 @@ match (
     exit 1
   },
 }
-let patched_kafka_nais_apps = $kafka_aivenapps_without_individual_secret | each {|app|
+let patched_kafka_nais_apps = $aivenapps_with_naisapp | each {|app|
   do --ignore-errors {
     print $"Patching nais app ($app.namespace)/($app.name)"
     kubectl get -n $app.namespace application.nais.io $app.name out> /dev/null
