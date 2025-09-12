@@ -68,5 +68,5 @@ let patched_kafka_nais_apps = $aivenapps_with_naisapp | each {|app|
   }
   kubectl patch -n $app.namespace app $app.name --type="merge" --patch '{"status":{"synchronizationHash": ""}}' # --dry-run="server"
 }
-print $"Patched nais apps w/aiven apps that use kafka shared secret: ($patched_kafka_nais_apps)"
+print $"Patched nais apps w/aiven apps that use kafka shared secret:"
 $patched_kafka_nais_apps
