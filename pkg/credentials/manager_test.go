@@ -49,7 +49,7 @@ var _ = Describe("Manager", func() {
 				Name: "shared-secret",
 			},
 		}
-		individualSecrets, err := manager.CreateSecret(context.Background(), &application, sharedSecret, logger)
+		individualSecrets, err := manager.CreateSecret(context.Background(), &application, logger)
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(individualSecrets).NotTo(BeEmpty())
@@ -101,8 +101,7 @@ var _ = Describe("Manager", func() {
 
 		manager := Manager{handlers: []Handler{&mockHandler, &failingHandler}}
 
-		secret := &corev1.Secret{}
-		_, err := manager.CreateSecret(context.Background(), &application, secret, logger)
+		_, err := manager.CreateSecret(context.Background(), &application, logger)
 
 		Expect(err).To(MatchError(handlerError))
 
