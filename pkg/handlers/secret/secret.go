@@ -35,12 +35,18 @@ func NewHandler(aiven *aiven.Client, projectName string) Handler {
 	}
 }
 
-func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
+func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
 	secretName := application.Spec.SecretName
 
 	errors := validation.IsDNS1123Label(secretName)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secretName, utils.ErrUnrecoverable, errors)
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      application.Spec.SecretName,
+			Namespace: application.GetNamespace(),
+		},
 	}
 
 	secret.ObjectMeta.Name = application.Spec.SecretName

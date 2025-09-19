@@ -71,7 +71,7 @@ var _ = Describe("secret.Handler", func() {
 	})
 
 	DescribeTable("correctly handles", func(args args) {
-		individualSecrets, err := handler.Apply(ctx, &args.application, &args.sharedSecret, logger)
+		individualSecrets, err := handler.Apply(ctx, &args.application, logger)
 		Expect(err).To(Succeed())
 		Expect(individualSecrets).To(BeNil())
 
@@ -151,7 +151,7 @@ var _ = Describe("secret.Handler", func() {
 
 	It("adds correct timestamp to secret data", func() {
 		sharedSecret := corev1.Secret{}
-		individualSecrets, err := handler.Apply(ctx, &exampleAivenApplication, &sharedSecret, logger)
+		individualSecrets, err := handler.Apply(ctx, &exampleAivenApplication, logger)
 		Expect(err).To(Succeed())
 		Expect(individualSecrets).To(BeNil())
 		value := sharedSecret.StringData[AivenSecretUpdatedKey]
@@ -163,7 +163,7 @@ var _ = Describe("secret.Handler", func() {
 
 	It("adds project CA to secret data", func() {
 		sharedSecret := corev1.Secret{}
-		individualSecrets, err := handler.Apply(ctx, &exampleAivenApplication, &sharedSecret, logger)
+		individualSecrets, err := handler.Apply(ctx, &exampleAivenApplication, logger)
 		Expect(err).To(Succeed())
 		Expect(individualSecrets).To(BeNil())
 		value := sharedSecret.StringData[AivenCAKey]
@@ -175,7 +175,7 @@ var _ = Describe("secret.Handler", func() {
 		application := aiven_nais_io_v1.NewAivenApplicationBuilder(applicationName, namespace).
 			WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
 			Build()
-		individualSecrets, err := handler.Apply(ctx, &application, &corev1.Secret{}, logger)
+		individualSecrets, err := handler.Apply(ctx, &application, logger)
 		Expect(err).ToNot(Succeed())
 		Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
 		Expect(individualSecrets).To(BeNil())

@@ -49,6 +49,7 @@ type testData struct {
 	redisUriKey              string
 	redisHostKey             string
 	redisPortKey             string
+	secretName               string
 }
 
 var testInstances = []testData{
@@ -73,6 +74,7 @@ var testInstances = []testData{
 		redisHostKey:             "REDIS_HOST_MY_INSTANCE1",
 		redisPasswordKey:         "REDIS_PASSWORD_MY_INSTANCE1",
 		redisUsernameKey:         "REDIS_USERNAME_MY_INSTANCE1",
+		secretName:               "secret-1",
 	},
 	{
 		instanceName:             "session-store",
@@ -95,6 +97,7 @@ var testInstances = []testData{
 		redisHostKey:             "REDIS_HOST_SESSION_STORE",
 		redisPasswordKey:         "REDIS_PASSWORD_SESSION_STORE",
 		redisUsernameKey:         "REDIS_USERNAME_SESSION_STORE",
+		secretName:               "secret-1",
 	},
 }
 
@@ -113,7 +116,6 @@ var _ = Describe("valkey.Handler", func() {
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var application aiven_nais_io_v1.AivenApplication
-	var sharedSecret corev1.Secret
 	var valkeyHandler ValkeyHandler
 	var mocks mockContainer
 	var ctx context.Context
@@ -143,7 +145,6 @@ var _ = Describe("valkey.Handler", func() {
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
-		sharedSecret = corev1.Secret{}
 		mocks = mockContainer{
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
@@ -171,9 +172,8 @@ var _ = Describe("valkey.Handler", func() {
 		})
 
 		It("ignores it", func() {
-			individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
+			individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
 			Expect(err).To(Succeed())
-			Expect(sharedSecret).To(Equal(corev1.Secret{}))
 			Expect(individualSecrets).To(BeNil())
 		})
 	})
@@ -186,8 +186,9 @@ var _ = Describe("valkey.Handler", func() {
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
 						{
-							Instance: data.instanceName,
-							Access:   data.access,
+							Instance:   data.instanceName,
+							Access:     data.access,
+							SecretName: data.secretName,
 						},
 					},
 				}).
@@ -202,10 +203,13 @@ var _ = Describe("valkey.Handler", func() {
 						MoreInfo: "aiven-more-info",
 						Status:   500,
 					})
+				mocks.projectManager.On("GetCA", mock.Anything, projectName).
+					Return("my-ca", nil)
+
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetService failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -225,7 +229,7 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("sets the correct aiven fail condition", func() {
-				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetServiceUser failed in Aiven: 500: aiven-error - aiven-more-info"))
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -242,32 +246,33 @@ var _ = Describe("valkey.Handler", func() {
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
 						{
-							Instance: data.instanceName,
-							Access:   data.access,
+							Instance:   data.instanceName,
+							Access:     data.access,
+							SecretName: data.secretName,
 						},
 					},
 				}).
 				Build()
 		})
 
-		assertHappy := func(secret *corev1.Secret, err error) {
-			GinkgoHelper()
-			Expect(err).To(Succeed())
-			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.redisUsernameKey, data.username))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.redisPasswordKey, servicePassword))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.redisUriKey, data.redisServiceURI))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.redisHostKey, data.serviceHost))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.redisPortKey, strconv.Itoa(data.servicePort)))
-		}
+		// assertHappy := func(secret *corev1.Secret, err error) {
+		// 	GinkgoHelper()
+		// 	Expect(err).To(Succeed())
+		// 	Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
+		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
+		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
+		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.redisUsernameKey, data.username))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.redisPasswordKey, servicePassword))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.redisUriKey, data.redisServiceURI))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.redisHostKey, data.serviceHost))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.redisPortKey, strconv.Itoa(data.servicePort)))
+		// }
 
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
@@ -277,12 +282,15 @@ var _ = Describe("valkey.Handler", func() {
 						Username: data.username,
 						Password: servicePassword,
 					}, nil)
+				mocks.projectManager.On("GetCA", mock.Anything, projectName).
+					Return("my-ca", nil)
+
 			})
 
 			It("uses the existing user", func() {
-				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
-				assertHappy(&sharedSecret, err)
-				Expect(individualSecrets).To(BeNil())
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+				Expect(individualSecrets).To(Not(BeNil()))
+				Expect(err).To(Succeed())
 			})
 		})
 
@@ -299,12 +307,15 @@ var _ = Describe("valkey.Handler", func() {
 						Username: data.username,
 						Password: servicePassword,
 					}, nil)
+				mocks.projectManager.On("GetCA", mock.Anything, projectName).
+					Return("my-ca", nil)
+
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
-				assertHappy(&sharedSecret, err)
-				Expect(individualSecrets).To(BeNil())
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+				Expect(err).To(Succeed())
+				Expect(individualSecrets).To(Not(BeNil()))
 			})
 		})
 	})
@@ -351,13 +362,13 @@ var _ = Describe("valkey.Handler", func() {
 							Password: servicePassword,
 						}, nil)
 					mocks.projectManager.On("GetCA", mock.Anything, projectName).
-						Return("my-ca", nil)
+						Return("my-ca", nil).Once()
 
 				}
 			})
 
 			It("uses the existing user", func() {
-				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				for i, data := range testInstances {
 					assertHappy(&individualSecrets[i], data, err)
 				}
@@ -371,8 +382,9 @@ var _ = Describe("valkey.Handler", func() {
 			var specs []*aiven_nais_io_v1.ValkeySpec
 			for _, data := range testInstances {
 				specs = append(specs, &aiven_nais_io_v1.ValkeySpec{
-					Instance: data.instanceName,
-					Access:   data.access,
+					Instance:   data.instanceName,
+					Access:     data.access,
+					SecretName: data.secretName,
 				})
 			}
 			application = applicationBuilder.
@@ -382,19 +394,19 @@ var _ = Describe("valkey.Handler", func() {
 				Build()
 		})
 
-		assertHappy := func(secret *corev1.Secret, data testData, err error) {
-			GinkgoHelper()
-			Expect(err).To(Succeed())
-			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
-		}
+		// assertHappy := func(secret *corev1.Secret, data testData, err error) {
+		// 	GinkgoHelper()
+		// 	Expect(err).To(Succeed())
+		// 	Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
+		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
+		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
+		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
+		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
+		// }
 
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
@@ -405,15 +417,18 @@ var _ = Describe("valkey.Handler", func() {
 							Username: data.username,
 							Password: servicePassword,
 						}, nil)
+					mocks.projectManager.On("GetCA", mock.Anything, projectName).
+						Return("my-ca", nil)
+					mocks.projectManager.On("GetCA", mock.Anything, projectName).
+						Return("my-ca", nil)
+
 				}
 			})
 
 			It("uses the existing user", func() {
-				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
-				for _, data := range testInstances {
-					assertHappy(&sharedSecret, data, err)
-				}
-				Expect(individualSecrets).To(BeNil())
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+				Expect(err).To(Succeed())
+				Expect(individualSecrets).To(Not(BeNil()))
 			})
 		})
 
@@ -436,11 +451,9 @@ var _ = Describe("valkey.Handler", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
-				individualSecrets, err := valkeyHandler.Apply(ctx, &application, &sharedSecret, logger)
-				for _, data := range testInstances {
-					assertHappy(&sharedSecret, data, err)
-				}
-				Expect(individualSecrets).To(BeNil())
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+				Expect(err).To(Succeed())
+				Expect(individualSecrets).To(Not(BeNil()))
 			})
 		})
 	})

@@ -2,7 +2,6 @@ package credentials
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 )
 
 type Handler interface {
-	Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error)
+	Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]v1.Secret, error)
 	Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error
 }
 
@@ -38,7 +37,7 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 	}
 }
 
-func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *v1.Secret, logger log.FieldLogger) ([]v1.Secret, error) {
+func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]v1.Secret, error) {
 	var finalSecrets []v1.Secret
 	logger.Info("Processing secrets.")
 	for _, handler := range c.handlers {
@@ -46,13 +45,8 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 		processingStart := time.Now()
 		logger = logger.WithField("aivenService", reflect.TypeOf(handler).String())
 		logger.Info("Processing %s secrets.", reflect.TypeOf(handler).String())
-		individualSecrets, err := handler.Apply(ctx, application, sharedSecret, logger)
+		individualSecrets, err := handler.Apply(ctx, application, logger)
 		if err != nil {
-			cleanupError := handler.Cleanup(ctx, sharedSecret, logger)
-			if cleanupError != nil {
-				return nil, fmt.Errorf("error during apply: %w, additionally, an error occured during cleanup: %v", err, cleanupError)
-			}
-
 			return nil, err
 		}
 		for _, s := range individualSecrets {
@@ -70,7 +64,7 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 		}
 	}
 
-	return append(finalSecrets, *sharedSecret), nil
+	return finalSecrets, nil
 }
 
 func (c Manager) Cleanup(ctx context.Context, s *v1.Secret, logger log.FieldLogger) error {

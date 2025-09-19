@@ -54,7 +54,7 @@ type OpenSearchHandler struct {
 	projectName   string
 }
 
-func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
+func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
 	spec := application.Spec.OpenSearch
 	if spec == nil {
 		return nil, nil
@@ -76,19 +76,17 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		return nil, utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
 	}
 
-	finalSecret := sharedSecret
-	if spec.SecretName != "" {
-		logger = logger.WithField("individualSecret", spec.SecretName)
-		finalSecret = &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      spec.SecretName,
-				Namespace: application.GetNamespace(),
-			},
-		}
-		_, err := h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
-		if err != nil {
-			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
-		}
+	logger = logger.WithField("individualSecret", spec.SecretName)
+	finalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      spec.SecretName,
+			Namespace: application.GetNamespace(),
+		},
+	}
+
+	_, err = h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
+	if err != nil {
+		return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 	}
 	aivenUser, err := h.provideServiceUser(ctx, application, serviceName, finalSecret, logger)
 	if err != nil {
@@ -111,13 +109,8 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
 
-	if spec.SecretName != "" {
-		logger.Infof("Applied individualSecret")
-		return []corev1.Secret{*finalSecret}, nil
-	}
-	logger.Infof("Applied sharedSecret")
-
-	return nil, nil
+	logger.Infof("Applied individualSecret")
+	return []corev1.Secret{*finalSecret}, nil
 }
 
 func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {

@@ -69,7 +69,7 @@ type KafkaHandler struct {
 	secretHandler secret.Handler
 }
 
-func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
+func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
 	spec := application.Spec.Kafka
 	if spec == nil {
 		return nil, nil
@@ -102,22 +102,17 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		return nil, utils.AivenFail("GetService", application, err, false, logger)
 	}
 
-	finalSecret := sharedSecret
-	if spec.SecretName != "" {
-		logger = logger.WithField("secret_name", spec.SecretName)
-		logger.Info("Creating individual secret for Kafka")
-		finalSecret = &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      spec.SecretName,
-				Namespace: application.GetNamespace(),
-			},
-		}
-		_, err := h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
-		if err != nil {
-			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
-		}
-	} else {
-		logger.Infof("Using shared secret %s ", sharedSecret.Name)
+	logger = logger.WithField("secret_name", spec.SecretName)
+	logger.Info("Creating individual secret for Kafka")
+	finalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      spec.SecretName,
+			Namespace: application.GetNamespace(),
+		},
+	}
+	_, err = h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
+	if err != nil {
+		return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 	}
 
 	ca, err := h.project.GetCA(ctx, projectName)
@@ -139,6 +134,10 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	credStore, err := h.generator.MakeCredStores(aivenUser.AccessKey, aivenUser.AccessCert, ca)
 	if err != nil {
 		utils.LocalFail("CreateCredStores", application, err, logger)
+		err := h.Cleanup(ctx, finalSecret, logger)
+		if err != nil {
+			return nil, err
+		}
 		return nil, err
 	}
 
@@ -160,13 +159,9 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	})
 
 	controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
-	if spec.SecretName != "" {
-		logger.Infof("Applied individualSecret")
-		return []corev1.Secret{*finalSecret}, nil
-	}
-	logger.Infof("Applied sharedSecret")
+	logger.Infof("Applied individualSecret")
+	return []corev1.Secret{*finalSecret}, nil
 
-	return nil, nil
 }
 
 func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
