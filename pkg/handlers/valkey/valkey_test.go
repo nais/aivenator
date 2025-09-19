@@ -226,6 +226,9 @@ var _ = Describe("valkey.Handler", func() {
 						MoreInfo: "aiven-more-info",
 						Status:   500,
 					})
+				mocks.projectManager.On("GetCA", mock.Anything, projectName).
+					Return("my-ca", nil)
+
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -448,6 +451,9 @@ var _ = Describe("valkey.Handler", func() {
 							Password: servicePassword,
 						}, nil)
 				}
+				mocks.projectManager.On("GetCA", mock.Anything, projectName).
+					Return("my-ca", nil)
+
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
