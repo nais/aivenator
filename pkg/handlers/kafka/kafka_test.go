@@ -282,6 +282,7 @@ var _ = Describe("kafka handler", func() {
 			})
 
 			It("fails when there is no CA", func() {
+
 				sharedSecret = &corev1.Secret{}
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
@@ -499,6 +500,8 @@ var _ = Describe("kafka handler", func() {
 				Expect(individualSecrets).To(BeNil())
 			})
 			It("fails when makecredstores fails", func() {
+				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, aivenProjectName, mock.Anything, mock.Anything).Return(nil)
+
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
