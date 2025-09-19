@@ -64,7 +64,7 @@ func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenA
 	})
 	logger.Infof("Applied secret: %s", secret.Name)
 
-	return nil, nil
+	return []corev1.Secret{*secret}, nil
 }
 
 func (s Handler) ApplyIndividualSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
