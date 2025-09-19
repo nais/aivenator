@@ -146,8 +146,9 @@ var _ = Describe("opensearch handler", func() {
 				application = applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-							Instance: serviceName,
-							Access:   access,
+							Instance:   serviceName,
+							Access:     access,
+							SecretName: secretName,
 						},
 					}).
 					Build()
@@ -158,6 +159,9 @@ var _ = Describe("opensearch handler", func() {
 						MoreInfo: "aiven-more-info",
 						Status:   500,
 					})
+
+				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("my-ca", nil)
+
 			})
 			It("sets the correct aiven fail condition", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
@@ -174,8 +178,9 @@ var _ = Describe("opensearch handler", func() {
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-						Instance: serviceName,
-						Access:   access,
+						Instance:   serviceName,
+						Access:     access,
+						SecretName: secretName,
 					},
 				}).
 				Build()
@@ -230,6 +235,7 @@ var _ = Describe("opensearch handler", func() {
 		Context("and the service user doesn't exist", func() {
 			BeforeEach(func() {
 				mockAivenReturnOpensearchGetOk()
+				mockAivenReturnCaOk()
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, aiven.Error{
 					Message: "Service user does not exist", Status: 404,
 				})
@@ -266,13 +272,14 @@ var _ = Describe("opensearch handler", func() {
 							ExtendedAcl: false,
 						},
 					}, nil).Once()
+
 			})
 
 			It("Creates and returns creds for the new user", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(individualSecrets).To(BeNil())
+				Expect(individualSecrets).To(Not(BeNil()))
 			})
 		})
 	})
