@@ -166,9 +166,9 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}()
 
 	logger.Infof("Creating secret(s)")
-	sharedSecret := r.initSecret(ctx, application, logger)
-	logger = logger.WithField("sharedSecret", sharedSecret.Name)
-	finalSecrets, err := r.Manager.CreateSecret(ctx, &application, sharedSecret, logger)
+	secret := r.initSecret(ctx, application, logger)
+	logger = logger.WithField("secret", secret.Name)
+	finalSecrets, err := r.Manager.CreateSecret(ctx, &application, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
 		return fail(err)

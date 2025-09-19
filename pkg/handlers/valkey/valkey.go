@@ -59,7 +59,7 @@ type ValkeyHandler struct {
 	secretHandler secret.Handler
 }
 
-func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, sharedSecret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
+func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "valkey"})
 	if len(application.Spec.Valkey) == 0 {
 		return nil, nil
@@ -73,19 +73,16 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			"project": h.projectName,
 			"service": serviceName,
 		})
-		finalSecret := sharedSecret
-		if valkeySpec.SecretName != "" {
-			logger = logger.WithField("individualSecret", valkeySpec.SecretName)
-			finalSecret = &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      valkeySpec.SecretName,
-					Namespace: application.GetNamespace(),
-				},
-			}
-			_, err := h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
-			if err != nil {
-				return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
-			}
+		logger = logger.WithField("individualSecret", valkeySpec.SecretName)
+		finalSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      valkeySpec.SecretName,
+				Namespace: application.GetNamespace(),
+			},
+		}
+		_, err := h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
+		if err != nil {
+			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 		}
 
 		addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
@@ -126,10 +123,9 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 
 		controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
 
-		if valkeySpec.SecretName != "" {
-			secrets = append(secrets, *finalSecret)
-			logger.Infof("Applied individualSecret")
-		}
+		secrets = append(secrets, *finalSecret)
+		logger.Infof("Applied individualSecret")
+
 	}
 
 	if len(secrets) > 0 {
