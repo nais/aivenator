@@ -13,7 +13,6 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/certificate"
-	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -78,7 +77,7 @@ var _ = Describe("kafka handler", func() {
 			service:      mocks.serviceManager,
 			generator:    mocks.generator,
 			nameResolver: mocks.nameResolver,
-			secretHandler: secret.Handler{
+			secretConfig: utils.SecretConfig{
 				Project:     mocks.projectManager,
 				ProjectName: aivenProjectName,
 			},
@@ -249,7 +248,7 @@ var _ = Describe("kafka handler", func() {
 				Expect(sharedSecret).To(BeNil())
 				Expect(utils.KeysFromStringMap(individualSecrets[0].StringData)).To(ContainElements(
 					KafkaCA, KafkaPrivateKey, KafkaCredStorePassword, KafkaSchemaRegistry, KafkaSchemaUser, KafkaSchemaPassword,
-					KafkaBrokers, KafkaSecretUpdated, KafkaCertificate, secret.AivenCAKey,
+					KafkaBrokers, KafkaSecretUpdated, KafkaCertificate, utils.AivenCAKey,
 				))
 				Expect(keysFromByteMap(individualSecrets[0].Data)).To(ConsistOf(
 					KafkaKeystore, KafkaTruststore,

@@ -6,32 +6,30 @@ import (
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
-	"github.com/nais/aivenator/pkg/handlers/kafka"
-	"github.com/nais/aivenator/pkg/handlers/opensearch"
-	"github.com/nais/aivenator/pkg/handlers/secret"
-	"github.com/nais/aivenator/pkg/handlers/valkey"
 	"github.com/nais/aivenator/pkg/metrics"
+	"github.com/nais/aivenator/pkg/services/kafka"
+	"github.com/nais/aivenator/pkg/services/opensearch"
+	"github.com/nais/aivenator/pkg/services/valkey"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 )
 
-type Handler interface {
+type ServiceHandler interface {
 	Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]v1.Secret, error)
 	Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error
 }
 
 type Manager struct {
-	handlers []Handler
+	handlers []ServiceHandler
 }
 
 func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger) Manager {
 	return Manager{
-		handlers: []Handler{
+		handlers: []ServiceHandler{
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, mainProjectName, logger),
 			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
-			secret.NewHandler(aiven, mainProjectName),
 			valkey.NewValkeyHandler(ctx, aiven, mainProjectName),
 		},
 	}
@@ -41,7 +39,7 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 	var finalSecrets []v1.Secret
 	logger.Info("Processing secrets.")
 	for _, handler := range c.handlers {
-		logger.WithField("Handler", reflect.TypeOf(handler).String())
+		logger.WithField("ServiceHandler", reflect.TypeOf(handler).String())
 		processingStart := time.Now()
 		logger = logger.WithField("aivenService", reflect.TypeOf(handler).String())
 		logger.Info("Processing %s secrets.", reflect.TypeOf(handler).String())

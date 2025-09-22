@@ -11,7 +11,6 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/certificate"
-	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -47,26 +46,26 @@ const (
 func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, projectName string, logger log.FieldLogger) KafkaHandler {
 	generator := certificate.NewNativeGenerator()
 	handler := KafkaHandler{
-		project:       project.NewManager(aiven.CA),
-		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:       service.NewManager(aiven.Services),
-		generator:     generator,
-		nameResolver:  liberator_service.NewCachedNameResolver(aiven.Services),
-		projects:      projects,
-		secretHandler: secret.NewHandler(aiven, projectName),
+		project:      project.NewManager(aiven.CA),
+		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:      service.NewManager(aiven.Services),
+		generator:    generator,
+		nameResolver: liberator_service.NewCachedNameResolver(aiven.Services),
+		projects:     projects,
+		secretConfig: utils.NewSecretConfig(aiven, projectName),
 	}
 	handler.StartUserCounter(ctx, logger)
 	return handler
 }
 
 type KafkaHandler struct {
-	project       project.ProjectManager
-	serviceuser   serviceuser.ServiceUserManager
-	service       service.ServiceManager
-	generator     certificate.Generator
-	nameResolver  liberator_service.NameResolver
-	projects      []string
-	secretHandler secret.Handler
+	project      project.ProjectManager
+	serviceuser  serviceuser.ServiceUserManager
+	service      service.ServiceManager
+	generator    certificate.Generator
+	nameResolver liberator_service.NameResolver
+	projects     []string
+	secretConfig utils.SecretConfig
 }
 
 func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
@@ -119,7 +118,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 				Namespace: application.GetNamespace(),
 			},
 		}
-		if _, err := h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger); err != nil {
+		if _, err := h.secretConfig.ApplyIndividualSecret(ctx, application, finalSecret, logger); err != nil {
 			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 		}
 	}

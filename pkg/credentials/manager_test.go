@@ -28,7 +28,7 @@ var _ = Describe("Manager", func() {
 				mock.Anything).
 			Return(nil)
 
-		manager := Manager{handlers: []Handler{&mockHandler}}
+		manager := Manager{handlers: []ServiceHandler{&mockHandler}}
 		secret := corev1.Secret{}
 
 		err := manager.Cleanup(context.Background(), &secret, logger)

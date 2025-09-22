@@ -11,7 +11,6 @@ import (
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
@@ -45,18 +44,18 @@ var namePattern = regexp.MustCompile("[^a-z0-9]")
 
 func NewValkeyHandler(ctx context.Context, aiven *aiven.Client, projectName string) ValkeyHandler {
 	return ValkeyHandler{
-		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:       service.NewManager(aiven.Services),
-		projectName:   projectName,
-		secretHandler: secret.NewHandler(aiven, projectName),
+		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:      service.NewManager(aiven.Services),
+		projectName:  projectName,
+		secretConfig: utils.NewSecretConfig(aiven, projectName),
 	}
 }
 
 type ValkeyHandler struct {
-	serviceuser   serviceuser.ServiceUserManager
-	service       service.ServiceManager
-	projectName   string
-	secretHandler secret.Handler
+	serviceuser  serviceuser.ServiceUserManager
+	service      service.ServiceManager
+	projectName  string
+	secretConfig utils.SecretConfig
 }
 
 func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
@@ -80,7 +79,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 				Namespace: application.GetNamespace(),
 			},
 		}
-		_, err := h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
+		_, err := h.secretConfig.ApplyIndividualSecret(ctx, application, finalSecret, logger)
 		if err != nil {
 			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 		}

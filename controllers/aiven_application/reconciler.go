@@ -166,8 +166,6 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}()
 
 	logger.Infof("Creating secret(s)")
-	secret := r.initSecret(ctx, application, logger)
-	logger = logger.WithField("secret", secret.Name)
 	finalSecrets, err := r.Manager.CreateSecret(ctx, &application, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
@@ -186,28 +184,6 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	success(&application, hash)
 
 	return ctrl.Result{}, nil
-}
-
-func (r *AivenApplicationReconciler) initSecret(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *corev1.Secret {
-	secret := corev1.Secret{}
-
-	secret.ObjectMeta = metav1.ObjectMeta{
-		Name:      application.SecretKey().Name,
-		Namespace: application.SecretKey().Namespace,
-	}
-
-	err := metrics.ObserveKubernetesLatency("Secret_Get", func() error {
-		return r.Get(ctx, application.SecretKey(), &secret)
-	})
-	switch {
-	case k8serrors.IsNotFound(err):
-		logger.Infof("Initializing new secret")
-		return &secret
-	case err != nil:
-		logger.Warnf("error retrieving existing secret from cluster: %w", err)
-	}
-	logger.Infof("Using existing sharedSecret %s", secret.Name)
-	return &secret
 }
 
 func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) (bool, error) {

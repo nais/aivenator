@@ -1,4 +1,4 @@
-package secret
+package utils
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/project"
-	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
@@ -36,8 +35,8 @@ func TestSecret(t *testing.T) {
 	RunSpecs(t, "Secret Suite")
 }
 
-var _ = Describe("secret.Handler ApplyIndividualSecret", func() {
-	var handler Handler
+var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
+	var handler SecretConfig
 	var mockProjects *project.MockProjectManager
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -46,7 +45,7 @@ var _ = Describe("secret.Handler ApplyIndividualSecret", func() {
 	BeforeEach(func() {
 		mockProjects = project.NewMockProjectManager(GinkgoT())
 		mockProjects.On("GetCA", mock.Anything, projectName).Return(projectCA, nil).Maybe()
-		handler = Handler{Project: mockProjects, ProjectName: projectName}
+		handler = SecretConfig{Project: mockProjects, ProjectName: projectName}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 		logger = logrus.New()
 		logger.Out = GinkgoWriter
@@ -176,7 +175,7 @@ var _ = Describe("secret.Handler ApplyIndividualSecret", func() {
 
 			_, err := handler.ApplyIndividualSecret(ctx, &application, &secret, logger)
 			Expect(err).ToNot(Succeed())
-			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+			Expect(errors.Is(err, ErrUnrecoverable)).To(BeTrue())
 		})
 
 		It("rejects name with illegal characters", func() {
@@ -187,7 +186,7 @@ var _ = Describe("secret.Handler ApplyIndividualSecret", func() {
 
 			_, err := handler.ApplyIndividualSecret(ctx, &application, &secret, logger)
 			Expect(err).ToNot(Succeed())
-			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+			Expect(errors.Is(err, ErrUnrecoverable)).To(BeTrue())
 		})
 
 		It("rejects name with unicode digits", func() {
@@ -198,7 +197,7 @@ var _ = Describe("secret.Handler ApplyIndividualSecret", func() {
 
 			_, err := handler.ApplyIndividualSecret(ctx, &application, &secret, logger)
 			Expect(err).ToNot(Succeed())
-			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+			Expect(errors.Is(err, ErrUnrecoverable)).To(BeTrue())
 		})
 	})
 })

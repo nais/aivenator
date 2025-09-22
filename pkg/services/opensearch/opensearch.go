@@ -10,7 +10,6 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
@@ -41,7 +40,7 @@ func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName 
 		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:       service.NewManager(aiven.Services),
 		openSearchACL: aiven.OpenSearchACLs,
-		secretHandler: secret.NewHandler(aiven, projectName),
+		secretConfig:  utils.NewSecretConfig(aiven, projectName),
 		projectName:   projectName,
 	}
 }
@@ -50,7 +49,7 @@ type OpenSearchHandler struct {
 	serviceuser   serviceuser.ServiceUserManager
 	service       service.ServiceManager
 	openSearchACL opensearch.ACLManager
-	secretHandler secret.Handler
+	secretConfig  utils.SecretConfig
 	projectName   string
 }
 
@@ -84,7 +83,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		},
 	}
 
-	_, err = h.secretHandler.ApplyIndividualSecret(ctx, application, finalSecret, logger)
+	_, err = h.secretConfig.ApplyIndividualSecret(ctx, application, finalSecret, logger)
 	if err != nil {
 		return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 	}

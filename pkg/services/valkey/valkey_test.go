@@ -10,7 +10,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	"github.com/nais/aivenator/pkg/handlers/secret"
+	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -112,7 +112,7 @@ func TestValkey(t *testing.T) {
 	RunSpecs(t, "Valkey Suite")
 }
 
-var _ = Describe("valkey.Handler", func() {
+var _ = Describe("valkey.SecretConfig", func() {
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var application aiven_nais_io_v1.AivenApplication
@@ -154,7 +154,7 @@ var _ = Describe("valkey.Handler", func() {
 			serviceuser: mocks.serviceUserManager,
 			service:     mocks.serviceManager,
 			projectName: projectName,
-			secretHandler: secret.Handler{
+			secretConfig: utils.SecretConfig{
 				Project:     mocks.projectManager,
 				ProjectName: projectName,
 			},

@@ -11,7 +11,6 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
-	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
@@ -71,7 +70,7 @@ var _ = Describe("opensearch handler", func() {
 			serviceuser:   mocks.serviceUserManager,
 			service:       mocks.serviceManager,
 			openSearchACL: mocks.aclManager,
-			secretHandler: secret.Handler{
+			secretConfig: utils.SecretConfig{
 				Project:     mocks.projectManager,
 				ProjectName: projectName,
 			},
@@ -326,7 +325,7 @@ var _ = Describe("opensearch handler", func() {
 				Expect(individualSecrets).To(HaveLen(1))
 				Expect(individualSecrets[0]).To(Equal(expected))
 				Expect(utils.KeysFromStringMap(individualSecrets[0].StringData)).To(ConsistOf(
-					OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort, secret.AivenCAKey, secret.AivenSecretUpdatedKey,
+					OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort, utils.AivenCAKey, utils.AivenSecretUpdatedKey,
 				))
 			})
 		})
