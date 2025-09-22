@@ -36,20 +36,20 @@ func NewHandler(aiven *aiven.Client, projectName string) Handler {
 }
 
 func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
-	secretName := application.Spec.SecretName
+	sharedSecretName := application.Spec.SecretName
 
-	errors := validation.IsDNS1123Label(secretName)
+	errors := validation.IsDNS1123Label(sharedSecretName)
 	if len(errors) > 0 {
-		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secretName, utils.ErrUnrecoverable, errors)
+		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", sharedSecretName, utils.ErrUnrecoverable, errors)
 	}
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      application.Spec.SecretName,
+			Name:      sharedSecretName,
 			Namespace: application.GetNamespace(),
 		},
 	}
 
-	secret.ObjectMeta.Name = application.Spec.SecretName
+	secret.ObjectMeta.Name = sharedSecretName
 	secret.ObjectMeta.Namespace = application.GetNamespace()
 	updateObjectMeta(application, &secret.ObjectMeta)
 
