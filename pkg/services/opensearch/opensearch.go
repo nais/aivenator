@@ -76,29 +76,29 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	}
 
 	logger = logger.WithField("individualSecret", spec.SecretName)
-	finalSecret := &corev1.Secret{
+	individualSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      spec.SecretName,
 			Namespace: application.GetNamespace(),
 		},
 	}
 
-	_, err = h.secretConfig.ApplyIndividualSecret(ctx, application, finalSecret, logger)
+	_, err = h.secretConfig.ApplyIndividualSecret(ctx, application, individualSecret, logger)
 	if err != nil {
 		return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 	}
-	aivenUser, err := h.provideServiceUser(ctx, application, serviceName, finalSecret, logger)
+	aivenUser, err := h.provideServiceUser(ctx, application, serviceName, individualSecret, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	finalSecret.SetAnnotations(utils.MergeStringMap(finalSecret.GetAnnotations(), map[string]string{
+	individualSecret.SetAnnotations(utils.MergeStringMap(individualSecret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenUser.Username,
 		ServiceNameAnnotation: serviceName,
 		ProjectAnnotation:     h.projectName,
 	}))
 
-	finalSecret.StringData = utils.MergeStringMap(finalSecret.StringData, map[string]string{
+	individualSecret.StringData = utils.MergeStringMap(individualSecret.StringData, map[string]string{
 		OpenSearchUser:     aivenUser.Username,
 		OpenSearchPassword: aivenUser.Password,
 		OpenSearchURI:      addresses.OpenSearch.URI,
@@ -106,10 +106,10 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		OpenSearchPort:     strconv.Itoa(addresses.OpenSearch.Port),
 	})
 
-	controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
+	controllerutil.AddFinalizer(individualSecret, constants.AivenatorFinalizer)
 
 	logger.Infof("Applied individualSecret")
-	return []corev1.Secret{*finalSecret}, nil
+	return []corev1.Secret{*individualSecret}, nil
 }
 
 func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {

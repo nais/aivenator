@@ -108,75 +108,59 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	}
 
 	// Only manage individual secret when a name is provided
-	var finalSecret *corev1.Secret
-	if spec.SecretName != "" {
-		logger = logger.WithField("secret_name", spec.SecretName)
-		logger.Info("Creating individual secret for Kafka")
-		finalSecret = &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      spec.SecretName,
-				Namespace: application.GetNamespace(),
-			},
-		}
-		if _, err := h.secretConfig.ApplyIndividualSecret(ctx, application, finalSecret, logger); err != nil {
-			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
-		}
+	var individualSecret *corev1.Secret
+	logger = logger.WithField("secret_name", spec.SecretName)
+	logger.Info("Creating individual secret for Kafka")
+	individualSecret = &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      spec.SecretName,
+			Namespace: application.GetNamespace(),
+		},
+	}
+	if _, err := h.secretConfig.ApplyIndividualSecret(ctx, application, individualSecret, logger); err != nil {
+		return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 	}
 
-	secretForUser := finalSecret
-	if secretForUser == nil {
-		secretForUser = &corev1.Secret{}
-	}
-	aivenUser, err := h.provideServiceUser(ctx, application, projectName, serviceName, secretForUser, logger)
+	aivenUser, err := h.provideServiceUser(ctx, application, projectName, serviceName, individualSecret, logger)
 	if err != nil {
 		return nil, err
 	}
-
-	// When we don't manage an individual secret, we still proceed with user generation for downstream consumers
-	if finalSecret != nil {
-		finalSecret.SetAnnotations(utils.MergeStringMap(finalSecret.GetAnnotations(), map[string]string{
-			ServiceUserAnnotation: aivenUser.Username,
-			PoolAnnotation:        spec.Pool,
-		}))
-	}
+	individualSecret.SetAnnotations(utils.MergeStringMap(individualSecret.GetAnnotations(), map[string]string{
+		ServiceUserAnnotation: aivenUser.Username,
+		PoolAnnotation:        spec.Pool,
+	}))
 	logger.Infof("Created service user %s", aivenUser.Username)
 
 	credStore, err := h.generator.MakeCredStores(aivenUser.AccessKey, aivenUser.AccessCert, ca)
 	if err != nil {
 		utils.LocalFail("CreateCredStores", application, err, logger)
-		error := h.Cleanup(ctx, finalSecret, logger)
+		error := h.Cleanup(ctx, individualSecret, logger)
 		if error != nil {
 			return nil, error
 		}
 		return nil, err
 	}
 
-	if finalSecret != nil {
-		finalSecret.StringData = utils.MergeStringMap(finalSecret.StringData, map[string]string{
-			KafkaCertificate:       aivenUser.AccessCert,
-			KafkaPrivateKey:        aivenUser.AccessKey,
-			KafkaBrokers:           addresses.ServiceURI,
-			KafkaSchemaRegistry:    addresses.SchemaRegistry.URI,
-			KafkaSchemaUser:        aivenUser.Username,
-			KafkaSchemaPassword:    aivenUser.Password,
-			KafkaCA:                ca,
-			KafkaCredStorePassword: credStore.Secret,
-			KafkaSecretUpdated:     time.Now().Format(time.RFC3339),
-		})
+	individualSecret.StringData = utils.MergeStringMap(individualSecret.StringData, map[string]string{
+		KafkaCertificate:       aivenUser.AccessCert,
+		KafkaPrivateKey:        aivenUser.AccessKey,
+		KafkaBrokers:           addresses.ServiceURI,
+		KafkaSchemaRegistry:    addresses.SchemaRegistry.URI,
+		KafkaSchemaUser:        aivenUser.Username,
+		KafkaSchemaPassword:    aivenUser.Password,
+		KafkaCA:                ca,
+		KafkaCredStorePassword: credStore.Secret,
+		KafkaSecretUpdated:     time.Now().Format(time.RFC3339),
+	})
 
-		finalSecret.Data = utils.MergeByteMap(finalSecret.Data, map[string][]byte{
-			KafkaKeystore:   credStore.Keystore,
-			KafkaTruststore: credStore.Truststore,
-		})
+	individualSecret.Data = utils.MergeByteMap(individualSecret.Data, map[string][]byte{
+		KafkaKeystore:   credStore.Keystore,
+		KafkaTruststore: credStore.Truststore,
+	})
 
-		controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
-		logger.Infof("Applied individualSecret")
-		return []corev1.Secret{*finalSecret}, nil
-	}
-
-	// No individual secret requested
-	return nil, nil
-
+	controllerutil.AddFinalizer(individualSecret, constants.AivenatorFinalizer)
+	logger.Infof("Applied individualSecret")
+	return []corev1.Secret{*individualSecret}, nil
 }
 
 func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
