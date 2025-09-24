@@ -1,4 +1,4 @@
-package secret
+package utils
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/project"
-	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	log "github.com/sirupsen/logrus"
@@ -23,48 +22,22 @@ const (
 	AivenCAKey            = "AIVEN_CA"
 )
 
-type Handler struct {
+type SecretConfig struct {
 	Project     project.ProjectManager
 	ProjectName string
 }
 
-func NewHandler(aiven *aiven.Client, projectName string) Handler {
-	return Handler{
+func NewSecretConfig(aiven *aiven.Client, projectName string) SecretConfig {
+	return SecretConfig{
 		Project:     project.NewManager(aiven.CA),
 		ProjectName: projectName,
 	}
 }
 
-func (s Handler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
-	secretName := application.Spec.SecretName
-
-	errors := validation.IsDNS1123Label(secretName)
-	if len(errors) > 0 {
-		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secretName, utils.ErrUnrecoverable, errors)
-	}
-
-	secret.ObjectMeta.Name = application.Spec.SecretName
-	secret.ObjectMeta.Namespace = application.GetNamespace()
-	updateObjectMeta(application, &secret.ObjectMeta)
-
-	projectCa, err := s.Project.GetCA(ctx, s.ProjectName)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get project CA: %w", err)
-	}
-
-	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
-		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
-		AivenCAKey:            projectCa,
-	})
-	logger.Infof("Applied secret: %s", secret.Name)
-
-	return nil, nil
-}
-
-func (s Handler) ApplyIndividualSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
+func (s SecretConfig) ApplyIndividualSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
 	errors := validation.IsDNS1123Label(secret.Name)
 	if len(errors) > 0 {
-		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secret.Name, utils.ErrUnrecoverable, errors)
+		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secret.Name, ErrUnrecoverable, errors)
 	}
 
 	updateObjectMeta(application, &secret.ObjectMeta)
@@ -74,7 +47,7 @@ func (s Handler) ApplyIndividualSecret(ctx context.Context, application *aiven_n
 		return nil, fmt.Errorf("unable to get project CA: %w", err)
 	}
 
-	secret.StringData = utils.MergeStringMap(secret.StringData, map[string]string{
+	secret.StringData = MergeStringMap(secret.StringData, map[string]string{
 		AivenSecretUpdatedKey: time.Now().Format(time.RFC3339),
 		AivenCAKey:            projectCa,
 	})
@@ -92,14 +65,14 @@ func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *m
 		}
 	}
 
-	objMeta.Labels = utils.MergeStringMap(objMeta.Labels, map[string]string{
+	objMeta.Labels = MergeStringMap(objMeta.Labels, map[string]string{
 		constants.AppLabel:              application.GetName(),
 		constants.TeamLabel:             application.GetNamespace(),
 		constants.SecretTypeLabel:       constants.AivenatorSecretType,
 		constants.GenerationLabel:       strconv.Itoa(generation),
 		constants.AivenatorProtectedKey: strconv.FormatBool(application.Spec.Protected),
 	})
-	objMeta.Annotations = utils.MergeStringMap(objMeta.Annotations, createAnnotations(application))
+	objMeta.Annotations = MergeStringMap(objMeta.Annotations, createAnnotations(application))
 }
 
 func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[string]string {
@@ -113,8 +86,4 @@ func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[strin
 		annotations[constants.AivenatorProtectedExpiresAtAnnotation] = application.Spec.ExpiresAt.Format(time.RFC3339)
 	}
 	return annotations
-}
-
-func (s Handler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
-	return nil
 }

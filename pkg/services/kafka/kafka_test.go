@@ -13,7 +13,6 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/certificate"
-	"github.com/nais/aivenator/pkg/handlers/secret"
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -55,12 +54,12 @@ var _ = Describe("kafka handler", func() {
 	var logger log.FieldLogger
 	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
 	var ctx context.Context
-	var sharedSecret *corev1.Secret
+	var individualSecret *corev1.Secret
 	var cancel context.CancelFunc
 	var kafkaHandler KafkaHandler
 
 	BeforeEach(func() {
-		sharedSecret = &corev1.Secret{}
+		individualSecret = &corev1.Secret{}
 
 		root := log.New()
 		root.Out = GinkgoWriter
@@ -78,7 +77,7 @@ var _ = Describe("kafka handler", func() {
 			service:      mocks.serviceManager,
 			generator:    mocks.generator,
 			nameResolver: mocks.nameResolver,
-			secretHandler: secret.Handler{
+			secretConfig: utils.SecretConfig{
 				Project:     mocks.projectManager,
 				ProjectName: aivenProjectName,
 			},
@@ -94,13 +93,13 @@ var _ = Describe("kafka handler", func() {
 
 	When("no kafka is configured", func() {
 		It("no error on cleanup", func() {
-			err := kafkaHandler.Cleanup(ctx, sharedSecret, logger)
+			err := kafkaHandler.Cleanup(ctx, individualSecret, logger)
 
 			Expect(err).ToNot(HaveOccurred())
 		})
 		Context("delete serviceUser on cleanup", func() {
 			BeforeEach(func() {
-				sharedSecret.SetAnnotations(map[string]string{
+				individualSecret.SetAnnotations(map[string]string{
 					ServiceUserAnnotation: serviceUserName,
 					PoolAnnotation:        aivenProjectName,
 				})
@@ -108,13 +107,13 @@ var _ = Describe("kafka handler", func() {
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 			})
 			It("should not error", func() {
-				err := kafkaHandler.Cleanup(ctx, sharedSecret, logger)
+				err := kafkaHandler.Cleanup(ctx, individualSecret, logger)
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 		Context("delete serviceUser on cleanup, but already gone", func() {
 			BeforeEach(func() {
-				sharedSecret.SetAnnotations(map[string]string{
+				individualSecret.SetAnnotations(map[string]string{
 					ServiceUserAnnotation: serviceUserName,
 					PoolAnnotation:        aivenProjectName,
 				})
@@ -125,7 +124,7 @@ var _ = Describe("kafka handler", func() {
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 			})
 			It("should not return an error", func() {
-				err := kafkaHandler.Cleanup(ctx, sharedSecret, logger)
+				err := kafkaHandler.Cleanup(ctx, individualSecret, logger)
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
@@ -134,11 +133,10 @@ var _ = Describe("kafka handler", func() {
 		Context("that has no kafka configured", func() {
 			It("should not return an error", func() {
 				application := applicationBuilder.Build()
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(err).ToNot(HaveOccurred())
 				Expect(individualSecrets).To(BeNil())
-				Expect(sharedSecret).To(Equal(&corev1.Secret{}))
 			})
 		})
 		Context("that has kafka configured", func() {
@@ -149,8 +147,6 @@ var _ = Describe("kafka handler", func() {
 						SecretName: secretName,
 					},
 				})
-				_ = (*struct{})(nil)
-				sharedSecret = (*corev1.Secret)(nil)
 			})
 
 			It("should return an error if the pool is invalid", func() {
@@ -161,11 +157,10 @@ var _ = Describe("kafka handler", func() {
 				}).Build()
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, invalidPool).Return("", utils.ErrUnrecoverable)
 
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(err).To(HaveOccurred())
 				Expect(individualSecrets).To(BeNil())
-				Expect(sharedSecret).To(BeNil())
 			})
 
 			It("should return an error if the service user creation fails", func() {
@@ -195,7 +190,7 @@ var _ = Describe("kafka handler", func() {
 					Return(nil, aiven.Error{Message: "aiven-error", Status: 500})
 
 				application := applicationBuilder.Build()
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(err).To(HaveOccurred())
 				Expect(individualSecrets).To(BeNil())
@@ -224,7 +219,7 @@ var _ = Describe("kafka handler", func() {
 					}, nil)
 
 				application := applicationBuilder.Build()
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(err).ToNot(HaveOccurred())
 
@@ -246,10 +241,9 @@ var _ = Describe("kafka handler", func() {
 				}
 
 				Expect(expected).To(Equal(individualSecrets[0]))
-				Expect(sharedSecret).To(BeNil())
 				Expect(utils.KeysFromStringMap(individualSecrets[0].StringData)).To(ContainElements(
 					KafkaCA, KafkaPrivateKey, KafkaCredStorePassword, KafkaSchemaRegistry, KafkaSchemaUser, KafkaSchemaPassword,
-					KafkaBrokers, KafkaSecretUpdated, KafkaCertificate, secret.AivenCAKey,
+					KafkaBrokers, KafkaSecretUpdated, KafkaCertificate, utils.AivenCAKey,
 				))
 				Expect(keysFromByteMap(individualSecrets[0].Data)).To(ConsistOf(
 					KafkaKeystore, KafkaTruststore,
@@ -274,7 +268,7 @@ var _ = Describe("kafka handler", func() {
 						MoreInfo: "aiven-more-info",
 						Status:   500,
 					})
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(err).To(HaveOccurred())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
@@ -282,7 +276,6 @@ var _ = Describe("kafka handler", func() {
 			})
 
 			It("fails when there is no CA", func() {
-				sharedSecret = &corev1.Secret{}
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
@@ -308,7 +301,7 @@ var _ = Describe("kafka handler", func() {
 						Status:   500,
 					})
 
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 				Expect(err).To(HaveOccurred())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
@@ -349,7 +342,7 @@ var _ = Describe("kafka handler", func() {
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
 					Return(ca, nil)
 
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 				Expect(err).To(HaveOccurred())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
@@ -392,7 +385,7 @@ var _ = Describe("kafka handler", func() {
 
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
 					Return(ca, nil)
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(err).ToNot(HaveOccurred())
 
@@ -414,7 +407,6 @@ var _ = Describe("kafka handler", func() {
 				}
 
 				Expect(individualSecrets[0]).To(Equal(expected))
-				Expect(sharedSecret).To(BeNil())
 			})
 			It("doesnt create a new serviceUser if already extant", func() {
 				application := applicationBuilder.
@@ -451,7 +443,7 @@ var _ = Describe("kafka handler", func() {
 						Username: serviceUserName,
 					}, nil)
 
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(mocks.serviceUserManager.AssertNotCalled(GinkgoT(), "Create",
 					mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)).To(BeTrue())
@@ -476,7 +468,6 @@ var _ = Describe("kafka handler", func() {
 				}
 
 				Expect(individualSecrets[0]).To(Equal(expected))
-				Expect(sharedSecret).To(BeNil())
 			})
 
 			It("Errors on specifically the pool called not-my-testing-pool", func() {
@@ -492,13 +483,15 @@ var _ = Describe("kafka handler", func() {
 					On("ResolveKafkaServiceName", mock.Anything, invalidPool).
 					Return("", utils.ErrUnrecoverable)
 
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(err).To(HaveOccurred())
 				Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
 				Expect(individualSecrets).To(BeNil())
 			})
 			It("fails when makecredstores fails", func() {
+				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, aivenProjectName, mock.Anything, mock.Anything).Return(nil)
+
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
@@ -526,7 +519,7 @@ var _ = Describe("kafka handler", func() {
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, fmt.Errorf("local-fail"))
 
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, sharedSecret, logger)
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(err).To(HaveOccurred())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationLocalFailure)).ToNot(BeNil())
