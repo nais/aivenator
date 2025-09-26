@@ -121,6 +121,25 @@ var _ = Describe("valkey.SecretConfig", func() {
 	var ctx context.Context
 	var cancel context.CancelFunc
 
+	assertHappy := func(secret *corev1.Secret, data testData, err error) {
+		GinkgoHelper()
+		Expect(err).To(Succeed())
+		Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
+		Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
+		Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
+		Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
+		Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
+		Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
+		Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
+		Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
+		Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
+		Expect(secret.StringData).To(HaveKeyWithValue(data.redisUsernameKey, data.username))
+		Expect(secret.StringData).To(HaveKeyWithValue(data.redisPasswordKey, servicePassword))
+		Expect(secret.StringData).To(HaveKeyWithValue(data.redisUriKey, data.redisServiceURI))
+		Expect(secret.StringData).To(HaveKeyWithValue(data.redisHostKey, data.serviceHost))
+		Expect(secret.StringData).To(HaveKeyWithValue(data.redisPortKey, strconv.Itoa(data.servicePort)))
+	}
+
 	defaultServiceManagerMock := func(data testData) {
 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
 			Return(&service.ServiceAddresses{
@@ -258,25 +277,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 				Build()
 		})
 
-		// assertHappy := func(secret *corev1.Secret, err error) {
-		// 	GinkgoHelper()
-		// 	Expect(err).To(Succeed())
-		// 	Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
-		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.redisUsernameKey, data.username))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.redisPasswordKey, servicePassword))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.redisUriKey, data.redisServiceURI))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.redisHostKey, data.serviceHost))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.redisPortKey, strconv.Itoa(data.servicePort)))
-		// }
-
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
 				defaultServiceManagerMock(data)
@@ -341,20 +341,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 				Build()
 		})
 
-		assertHappy := func(secret *corev1.Secret, data testData, err error) {
-			GinkgoHelper()
-			Expect(err).To(Succeed())
-			Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
-			Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
-			Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
-		}
-
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
 				for _, data := range testInstances {
@@ -397,20 +383,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 				Build()
 		})
 
-		// assertHappy := func(secret *corev1.Secret, data testData, err error) {
-		// 	GinkgoHelper()
-		// 	Expect(err).To(Succeed())
-		// 	Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
-		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, data.username))
-		// 	Expect(secret.GetAnnotations()).To(HaveKeyWithValue(data.serviceNameAnnotationKey, data.serviceName))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.usernameKey, data.username))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.passwordKey, servicePassword))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.uriKey, data.serviceURI))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.hostKey, data.serviceHost))
-		// 	Expect(secret.StringData).To(HaveKeyWithValue(data.portKey, strconv.Itoa(data.servicePort)))
-		// }
-
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
 				for _, data := range testInstances {
@@ -430,8 +402,10 @@ var _ = Describe("valkey.SecretConfig", func() {
 
 			It("uses the existing user", func() {
 				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
-				Expect(err).To(Succeed())
 				Expect(individualSecrets).To(Not(BeNil()))
+				for index, data := range testInstances {
+					assertHappy(&individualSecrets[index], data, err)
+				}
 			})
 		})
 
