@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -23,8 +24,9 @@ const (
 
 type SecretsFinalizer struct {
 	client.Client
-	Logger  log.FieldLogger
-	Manager credentials.Manager
+	Logger   log.FieldLogger
+	Manager  credentials.Manager
+	Recorder events.EventRecorder
 }
 
 func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -54,8 +56,14 @@ func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	logger.Info("Secret will be deleted, cleaning up external resources")
+	if s.Recorder != nil {
+		s.Recorder.Eventf(&secret, nil, v1.EventTypeNormal, "Finalizing", "Finalize", "Cleaning up external resources before deletion")
+	}
 	err = s.Manager.Cleanup(ctx, &secret, logger)
 	if err != nil {
+		if s.Recorder != nil {
+			s.Recorder.Eventf(&secret, nil, v1.EventTypeWarning, "CleanupFailed", "Finalize", "Failed cleaning up external resources: %v", err)
+		}
 		return failRetry(fmt.Errorf("unable to clean up external resources: %s", err))
 	}
 
@@ -63,9 +71,15 @@ func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	err = s.Update(ctx, &secret)
 	if err != nil {
+		if s.Recorder != nil {
+			s.Recorder.Eventf(&secret, nil, v1.EventTypeWarning, "FinalizerUpdateFailed", "Finalize", "Failed updating secret after cleanup: %v", err)
+		}
 		return failRetry(fmt.Errorf("failed to save updated secret: %s", err))
 	}
 
+	if s.Recorder != nil {
+		s.Recorder.Eventf(&secret, nil, v1.EventTypeNormal, "Finalized", "Finalize", "External resources cleaned and finalizer removed")
+	}
 	return ctrl.Result{}, nil
 }
 
