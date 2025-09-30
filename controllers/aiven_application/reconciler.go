@@ -366,23 +366,52 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 		return true, nil
 	}
 
-	old := corev1.Secret{}
-	err := r.Get(ctx, application.SecretKey(), &old)
-	switch {
-	case k8serrors.IsNotFound(err):
-		logger.Infof("Secret not found; needs synchronization")
-		metrics.ProcessingReason.WithLabelValues(metrics.MissingSecret.String()).Inc()
-		if r.Recorder != nil {
-			r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "MissingSecret", "CheckSync", "Secret %s not found; resync needed", application.SecretKey().Name)
-		}
-		return true, nil
-	case err != nil:
-		return false, fmt.Errorf("unable to retrieve secret from cluster: %s", err)
+	var keys []client.ObjectKey
+	if application.Spec.Kafka != nil && application.Spec.Kafka.SecretName != "" {
+		keys = append(keys, client.ObjectKey{
+			Namespace: application.GetNamespace(),
+			Name:      application.Spec.Kafka.SecretName,
+		})
 	}
 
+	if application.Spec.Valkey != nil {
+		for _, valkey := range application.Spec.Valkey {
+			if valkey.SecretName != "" {
+				keys = append(keys, client.ObjectKey{
+					Namespace: application.GetNamespace(),
+					Name:      valkey.SecretName,
+				})
+			}
+		}
+	}
+
+	if application.Spec.OpenSearch != nil && application.Spec.OpenSearch.SecretName != "" {
+		keys = append(keys, client.ObjectKey{
+			Namespace: application.GetNamespace(),
+			Name:      application.Spec.OpenSearch.SecretName,
+		})
+	}
+
+	for _, k := range keys {
+		dst := corev1.Secret{}
+		err := r.Get(ctx, k, &dst)
+		switch {
+		case k8serrors.IsNotFound(err):
+			logger.Infof("Secret not found; needs synchronization")
+			metrics.ProcessingReason.WithLabelValues(metrics.MissingSecret.String()).Inc()
+			if r.Recorder != nil {
+				r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "MissingSecret", "CheckSync", "Secret %s not found; resync needed", k.Name)
+			}
+			return true, nil
+		case err != nil:
+			return false, fmt.Errorf("unable to retrieve secret from cluster: %s", err)
+		}
+
+	}
 	logger.Infof("Already synchronized")
 	if r.Recorder != nil {
 		r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "UpToDate", "CheckSync", "Credentials already synchronized")
 	}
+
 	return false, nil
 }
