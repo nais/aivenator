@@ -23,7 +23,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	k8sevents "k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -150,7 +152,8 @@ func main() {
 	allowedProjects := viper.GetStringSlice(Projects)
 
 	syncPeriod := viper.GetDuration(SyncPeriod)
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	cfg := ctrl.GetConfigOrDie()
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Cache: cache.Options{
 			SyncPeriod: &syncPeriod,
 		},
@@ -167,7 +170,18 @@ func main() {
 
 	logger.Info("Aivenator running")
 
-	if err := manageCredentials(ctx, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject)); err != nil {
+	// Set up modern events.k8s.io recorder
+	kubeClientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		logger.Errorln(fmt.Errorf("unable to create kubernetes clientset for events: %w", err))
+		os.Exit(ExitRuntime)
+	}
+    eb := k8sevents.NewEventBroadcasterAdapter(kubeClientset)
+    // Run broadcaster for the lifetime of the process; no explicit shutdown
+    eb.StartRecordingToSink(make(chan struct{}))
+    recorder := eb.NewRecorder("aivenator")
+
+	if err := manageCredentials(ctx, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject), recorder); err != nil {
 		logger.Errorln(err)
 		os.Exit(ExitCredentialsManager)
 	}
@@ -202,11 +216,11 @@ func newAivenClient(ctx context.Context, logger log.FieldLogger) (*aiven.Client,
 	return aivenClient, err
 }
 
-func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string) error {
+func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string, recorder k8sevents.EventRecorder) error {
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
 
 	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}))
-	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges)
+	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges, recorder)
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to set up reconciler: %s", err)
@@ -214,9 +228,10 @@ func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Log
 	logger.Info("Aiven Application reconciler setup complete")
 
 	finalizer := secrets.SecretsFinalizer{
-		Logger:  logger.WithFields(log.Fields{"component": "SecretsFinalizer"}),
-		Client:  mgr.GetClient(),
-		Manager: credentialsManager,
+		Logger:   logger.WithFields(log.Fields{"component": "SecretsFinalizer"}),
+		Client:   mgr.GetClient(),
+		Manager:  credentialsManager,
+		Recorder: recorder,
 	}
 
 	if err := finalizer.SetupWithManager(mgr); err != nil {

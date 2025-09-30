@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -32,11 +33,12 @@ const (
 	AivenVolumeName    = "aiven-credentials"
 )
 
-func NewReconciler(mgr manager.Manager, logger *log.Logger, credentialsManager credentials.Manager, appChanges chan<- aiven_nais_io_v1.AivenApplication) AivenApplicationReconciler {
+func NewReconciler(mgr manager.Manager, logger *log.Logger, credentialsManager credentials.Manager, appChanges chan<- aiven_nais_io_v1.AivenApplication, recorder events.EventRecorder) AivenApplicationReconciler {
 	return AivenApplicationReconciler{
 		Client:     mgr.GetClient(),
 		Logger:     logger.WithFields(log.Fields{"component": "AivenApplicationReconciler"}),
 		Manager:    credentialsManager,
+		Recorder:   recorder,
 		appChanges: appChanges,
 	}
 }
@@ -45,6 +47,7 @@ type AivenApplicationReconciler struct {
 	client.Client
 	Logger     log.FieldLogger
 	Manager    credentials.Manager
+	Recorder   events.EventRecorder
 	appChanges chan<- aiven_nais_io_v1.AivenApplication
 }
 
@@ -90,6 +93,11 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			}).Inc()
 		}
 
+		// Emit a warning event on the application if available
+		if r.Recorder != nil && application.GetName() != "" && err != nil {
+			r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "SyncFailed", "Sync", "Sync failed: %v", err)
+		}
+
 		return cr, nil
 	}
 
@@ -100,13 +108,23 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	case err != nil:
 		return fail(fmt.Errorf("unable to retrieve resource from cluster: %s", err))
 	}
+	// We now have the object; emit an event for visibility
+	if r.Recorder != nil {
+		r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "Processing", "Reconciling", "Reconciling %s/%s", application.GetNamespace(), application.GetName())
+	}
 	logger = logger.WithField("app", application.Labels["app"])
 
 	applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, application, logger)
 	if err != nil {
 		utils.LocalFail("HandleProtectedAndTimeLimited", &application, err, logger)
+		if r.Recorder != nil && application.GetName() != "" {
+			r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "HandleProtectedFailed", "HandleProtected", "Failed handling protection/expiration: %v", err)
+		}
 		return fail(err)
 	} else if applicationDeleted {
+		if r.Recorder != nil && application.GetName() != "" {
+			r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "Deleted", "Delete", "Application deleted due to expiration")
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -124,11 +142,17 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			}).Inc()
 
 			logger.Errorf("Unable to update status of application: %s\nWanted to save status: %+v", err, application.Status)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "StatusUpdateFailed", "UpdateStatus", "Failed updating status: %v", err)
+			}
 		} else {
 			metrics.KubernetesResourcesWritten.With(prometheus.Labels{
 				metrics.LabelResourceType: "AivenApplication",
 				metrics.LabelNamespace:    application.GetNamespace(),
 			}).Inc()
+			if r.Recorder != nil {
+				r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "StatusUpdated", "UpdateStatus", "Status updated: state=%s", application.Status.SynchronizationState)
+			}
 		}
 	}()
 
@@ -166,9 +190,15 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}()
 
 	logger.Infof("Creating secret(s)")
+	if r.Recorder != nil {
+		r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "CreateSecrets", "CreateSecrets", "Creating Aiven secrets")
+	}
 	secrets, err := r.Manager.CreateSecret(ctx, &application, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
+		if r.Recorder != nil {
+			r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "SecretGenerationFailed", "CreateSecrets", "Failed generating secrets: %v", err)
+		}
 		return fail(err)
 	}
 
@@ -177,11 +207,17 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		logger := logger.WithFields(log.Fields{"secret_name": secret.Name})
 		if err := r.SaveSecret(ctx, &secret, logger); err != nil {
 			utils.LocalFail("SaveSecret", &application, err, logger)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "SecretWriteFailed", "SaveSecret", "Failed saving secret %s: %v", secret.Name, err)
+			}
 			return fail(err)
 		}
 	}
 
 	success(&application, hash)
+	if r.Recorder != nil {
+		r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "Synchronized", "Sync", "Credentials synchronized and secrets stored")
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -201,6 +237,9 @@ func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.C
 	}
 
 	logger.Infof("Application timelimit exceded: %s", parsedTimeStamp.String())
+	if r.Recorder != nil {
+		r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "Expired", "Expire", "Application expired at %s", parsedTimeStamp.Format(time.RFC3339))
+	}
 	err = r.DeleteApplication(ctx, application, logger)
 	if err != nil {
 		return false, err
@@ -219,6 +258,9 @@ func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, appl
 		}
 	} else {
 		logger.Infof("Application deleted from cluster")
+		if r.Recorder != nil {
+			r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "Deleted", "Delete", "Application resource deleted from cluster")
+		}
 	}
 	return nil
 }
@@ -277,6 +319,13 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 			err = metrics.ObserveKubernetesLatency("Secret_Create", func() error {
 				return r.Create(ctx, secret)
 			})
+			if r.Recorder != nil {
+				if err == nil {
+					r.Recorder.Eventf(secret, nil, corev1.EventTypeNormal, "SecretCreated", "CreateSecret", "Secret %s created", secret.Name)
+				} else {
+					r.Recorder.Eventf(secret, nil, corev1.EventTypeWarning, "SecretCreateFailed", "CreateSecret", "Failed creating secret %s: %v", secret.Name, err)
+				}
+			}
 		}
 	} else {
 		logger.Infof("Updating secret")
@@ -284,6 +333,13 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 		err = metrics.ObserveKubernetesLatency("Secret_Update", func() error {
 			return r.Update(ctx, secret)
 		})
+		if r.Recorder != nil {
+			if err == nil {
+				r.Recorder.Eventf(secret, nil, corev1.EventTypeNormal, "SecretUpdated", "UpdateSecret", "Secret %s updated", secret.Name)
+			} else {
+				r.Recorder.Eventf(secret, nil, corev1.EventTypeWarning, "SecretUpdateFailed", "UpdateSecret", "Failed updating secret %s: %v", secret.Name, err)
+			}
+		}
 	}
 
 	if err == nil {
@@ -304,6 +360,9 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 	if application.Status.SynchronizationHash != hash {
 		logger.Infof("Hash changed; needs synchronization")
 		metrics.ProcessingReason.WithLabelValues(metrics.HashChanged.String()).Inc()
+		if r.Recorder != nil {
+			r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "HashChanged", "CheckSync", "Spec hash changed; resync needed")
+		}
 		return true, nil
 	}
 
@@ -313,11 +372,17 @@ func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, a
 	case k8serrors.IsNotFound(err):
 		logger.Infof("Secret not found; needs synchronization")
 		metrics.ProcessingReason.WithLabelValues(metrics.MissingSecret.String()).Inc()
+		if r.Recorder != nil {
+			r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "MissingSecret", "CheckSync", "Secret %s not found; resync needed", application.SecretKey().Name)
+		}
 		return true, nil
 	case err != nil:
 		return false, fmt.Errorf("unable to retrieve secret from cluster: %s", err)
 	}
 
 	logger.Infof("Already synchronized")
+	if r.Recorder != nil {
+		r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "UpToDate", "CheckSync", "Credentials already synchronized")
+	}
 	return false, nil
 }
