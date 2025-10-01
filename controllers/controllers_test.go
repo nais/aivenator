@@ -218,7 +218,7 @@ func TestControllers(t *testing.T) {
 		WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 			SecretName: wantedSecretName,
-			Kafka:      &aiven_nais_io_v1.KafkaSpec{Pool: testProject},
+			Kafka:      &aiven_nais_io_v1.KafkaSpec{Pool: testProject, SecretName: wantedSecretName},
 		}).
 		Build()
 
