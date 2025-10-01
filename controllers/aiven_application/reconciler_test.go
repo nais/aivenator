@@ -100,7 +100,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			name: "UnchangedApplication",
 			args: args{
 				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v1.KafkaSpec{SecretName: secretName}}).
 					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
 				hasSecret:   true,
@@ -113,7 +113,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			name: "UnchangedApplicationButSecretMissing",
 			args: args{
 				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v1.KafkaSpec{SecretName: secretName}}).
 					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
 				hasSecret:   false,
@@ -126,7 +126,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			name: "ProtectedApplication",
 			args: args{
 				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName}).
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v1.KafkaSpec{SecretName: secretName}}).
 					Build(),
 				hasSecret:   false,
 				isProtected: true,
@@ -171,6 +171,11 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			if err != nil {
 				t.Errorf("Failed to generate hash: %s", err)
 				return
+			}
+
+			// make status hash align with the current spec for the unchanged scenarios
+			if tt.name == "UnchangedApplication" || tt.name == "UnchangedApplicationButSecretMissing" || tt.name == "ProtectedApplication" {
+				tt.args.application.Status.SynchronizationHash = hash
 			}
 			got, err := r.NeedsSynchronization(ctx, tt.args.application, hash, r.Logger)
 			if (err != nil) != tt.wantErr {
