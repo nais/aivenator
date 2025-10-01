@@ -1,7 +1,7 @@
 apiVersion: nais.io/v1alpha1
 kind: Application
 metadata:
-  name: debug
+  name: valkey-app-testi
   namespace: basseng
 spec:
   image: europe-north1-docker.pkg.dev/nais-io/nais/images/kafka-debug:latest
@@ -9,5 +9,5 @@ spec:
     path: /ping
   port: 8080
   valkey:
-    instance: valkey-test-app
-    access: read
+  - access: readwrite
+    instance: cache
