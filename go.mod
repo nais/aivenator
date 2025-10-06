@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
-	github.com/aiven/aiven-go-client/v2 v2.34.0
+	github.com/aiven/aiven-go-client/v2 v2.36.0
 	github.com/nais/liberator v0.0.0-20250411064636-3e5a44a59298
 	github.com/onsi/ginkgo/v2 v2.26.0
 	github.com/onsi/gomega v1.38.2
@@ -51,7 +51,7 @@ require (
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
