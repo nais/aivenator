@@ -42,7 +42,7 @@ func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1
 		logger.WithField("ServiceHandler", reflect.TypeOf(handler).String())
 		processingStart := time.Now()
 		logger = logger.WithField("aivenService", reflect.TypeOf(handler).String())
-		logger.Info("Processing %s secrets.", reflect.TypeOf(handler).String())
+		logger.Infof("Processing %s secrets.", reflect.TypeOf(handler).String())
 		individualSecrets, err := handler.Apply(ctx, application, logger)
 		if err != nil {
 			return nil, err
