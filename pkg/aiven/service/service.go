@@ -13,6 +13,7 @@ const serviceAddressCacheTTL = 5 * time.Minute
 
 type ServiceManager interface {
 	Get(ctx context.Context, projectName, serviceName string) (*aiven.Service, error)
+	GetServiceAddressesFromCache(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error)
 	GetServiceAddresses(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error)
 }
 
@@ -48,13 +49,17 @@ func NewManager(service *aiven.ServicesHandler) ServiceManager {
 }
 
 func (r *Manager) GetServiceAddresses(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error) {
+	_, err := r.Get(ctx, projectName, serviceName)
+	if err != nil {
+		return nil, err
+	}
+	return r.getServiceAddressesFromCache(projectName, serviceName)
+}
+
+func (r *Manager) GetServiceAddressesFromCache(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error) {
 	addresses, err := r.getServiceAddressesFromCache(projectName, serviceName)
 	if err != nil {
-		_, err = r.Get(ctx, projectName, serviceName)
-		if err != nil {
-			return nil, err
-		}
-		return r.getServiceAddressesFromCache(projectName, serviceName)
+		return r.GetServiceAddresses(ctx, projectName, serviceName)
 	}
 	return addresses, nil
 }

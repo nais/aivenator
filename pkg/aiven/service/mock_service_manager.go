@@ -143,6 +143,66 @@ func (_c *MockServiceManager_GetServiceAddresses_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// GetServiceAddressesFromCache provides a mock function with given fields: ctx, projectName, serviceName
+func (_m *MockServiceManager) GetServiceAddressesFromCache(ctx context.Context, projectName string, serviceName string) (*ServiceAddresses, error) {
+	ret := _m.Called(ctx, projectName, serviceName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetServiceAddressesFromCache")
+	}
+
+	var r0 *ServiceAddresses
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*ServiceAddresses, error)); ok {
+		return rf(ctx, projectName, serviceName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *ServiceAddresses); ok {
+		r0 = rf(ctx, projectName, serviceName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ServiceAddresses)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, projectName, serviceName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockServiceManager_GetServiceAddressesFromCache_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetServiceAddressesFromCache'
+type MockServiceManager_GetServiceAddressesFromCache_Call struct {
+	*mock.Call
+}
+
+// GetServiceAddressesFromCache is a helper method to define mock.On call
+//   - ctx context.Context
+//   - projectName string
+//   - serviceName string
+func (_e *MockServiceManager_Expecter) GetServiceAddressesFromCache(ctx interface{}, projectName interface{}, serviceName interface{}) *MockServiceManager_GetServiceAddressesFromCache_Call {
+	return &MockServiceManager_GetServiceAddressesFromCache_Call{Call: _e.mock.On("GetServiceAddressesFromCache", ctx, projectName, serviceName)}
+}
+
+func (_c *MockServiceManager_GetServiceAddressesFromCache_Call) Run(run func(ctx context.Context, projectName string, serviceName string)) *MockServiceManager_GetServiceAddressesFromCache_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockServiceManager_GetServiceAddressesFromCache_Call) Return(_a0 *ServiceAddresses, _a1 error) *MockServiceManager_GetServiceAddressesFromCache_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockServiceManager_GetServiceAddressesFromCache_Call) RunAndReturn(run func(context.Context, string, string) (*ServiceAddresses, error)) *MockServiceManager_GetServiceAddressesFromCache_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockServiceManager creates a new instance of MockServiceManager. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockServiceManager(t interface {
