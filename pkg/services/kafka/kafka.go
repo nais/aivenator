@@ -96,7 +96,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		return nil, err
 	}
 
-	addresses, err := h.service.GetServiceAddresses(ctx, projectName, serviceName)
+	addresses, err := h.service.GetServiceAddressesFromCache(ctx, projectName, serviceName)
 	if err != nil {
 		return nil, utils.AivenFail("GetService", application, err, false, logger)
 	}

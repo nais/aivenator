@@ -166,7 +166,7 @@ var _ = Describe("kafka handler", func() {
 			It("should return an error if the service user creation fails", func() {
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 
-				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
 						SchemaRegistry: service.ServiceAddress{
@@ -200,7 +200,7 @@ var _ = Describe("kafka handler", func() {
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(&aiven.ServiceUser{Username: serviceUserName}, nil)
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
-				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
 						SchemaRegistry: service.ServiceAddress{
@@ -262,7 +262,7 @@ var _ = Describe("kafka handler", func() {
 					Build()
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 
-				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
 						MoreInfo: "aiven-more-info",
@@ -284,7 +284,7 @@ var _ = Describe("kafka handler", func() {
 					}).
 					Build()
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
-				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
 						SchemaRegistry: service.ServiceAddress{
@@ -317,7 +317,7 @@ var _ = Describe("kafka handler", func() {
 					}).
 					Build()
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
-				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
 						SchemaRegistry: service.ServiceAddress{
@@ -357,7 +357,7 @@ var _ = Describe("kafka handler", func() {
 					}).
 					Build()
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
-				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
 						SchemaRegistry: service.ServiceAddress{
@@ -419,7 +419,7 @@ var _ = Describe("kafka handler", func() {
 					Build()
 
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
-				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
 						SchemaRegistry: service.ServiceAddress{
@@ -502,7 +502,7 @@ var _ = Describe("kafka handler", func() {
 					Build()
 
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
-				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(&service.ServiceAddresses{
 						ServiceURI: serviceURI,
 						SchemaRegistry: service.ServiceAddress{
