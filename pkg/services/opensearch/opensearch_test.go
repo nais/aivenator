@@ -112,6 +112,38 @@ var _ = Describe("opensearch handler", func() {
 	mockAivenReturnCaOk := func() {
 		mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("my-ca", nil)
 	}
+	mockAivenReturnAclManagerGetOk := func() {
+		mocks.aclManager.On("Get", mock.Anything, mock.Anything, mock.Anything).Return(&aiven.OpenSearchACLResponse{
+			OpenSearchACLConfig: aiven.OpenSearchACLConfig{
+				ACLs: []aiven.OpenSearchACL{
+					{
+						Rules:    nil,
+						Username: serviceUserName,
+					},
+				},
+				Enabled:     true,
+				ExtendedAcl: false,
+			},
+		}, nil).Once()
+	}
+	mockAivenReturnAclManagerUpdateOk := func() {
+		mocks.aclManager.On("Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&aiven.OpenSearchACLResponse{
+				OpenSearchACLConfig: aiven.OpenSearchACLConfig{
+					ACLs: []aiven.OpenSearchACL{
+						{
+							Rules: []aiven.OpenSearchACLRule{
+								{Index: "*", Permission: access},
+								{Index: "_*", Permission: access},
+							},
+							Username: serviceUserName,
+						},
+					},
+					Enabled:     true,
+					ExtendedAcl: false,
+				},
+			}, nil).Once()
+	}
 
 	When("it receives a spec with OpenSearch requested", func() {
 		Context("and the service is unavailable", func() {
@@ -184,6 +216,8 @@ var _ = Describe("opensearch handler", func() {
 				}).
 				Build()
 			mockAivenReturnOpensearchGetOk()
+			mockAivenReturnAclManagerGetOk()
+			mockAivenReturnAclManagerUpdateOk()
 		})
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
@@ -243,35 +277,6 @@ var _ = Describe("opensearch handler", func() {
 					Username: serviceUserName,
 					Password: servicePassword,
 				}, nil)
-				mocks.aclManager.On("Get", mock.Anything, mock.Anything, mock.Anything).Return(&aiven.OpenSearchACLResponse{
-					OpenSearchACLConfig: aiven.OpenSearchACLConfig{
-						ACLs: []aiven.OpenSearchACL{
-							{
-								Rules:    nil,
-								Username: serviceUserName,
-							},
-						},
-						Enabled:     true,
-						ExtendedAcl: false,
-					},
-				}, nil).Once()
-				mocks.aclManager.On("Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return(&aiven.OpenSearchACLResponse{
-						OpenSearchACLConfig: aiven.OpenSearchACLConfig{
-							ACLs: []aiven.OpenSearchACL{
-								{
-									Rules: []aiven.OpenSearchACLRule{
-										{Index: "*", Permission: access},
-										{Index: "_*", Permission: access},
-									},
-									Username: serviceUserName,
-								},
-							},
-							Enabled:     true,
-							ExtendedAcl: false,
-						},
-					}, nil).Once()
-
 			})
 
 			It("Creates and returns creds for the new user", func() {
@@ -296,6 +301,8 @@ var _ = Describe("opensearch handler", func() {
 				}).
 				Build()
 			mockAivenReturnOpensearchGetOk()
+			mockAivenReturnAclManagerGetOk()
+			mockAivenReturnAclManagerUpdateOk()
 		})
 		Context("and the service user already exists", func() {
 			BeforeEach(func() {
@@ -334,6 +341,8 @@ var _ = Describe("opensearch handler", func() {
 		BeforeEach(func() {
 			mockAivenReturnCaOk()
 			mockAivenReturnOpensearchGetOk()
+			mockAivenReturnAclManagerGetOk()
+			mockAivenReturnAclManagerUpdateOk()
 		})
 		Context("and the service user has no specified Opensearch ACLs", func() {
 			BeforeEach(func() {

@@ -132,23 +132,26 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetNamespace(), utils.SelectSuffix(application.Spec.OpenSearch.Access), suffix)
 	}
 
+	logger.Info("attempting to get existing user")
 	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
-	if err == nil {
-		return aivenUser, nil
-	}
-	if !aiven.IsNotFound(err) {
+	if err != nil && !aiven.IsNotFound(err) {
 		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
 	}
 
-	aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, nil, logger)
-	if err != nil {
-		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
+	if aiven.IsNotFound(err) {
+		logger.Info("user does not exist, creating")
+		aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, nil, logger)
+		if err != nil {
+			return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
+		}
 	}
 
-	if err := h.updateACL(ctx, serviceUserName, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
+	logger.Infof("updating ACLs for %s", aivenUser.Username)
+	if err := h.updateACL(ctx, aivenUser.Username, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
 		return nil, utils.AivenFail("UpdateACL", application, err, false, logger)
 	}
-	logger.Infof("created serviceuser: %v", aivenUser.Username)
+
+	logger.Infof("provided serviceuser: %v", aivenUser.Username)
 	return aivenUser, nil
 }
 
