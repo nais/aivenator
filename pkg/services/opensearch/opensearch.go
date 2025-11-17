@@ -198,6 +198,20 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 			"project":     projectName,
 		})
 
+		resp, err := h.openSearchACL.Get(ctx, projectName, serviceName)
+		if err != nil {
+			return err
+		}
+
+		config := resp.OpenSearchACLConfig
+		newConfig := config.Delete(ctx, aiven.OpenSearchACL{Username: serviceUser})
+		_, err = h.openSearchACL.Update(ctx, projectName, serviceName, aiven.OpenSearchACLRequest{
+			OpenSearchACLConfig: *newConfig,
+		})
+		if err != nil {
+			return err
+		}
+
 		if err := h.serviceuser.Delete(ctx, serviceUser, projectName, serviceName, logger); err != nil {
 			if aiven.IsNotFound(err) {
 				logger.Infof("Service user %s does not exist", serviceUser)
