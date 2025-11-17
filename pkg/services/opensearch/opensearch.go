@@ -198,15 +198,15 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 			"project":     projectName,
 		})
 
-		resp, err := h.openSearchACL.Get(ctx, projectName, serviceName)
+		aclResp, err := h.openSearchACL.Get(ctx, projectName, serviceName)
 		if err != nil {
 			return err
 		}
 
-		config := resp.OpenSearchACLConfig
-		newConfig := config.Delete(ctx, aiven.OpenSearchACL{Username: serviceUser})
+		aclConfig := aclResp.OpenSearchACLConfig
+		newACLConfig := aclConfig.Delete(ctx, aiven.OpenSearchACL{Username: serviceUser})
 		_, err = h.openSearchACL.Update(ctx, projectName, serviceName, aiven.OpenSearchACLRequest{
-			OpenSearchACLConfig: *newConfig,
+			OpenSearchACLConfig: *newACLConfig,
 		})
 		if err != nil {
 			return err
