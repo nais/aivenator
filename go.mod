@@ -1,10 +1,10 @@
 module github.com/nais/aivenator
 
-go 1.24
+go 1.25.0
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
-	github.com/aiven/aiven-go-client/v2 v2.36.0
+	github.com/aiven/aiven-go-client/v2 v2.37.0
 	github.com/nais/liberator v0.0.0-20250411064636-3e5a44a59298
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
