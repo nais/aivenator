@@ -9,7 +9,7 @@ import (
 
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/utils"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	"github.com/nais/liberator/pkg/scheme"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -45,9 +45,9 @@ const (
 	NotMySecretType = "other.nais.io"
 )
 
-func generateApplication() aiven_nais_io_v1.AivenApplication {
-	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
-		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+func generateApplication() aiven_nais_io_v2.AivenApplication {
+	application := aiven_nais_io_v2.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+		WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
 			SecretName: CurrentlyRequestedSecret,
 		}).
 		Build()
@@ -115,7 +115,7 @@ var _ = Describe("cleaner", func() {
 		ctx           context.Context
 		clientBuilder *fake.ClientBuilder
 		secrets       []secretSetup
-		application   aiven_nais_io_v1.AivenApplication
+		application   aiven_nais_io_v2.AivenApplication
 	)
 
 	type interaction struct {
@@ -162,7 +162,7 @@ var _ = Describe("cleaner", func() {
 			)
 			client := clientBuilder.Build()
 			janitor := buildJanitor(client, logger)
-			application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).Build()
+			application := aiven_nais_io_v2.NewAivenApplicationBuilder(MyAppName, MyNamespace).Build()
 
 			err := janitor.CleanUnusedSecretsForApplication(ctx, application)
 			Expect(err).ToNot(HaveOccurred())
@@ -172,9 +172,9 @@ var _ = Describe("cleaner", func() {
 		Context("that are supposed to be kept", func() {
 			BeforeEach(func() {
 				secrets = generateAndRegisterKeptPodSecrets(clientBuilder)
-				application = aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+				application = aiven_nais_io_v2.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v2.OpenSearchSpec{
 							Instance:   "OpenSearchInstance",
 							Access:     "read",
 							SecretName: CurrentlyRequestedSecret,
@@ -311,9 +311,9 @@ var _ = Describe("cleaner", func() {
 		Context("that are supposed to be kept", func() {
 			BeforeEach(func() {
 				secrets = generateAndRegisterKeptPodSecrets(clientBuilder)
-				application = aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						Valkey: []*aiven_nais_io_v1.ValkeySpec{
+				application = aiven_nais_io_v2.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						Valkey: []*aiven_nais_io_v2.ValkeySpec{
 							{
 								Instance:   "ValkeyInstance",
 								Access:     "read",
@@ -452,9 +452,9 @@ var _ = Describe("cleaner", func() {
 		Context("that are supposed to be kept", func() {
 			BeforeEach(func() {
 				secrets = generateAndRegisterKeptPodSecrets(clientBuilder)
-				application = aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						Kafka: &aiven_nais_io_v1.KafkaSpec{
+				application = aiven_nais_io_v2.NewAivenApplicationBuilder(MyAppName, MyNamespace).
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						Kafka: &aiven_nais_io_v2.KafkaSpec{
 							Pool:       "KafkaPool",
 							SecretName: CurrentlyRequestedSecret,
 						},
@@ -596,7 +596,7 @@ var _ = Describe("cleaner", func() {
 		}
 
 		janitor, mockClient := newJanitorWithInteractions(interactions)
-		app := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
+		app := aiven_nais_io_v2.NewAivenApplicationBuilder("", "").Build()
 
 		err := janitor.CleanUnusedSecretsForApplication(ctx, app)
 		Expect(err).To(MatchError("failed to retrieve list of secrets: api error"))
@@ -617,7 +617,7 @@ var _ = Describe("cleaner", func() {
 			},
 			{
 				method:     "List",
-				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v2.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
@@ -638,7 +638,7 @@ var _ = Describe("cleaner", func() {
 		}
 
 		janitor, mockClient := newJanitorWithInteractions(interactions)
-		app := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
+		app := aiven_nais_io_v2.NewAivenApplicationBuilder("", "").Build()
 
 		err := janitor.CleanUnusedSecretsForApplication(ctx, app)
 		Expect(err).To(MatchError("failed to retrieve list of pods: api error"))
@@ -664,7 +664,7 @@ var _ = Describe("cleaner", func() {
 			},
 			{
 				method:     "List",
-				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v2.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
@@ -690,7 +690,7 @@ var _ = Describe("cleaner", func() {
 		}
 
 		janitor, mockClient := newJanitorWithInteractions(interactions)
-		app := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
+		app := aiven_nais_io_v2.NewAivenApplicationBuilder("", "").Build()
 
 		err := janitor.CleanUnusedSecretsForApplication(ctx, app)
 		Expect(err).To(Succeed())
@@ -719,7 +719,7 @@ var _ = Describe("cleaner", func() {
 			},
 			{
 				method:     "List",
-				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
+				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v2.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
@@ -754,7 +754,7 @@ var _ = Describe("cleaner", func() {
 		}
 
 		janitor, mockClient := newJanitorWithInteractions(interactions)
-		app := aiven_nais_io_v1.NewAivenApplicationBuilder("", "").Build()
+		app := aiven_nais_io_v2.NewAivenApplicationBuilder("", "").Build()
 
 		err := janitor.CleanUnusedSecretsForApplication(ctx, app)
 		Expect(err).To(Succeed())

@@ -6,7 +6,7 @@ import (
 	"hash/crc32"
 	"time"
 
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -46,7 +46,7 @@ func SelectSuffix(access string) string {
 	}
 }
 
-func CreateSuffix(application *aiven_nais_io_v1.AivenApplication) (string, error) {
+func CreateSuffix(application *aiven_nais_io_v2.AivenApplication) (string, error) {
 	hasher := crc32.NewIEEE()
 	basename := fmt.Sprintf("%d%s", application.Generation, application.Name)
 	_, err := hasher.Write([]byte(basename))

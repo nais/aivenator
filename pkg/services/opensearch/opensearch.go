@@ -11,7 +11,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,7 +53,7 @@ type OpenSearchHandler struct {
 	projectName   string
 }
 
-func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
+func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v2.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
 	spec := application.Spec.OpenSearch
 	if spec == nil {
 		return nil, nil
@@ -112,7 +112,7 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	return []corev1.Secret{*individualSecret}, nil
 }
 
-func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v2.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	var serviceUserName string
 
 	if application.Spec.OpenSearch.Access == "" {

@@ -18,7 +18,7 @@ import (
 	"github.com/nais/aivenator/pkg/credentials"
 	aivenatormetrics "github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	liberator_scheme "github.com/nais/liberator/pkg/scheme"
 	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
@@ -176,10 +176,10 @@ func main() {
 		logger.Errorln(fmt.Errorf("unable to create kubernetes clientset for events: %w", err))
 		os.Exit(ExitRuntime)
 	}
-    eb := k8sevents.NewEventBroadcasterAdapter(kubeClientset)
-    // Run broadcaster for the lifetime of the process; no explicit shutdown
-    eb.StartRecordingToSink(make(chan struct{}))
-    recorder := eb.NewRecorder("aivenator")
+	eb := k8sevents.NewEventBroadcasterAdapter(kubeClientset)
+	// Run broadcaster for the lifetime of the process; no explicit shutdown
+	eb.StartRecordingToSink(make(chan struct{}))
+	recorder := eb.NewRecorder("aivenator")
 
 	if err := manageCredentials(ctx, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject), recorder); err != nil {
 		logger.Errorln(err)
@@ -217,7 +217,7 @@ func newAivenClient(ctx context.Context, logger log.FieldLogger) (*aiven.Client,
 }
 
 func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string, recorder k8sevents.EventRecorder) error {
-	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
+	appChanges := make(chan aiven_nais_io_v2.AivenApplication)
 
 	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}))
 	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges, recorder)

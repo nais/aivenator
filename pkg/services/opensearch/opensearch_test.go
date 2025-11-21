@@ -12,7 +12,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
@@ -49,11 +49,11 @@ func TestOpensearch(t *testing.T) {
 var _ = Describe("opensearch handler", func() {
 	var mocks mockContainer
 	var logger log.FieldLogger
-	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
+	var applicationBuilder aiven_nais_io_v2.AivenApplicationBuilder
 	var ctx context.Context
 	var cancel context.CancelFunc
 	var opensearchHandler OpenSearchHandler
-	var application aiven_nais_io_v1.AivenApplication
+	var application aiven_nais_io_v2.AivenApplication
 
 	BeforeEach(func() {
 
@@ -149,8 +149,8 @@ var _ = Describe("opensearch handler", func() {
 		Context("and the service is unavailable", func() {
 			BeforeEach(func() {
 				application = applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v2.OpenSearchSpec{
 							Instance:   serviceName,
 							Access:     access,
 							SecretName: secretName,
@@ -168,15 +168,15 @@ var _ = Describe("opensearch handler", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
 				Expect(err).ToNot(Succeed())
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v2.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
 			})
 		})
 		Context("and service users are unavailable", func() {
 			BeforeEach(func() {
 				application = applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v2.OpenSearchSpec{
 							Instance:   serviceName,
 							Access:     access,
 							SecretName: secretName,
@@ -198,7 +198,7 @@ var _ = Describe("opensearch handler", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
 				Expect(err).ToNot(Succeed())
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v2.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
 			})
 		})
@@ -207,8 +207,8 @@ var _ = Describe("opensearch handler", func() {
 	When("it receives a spec", func() {
 		BeforeEach(func() {
 			application = applicationBuilder.
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+					OpenSearch: &aiven_nais_io_v2.OpenSearchSpec{
 						Instance:   serviceName,
 						Access:     access,
 						SecretName: secretName,
@@ -224,8 +224,8 @@ var _ = Describe("opensearch handler", func() {
 				mockAivenReturnOpensearchGetServiceUserOk()
 				mockAivenReturnCaOk()
 				application = applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v2.OpenSearchSpec{
 							Instance:   serviceName,
 							Access:     access,
 							SecretName: secretName,
@@ -292,8 +292,8 @@ var _ = Describe("opensearch handler", func() {
 		BeforeEach(func() {
 			mockAivenReturnCaOk()
 			application = applicationBuilder.
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+					OpenSearch: &aiven_nais_io_v2.OpenSearchSpec{
 						Instance:   instance,
 						Access:     access,
 						SecretName: "foo",
@@ -347,8 +347,8 @@ var _ = Describe("opensearch handler", func() {
 		Context("and the service user has no specified Opensearch ACLs", func() {
 			BeforeEach(func() {
 				application = applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v2.OpenSearchSpec{
 							Instance:   instance,
 							Access:     "",
 							SecretName: secretName,

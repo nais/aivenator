@@ -9,7 +9,7 @@ import (
 	"github.com/nais/aivenator/pkg/credentials"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -33,7 +33,7 @@ const (
 	AivenVolumeName    = "aiven-credentials"
 )
 
-func NewReconciler(mgr manager.Manager, logger *log.Logger, credentialsManager credentials.Manager, appChanges chan<- aiven_nais_io_v1.AivenApplication, recorder events.EventRecorder) AivenApplicationReconciler {
+func NewReconciler(mgr manager.Manager, logger *log.Logger, credentialsManager credentials.Manager, appChanges chan<- aiven_nais_io_v2.AivenApplication, recorder events.EventRecorder) AivenApplicationReconciler {
 	return AivenApplicationReconciler{
 		Client:     mgr.GetClient(),
 		Logger:     logger.WithFields(log.Fields{"component": "AivenApplicationReconciler"}),
@@ -48,11 +48,11 @@ type AivenApplicationReconciler struct {
 	Logger     log.FieldLogger
 	Manager    credentials.Manager
 	Recorder   events.EventRecorder
-	appChanges chan<- aiven_nais_io_v1.AivenApplication
+	appChanges chan<- aiven_nais_io_v2.AivenApplication
 }
 
 func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var application aiven_nais_io_v1.AivenApplication
+	var application aiven_nais_io_v2.AivenApplication
 
 	ctx, cancel := context.WithTimeout(ctx, reconcileTimeout)
 	defer cancel()
@@ -117,10 +117,10 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	// mark as deprecated if we see Spec.SecretName, maybe degraded? v0v.
 	// this would do well to be a version bump and a webhook but maybe that ship has sailed
 	if application.Spec.SecretName != "" {
-		deprecatedType := aiven_nais_io_v1.AivenApplicationConditionType("Deprecated")
+		deprecatedType := aiven_nais_io_v2.AivenApplicationConditionType("Deprecated")
 		cond := application.Status.GetConditionOfType(deprecatedType)
 		if cond == nil || cond.Status != corev1.ConditionTrue || cond.Reason != "DeprecatedField" {
-			application.Status.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
+			application.Status.AddCondition(aiven_nais_io_v2.AivenApplicationCondition{
 				Type:    deprecatedType,
 				Status:  corev1.ConditionTrue,
 				Reason:  "DeprecatedField",
@@ -240,7 +240,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	return ctrl.Result{}, nil
 }
 
-func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) (bool, error) {
+func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.Context, application aiven_nais_io_v2.AivenApplication, logger log.FieldLogger) (bool, error) {
 	if application.Spec.ExpiresAt == nil {
 		return false, nil
 	}
@@ -266,7 +266,7 @@ func (r *AivenApplicationReconciler) HandleProtectedAndTimeLimited(ctx context.C
 	return true, nil
 }
 
-func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) error {
+func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, application aiven_nais_io_v2.AivenApplication, logger log.FieldLogger) error {
 	err := r.Delete(ctx, &application)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -283,21 +283,21 @@ func (r *AivenApplicationReconciler) DeleteApplication(ctx context.Context, appl
 	return nil
 }
 
-func success(application *aiven_nais_io_v1.AivenApplication, hash string) {
+func success(application *aiven_nais_io_v2.AivenApplication, hash string) {
 	s := &application.Status
 	s.SynchronizationHash = hash
 	s.SynchronizationState = rolloutComplete
 	s.SynchronizedGeneration = application.GetGeneration()
-	s.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
-		Type:   aiven_nais_io_v1.AivenApplicationSucceeded,
+	s.AddCondition(aiven_nais_io_v2.AivenApplicationCondition{
+		Type:   aiven_nais_io_v2.AivenApplicationSucceeded,
 		Status: corev1.ConditionTrue,
 	})
-	s.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
-		Type:   aiven_nais_io_v1.AivenApplicationAivenFailure,
+	s.AddCondition(aiven_nais_io_v2.AivenApplicationCondition{
+		Type:   aiven_nais_io_v2.AivenApplicationAivenFailure,
 		Status: corev1.ConditionFalse,
 	})
-	s.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
-		Type:   aiven_nais_io_v1.AivenApplicationLocalFailure,
+	s.AddCondition(aiven_nais_io_v2.AivenApplicationCondition{
+		Type:   aiven_nais_io_v2.AivenApplicationLocalFailure,
 		Status: corev1.ConditionFalse,
 	})
 }
@@ -307,7 +307,7 @@ func (r *AivenApplicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		MaxConcurrentReconciles: 10,
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&aiven_nais_io_v1.AivenApplication{}).
+		For(&aiven_nais_io_v2.AivenApplication{}).
 		WithOptions(opts).
 		WithEventFilter(predicate.Or(
 			predicate.GenerationChangedPredicate{},
@@ -374,7 +374,7 @@ func (r *AivenApplicationReconciler) SaveSecret(ctx context.Context, secret *cor
 	return err
 }
 
-func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, application aiven_nais_io_v1.AivenApplication, hash string, logger log.FieldLogger) (bool, error) {
+func (r *AivenApplicationReconciler) NeedsSynchronization(ctx context.Context, application aiven_nais_io_v2.AivenApplication, hash string, logger log.FieldLogger) (bool, error) {
 	if application.Status.SynchronizationHash != hash {
 		logger.Infof("Hash changed; needs synchronization")
 		metrics.ProcessingReason.WithLabelValues(metrics.HashChanged.String()).Inc()

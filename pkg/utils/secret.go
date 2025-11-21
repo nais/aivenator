@@ -9,7 +9,7 @@ import (
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/aiven/project"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -34,7 +34,7 @@ func NewSecretConfig(aiven *aiven.Client, projectName string) SecretConfig {
 	}
 }
 
-func (s SecretConfig) ApplyIndividualSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
+func (s SecretConfig) ApplyIndividualSecret(ctx context.Context, application *aiven_nais_io_v2.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
 	errors := validation.IsDNS1123Label(secret.Name)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secret.Name, ErrUnrecoverable, errors)
@@ -56,7 +56,7 @@ func (s SecretConfig) ApplyIndividualSecret(ctx context.Context, application *ai
 	return nil, nil
 }
 
-func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *metav1.ObjectMeta) {
+func updateObjectMeta(application *aiven_nais_io_v2.AivenApplication, objMeta *metav1.ObjectMeta) {
 	generation := 0
 	if v, ok := application.Labels[constants.GenerationLabel]; ok {
 		g, err := strconv.Atoi(v)
@@ -75,7 +75,7 @@ func updateObjectMeta(application *aiven_nais_io_v1.AivenApplication, objMeta *m
 	objMeta.Annotations = MergeStringMap(objMeta.Annotations, createAnnotations(application))
 }
 
-func createAnnotations(application *aiven_nais_io_v1.AivenApplication) map[string]string {
+func createAnnotations(application *aiven_nais_io_v2.AivenApplication) map[string]string {
 	annotations := map[string]string{
 		nais_io_v1.DeploymentCorrelationIDAnnotation: application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation],
 		constants.AivenatorProtectedKey:              strconv.FormatBool(application.Spec.Protected),

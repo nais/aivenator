@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/nais/aivenator/pkg/credentials"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,10 +19,10 @@ type Janitor struct {
 	client.Client
 	logger     log.FieldLogger
 	cleaner    credentials.Cleaner
-	appChanges <-chan aiven_nais_io_v1.AivenApplication
+	appChanges <-chan aiven_nais_io_v2.AivenApplication
 }
 
-func NewJanitor(cleaner credentials.Cleaner, appChanges <-chan aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) *Janitor {
+func NewJanitor(cleaner credentials.Cleaner, appChanges <-chan aiven_nais_io_v2.AivenApplication, logger log.FieldLogger) *Janitor {
 	return &Janitor{
 		logger:     logger,
 		cleaner:    cleaner,

@@ -8,7 +8,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	"github.com/nais/liberator/pkg/kubernetes"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -40,7 +40,7 @@ type Client interface {
 	Scheme() *runtime.Scheme
 }
 
-func (j *Cleaner) CleanUnusedSecretsForApplication(ctx context.Context, application aiven_nais_io_v1.AivenApplication) error {
+func (j *Cleaner) CleanUnusedSecretsForApplication(ctx context.Context, application aiven_nais_io_v2.AivenApplication) error {
 	var secrets corev1.SecretList
 	var mLabels = client.MatchingLabels{
 		constants.AppLabel:        application.GetName(),
@@ -136,7 +136,7 @@ func inUse(object client.Object, secretName string) (bool, error) {
 		volumes = t.Spec.Template.Spec.Volumes
 	case *batchv1.CronJob:
 		volumes = t.Spec.JobTemplate.Spec.Template.Spec.Volumes
-	case *aiven_nais_io_v1.AivenApplication:
+	case *aiven_nais_io_v2.AivenApplication:
 		if t.Spec.SecretName == secretName {
 			return true, nil
 		} else if t.Spec.Kafka != nil && t.Spec.Kafka.SecretName == secretName {
@@ -227,7 +227,7 @@ func (j *Cleaner) cleanUnusedSecret(ctx context.Context, oldSecret corev1.Secret
 func (j *Cleaner) collectPossibleUsers(ctx context.Context, appName string) ([]client.Object, error) {
 	objects := make([]client.Object, 0)
 
-	aivenAppList := &aiven_nais_io_v1.AivenApplicationList{}
+	aivenAppList := &aiven_nais_io_v2.AivenApplicationList{}
 	err := getItemList(ctx, j, aivenAppList, appName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list AivenApplications: %v", err)

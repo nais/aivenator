@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/credentials"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	nais_io_v1alpha1 "github.com/nais/liberator/pkg/apis/nais.io/v1alpha1"
 	log "github.com/sirupsen/logrus"
@@ -36,7 +36,7 @@ func setupScheme() *runtime.Scheme {
 		corev1.AddToScheme,
 		appsv1.AddToScheme,
 		batchv1.AddToScheme,
-		aiven_nais_io_v1.AddToScheme,
+		aiven_nais_io_v2.AddToScheme,
 		nais_io_v1.AddToScheme,
 		nais_io_v1alpha1.AddToScheme,
 	}
@@ -54,7 +54,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 	scheme := setupScheme()
 
 	type args struct {
-		application aiven_nais_io_v1.AivenApplication
+		application aiven_nais_io_v2.AivenApplication
 		hasSecret   bool
 		isProtected bool
 	}
@@ -67,7 +67,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 		{
 			name: "EmptyApplication",
 			args: args{
-				application: aiven_nais_io_v1.AivenApplication{},
+				application: aiven_nais_io_v2.AivenApplication{},
 				hasSecret:   false,
 				isProtected: false,
 			},
@@ -77,7 +77,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 		{
 			name: "BaseApplication",
 			args: args{
-				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).Build(),
+				application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).Build(),
 				hasSecret:   false,
 				isProtected: false,
 			},
@@ -87,8 +87,8 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 		{
 			name: "ChangedApplication",
 			args: args{
-				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
-					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: "123"}).
+				application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
+					WithStatus(aiven_nais_io_v2.AivenApplicationStatus{SynchronizationHash: "123"}).
 					Build(),
 				hasSecret:   false,
 				isProtected: false,
@@ -99,9 +99,9 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 		{
 			name: "UnchangedApplication",
 			args: args{
-				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v1.KafkaSpec{SecretName: secretName}}).
-					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
+				application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v2.KafkaSpec{SecretName: secretName}}).
+					WithStatus(aiven_nais_io_v2.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
 				hasSecret:   true,
 				isProtected: false,
@@ -112,9 +112,9 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 		{
 			name: "UnchangedApplicationButSecretMissing",
 			args: args{
-				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v1.KafkaSpec{SecretName: secretName}}).
-					WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
+				application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v2.KafkaSpec{SecretName: secretName}}).
+					WithStatus(aiven_nais_io_v2.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
 				hasSecret:   false,
 				isProtected: false,
@@ -125,8 +125,8 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 		{
 			name: "ProtectedApplication",
 			args: args{
-				application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v1.KafkaSpec{SecretName: secretName}}).
+				application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v2.KafkaSpec{SecretName: secretName}}).
 					Build(),
 				hasSecret:   false,
 				isProtected: true,
@@ -194,25 +194,25 @@ func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) 
 
 	tests := []struct {
 		name        string
-		application aiven_nais_io_v1.AivenApplication
+		application aiven_nais_io_v2.AivenApplication
 		hasSecret   bool
 		wantErr     bool
 		deleted     bool
 	}{
 		{
 			name: "ApplicationWhereTimeLimitIsExceededAndWhereSecretIsDeleted",
-			application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, -2)}}).
-				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
+			application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
+				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, -2)}}).
+				WithStatus(aiven_nais_io_v2.AivenApplicationStatus{SynchronizationHash: syncHash}).
 				Build(),
 			hasSecret: false,
 			deleted:   true,
 		},
 		{
 			name: "ApplicationWhereTimeLimitIsStillValidAndWhereSecretIsDeleted",
-			application: aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{SecretName: secretName, ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, 2)}}).
-				WithStatus(aiven_nais_io_v1.AivenApplicationStatus{SynchronizationHash: syncHash}).
+			application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
+				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, 2)}}).
+				WithStatus(aiven_nais_io_v2.AivenApplicationStatus{SynchronizationHash: syncHash}).
 				Build(),
 			hasSecret: false,
 			deleted:   false,

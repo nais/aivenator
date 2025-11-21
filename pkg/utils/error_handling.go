@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aiven/aiven-go-client/v2"
-	"github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	"github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	"github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -14,16 +14,16 @@ import (
 var ErrUnrecoverable = errors.New("ErrUnrecoverable")
 var ErrNotFound = errors.New("ErrNotFound")
 
-func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, notFoundIsRecoverable bool, logger logrus.FieldLogger) error {
+func AivenFail(operation string, application *aiven_nais_io_v2.AivenApplication, err error, notFoundIsRecoverable bool, logger logrus.FieldLogger) error {
 	errorMessage := UnwrapAivenError(err, logger, notFoundIsRecoverable)
 	message := fmt.Errorf("operation %s failed in Aiven: %w", operation, errorMessage)
 	logger.Error(message)
-	application.Status.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
-		Type:    aiven_nais_io_v1.AivenApplicationAivenFailure,
+	application.Status.AddCondition(aiven_nais_io_v2.AivenApplicationCondition{
+		Type:    aiven_nais_io_v2.AivenApplicationAivenFailure,
 		Status:  v1.ConditionTrue,
 		Reason:  operation,
 		Message: message.Error(),
-	}, aiven_nais_io_v1.AivenApplicationSucceeded)
+	}, aiven_nais_io_v2.AivenApplicationSucceeded)
 	return message
 }
 
@@ -53,13 +53,13 @@ func UnwrapAivenError(errorMessage error, logger logrus.FieldLogger, notFoundIsR
 	return errorMessage
 }
 
-func LocalFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, logger logrus.FieldLogger) {
+func LocalFail(operation string, application *aiven_nais_io_v2.AivenApplication, err error, logger logrus.FieldLogger) {
 	message := fmt.Errorf("operation %s failed: %s", operation, err)
 	logger.Error(message)
-	application.Status.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
-		Type:    aiven_nais_io_v1.AivenApplicationLocalFailure,
+	application.Status.AddCondition(aiven_nais_io_v2.AivenApplicationCondition{
+		Type:    aiven_nais_io_v2.AivenApplicationLocalFailure,
 		Status:  v1.ConditionTrue,
 		Reason:  operation,
 		Message: message.Error(),
-	}, aiven_nais_io_v1.AivenApplicationSucceeded)
+	}, aiven_nais_io_v2.AivenApplicationSucceeded)
 }

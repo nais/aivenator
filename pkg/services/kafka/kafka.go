@@ -13,7 +13,7 @@ import (
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	kafka_nais_io_v1 "github.com/nais/liberator/pkg/apis/kafka.nais.io/v1"
 	"github.com/nais/liberator/pkg/strings"
 	log "github.com/sirupsen/logrus"
@@ -68,7 +68,7 @@ type KafkaHandler struct {
 	secretConfig utils.SecretConfig
 }
 
-func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
+func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v2.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
 	spec := application.Spec.Kafka
 	if spec == nil {
 		return nil, nil
@@ -163,7 +163,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	return []corev1.Secret{*individualSecret}, nil
 }
 
-func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v2.AivenApplication, projectName string, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
 	var aivenUser *aiven.ServiceUser
 	var err error
 

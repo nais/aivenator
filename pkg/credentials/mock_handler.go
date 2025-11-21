@@ -5,7 +5,7 @@ package credentials
 import (
 	context "context"
 
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	logrus "github.com/sirupsen/logrus"
 	mock "github.com/stretchr/testify/mock"
 	v1 "k8s.io/api/core/v1"
@@ -25,7 +25,7 @@ func (_m *MockHandler) EXPECT() *MockHandler_Expecter {
 }
 
 // Apply provides a mock function with given fields: ctx, application, logger
-func (_m *MockHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger logrus.FieldLogger) ([]v1.Secret, error) {
+func (_m *MockHandler) Apply(ctx context.Context, application *aiven_nais_io_v2.AivenApplication, logger logrus.FieldLogger) ([]v1.Secret, error) {
 	ret := _m.Called(ctx, application, logger)
 
 	if len(ret) == 0 {
@@ -34,10 +34,10 @@ func (_m *MockHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 
 	var r0 []v1.Secret
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *aiven_nais_io_v1.AivenApplication, logrus.FieldLogger) ([]v1.Secret, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *aiven_nais_io_v2.AivenApplication, logrus.FieldLogger) ([]v1.Secret, error)); ok {
 		return rf(ctx, application, logger)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *aiven_nais_io_v1.AivenApplication, logrus.FieldLogger) []v1.Secret); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *aiven_nais_io_v2.AivenApplication, logrus.FieldLogger) []v1.Secret); ok {
 		r0 = rf(ctx, application, logger)
 	} else {
 		if ret.Get(0) != nil {
@@ -45,7 +45,7 @@ func (_m *MockHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *aiven_nais_io_v1.AivenApplication, logrus.FieldLogger) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *aiven_nais_io_v2.AivenApplication, logrus.FieldLogger) error); ok {
 		r1 = rf(ctx, application, logger)
 	} else {
 		r1 = ret.Error(1)
@@ -61,15 +61,15 @@ type MockHandler_Apply_Call struct {
 
 // Apply is a helper method to define mock.On call
 //   - ctx context.Context
-//   - application *aiven_nais_io_v1.AivenApplication
+//   - application *aiven_nais_io_v2.AivenApplication
 //   - logger logrus.FieldLogger
 func (_e *MockHandler_Expecter) Apply(ctx interface{}, application interface{}, logger interface{}) *MockHandler_Apply_Call {
 	return &MockHandler_Apply_Call{Call: _e.mock.On("Apply", ctx, application, logger)}
 }
 
-func (_c *MockHandler_Apply_Call) Run(run func(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger logrus.FieldLogger)) *MockHandler_Apply_Call {
+func (_c *MockHandler_Apply_Call) Run(run func(ctx context.Context, application *aiven_nais_io_v2.AivenApplication, logger logrus.FieldLogger)) *MockHandler_Apply_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*aiven_nais_io_v1.AivenApplication), args[2].(logrus.FieldLogger))
+		run(args[0].(context.Context), args[1].(*aiven_nais_io_v2.AivenApplication), args[2].(logrus.FieldLogger))
 	})
 	return _c
 }
@@ -79,7 +79,7 @@ func (_c *MockHandler_Apply_Call) Return(_a0 []v1.Secret, _a1 error) *MockHandle
 	return _c
 }
 
-func (_c *MockHandler_Apply_Call) RunAndReturn(run func(context.Context, *aiven_nais_io_v1.AivenApplication, logrus.FieldLogger) ([]v1.Secret, error)) *MockHandler_Apply_Call {
+func (_c *MockHandler_Apply_Call) RunAndReturn(run func(context.Context, *aiven_nais_io_v2.AivenApplication, logrus.FieldLogger) ([]v1.Secret, error)) *MockHandler_Apply_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -10,14 +10,14 @@ import (
 	"github.com/nais/aivenator/pkg/services/kafka"
 	"github.com/nais/aivenator/pkg/services/opensearch"
 	"github.com/nais/aivenator/pkg/services/valkey"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 )
 
 type ServiceHandler interface {
-	Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]v1.Secret, error)
+	Apply(ctx context.Context, application *aiven_nais_io_v2.AivenApplication, logger log.FieldLogger) ([]v1.Secret, error)
 	Cleanup(ctx context.Context, secret *v1.Secret, logger log.FieldLogger) error
 }
 
@@ -35,7 +35,7 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 	}
 }
 
-func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]v1.Secret, error) {
+func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v2.AivenApplication, logger log.FieldLogger) ([]v1.Secret, error) {
 	var finalSecrets []v1.Secret
 	logger.Info("Processing secrets.")
 	for _, handler := range c.handlers {

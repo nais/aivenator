@@ -11,7 +11,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
@@ -114,8 +114,8 @@ func TestValkey(t *testing.T) {
 
 var _ = Describe("valkey.SecretConfig", func() {
 	var logger log.FieldLogger
-	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
-	var application aiven_nais_io_v1.AivenApplication
+	var applicationBuilder aiven_nais_io_v2.AivenApplicationBuilder
+	var application aiven_nais_io_v2.AivenApplication
 	var valkeyHandler ValkeyHandler
 	var mocks mockContainer
 	var ctx context.Context
@@ -163,7 +163,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 		root := log.New()
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
-		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace)
+		applicationBuilder = aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace)
 		mocks = mockContainer{
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
@@ -202,8 +202,8 @@ var _ = Describe("valkey.SecretConfig", func() {
 
 		BeforeEach(func() {
 			application = applicationBuilder.
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v2.ValkeySpec{
 						{
 							Instance:   data.instanceName,
 							Access:     data.access,
@@ -231,7 +231,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetService failed in Aiven: 500: aiven-error - aiven-more-info"))
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v2.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
 			})
 		})
@@ -254,7 +254,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				Expect(err).ToNot(Succeed())
 				Expect(err).To(MatchError("operation GetServiceUser failed in Aiven: 500: aiven-error - aiven-more-info"))
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v2.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
 			})
 		})
@@ -265,8 +265,8 @@ var _ = Describe("valkey.SecretConfig", func() {
 
 		BeforeEach(func() {
 			application = applicationBuilder.
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v2.ValkeySpec{
 						{
 							Instance:   data.instanceName,
 							Access:     data.access,
@@ -325,8 +325,8 @@ var _ = Describe("valkey.SecretConfig", func() {
 	When("it receives a spec with multiple newstyle instances", func() {
 		BeforeEach(func() {
 			application = applicationBuilder.
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v2.ValkeySpec{
 						{
 							Instance:   "my-instance1",
 							Access:     "read",
@@ -368,16 +368,16 @@ var _ = Describe("valkey.SecretConfig", func() {
 
 	When("it receives a spec with multiple instances", func() {
 		BeforeEach(func() {
-			var specs []*aiven_nais_io_v1.ValkeySpec
+			var specs []*aiven_nais_io_v2.ValkeySpec
 			for _, data := range testInstances {
-				specs = append(specs, &aiven_nais_io_v1.ValkeySpec{
+				specs = append(specs, &aiven_nais_io_v2.ValkeySpec{
 					Instance:   data.instanceName,
 					Access:     data.access,
 					SecretName: data.secretName,
 				})
 			}
 			application = applicationBuilder.
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
 					Valkey: specs,
 				}).
 				Build()

@@ -15,7 +15,7 @@ import (
 	"github.com/nais/aivenator/pkg/certificate"
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
-	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v2 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
@@ -52,7 +52,7 @@ func TestKafka(t *testing.T) {
 var _ = Describe("kafka handler", func() {
 	var mocks mockContainer
 	var logger log.FieldLogger
-	var applicationBuilder aiven_nais_io_v1.AivenApplicationBuilder
+	var applicationBuilder aiven_nais_io_v2.AivenApplicationBuilder
 	var ctx context.Context
 	var individualSecret *corev1.Secret
 	var cancel context.CancelFunc
@@ -85,7 +85,7 @@ var _ = Describe("kafka handler", func() {
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 
-		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
+		applicationBuilder = aiven_nais_io_v2.NewAivenApplicationBuilder("test-app", "test-ns")
 	})
 	AfterEach(func() {
 		cancel()
@@ -141,8 +141,8 @@ var _ = Describe("kafka handler", func() {
 		})
 		Context("that has kafka configured", func() {
 			BeforeEach(func() {
-				applicationBuilder = applicationBuilder.WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					Kafka: &aiven_nais_io_v1.KafkaSpec{
+				applicationBuilder = applicationBuilder.WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+					Kafka: &aiven_nais_io_v2.KafkaSpec{
 						Pool:       aivenProjectName,
 						SecretName: secretName,
 					},
@@ -150,8 +150,8 @@ var _ = Describe("kafka handler", func() {
 			})
 
 			It("should return an error if the pool is invalid", func() {
-				application := applicationBuilder.WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					Kafka: &aiven_nais_io_v1.KafkaSpec{
+				application := applicationBuilder.WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+					Kafka: &aiven_nais_io_v2.KafkaSpec{
 						Pool: invalidPool,
 					},
 				}).Build()
@@ -254,8 +254,8 @@ var _ = Describe("kafka handler", func() {
 
 			It("should fail when there is no service", func() {
 				application := applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						Kafka: &aiven_nais_io_v1.KafkaSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						Kafka: &aiven_nais_io_v2.KafkaSpec{
 							Pool: aivenProjectName,
 						},
 					}).
@@ -271,14 +271,14 @@ var _ = Describe("kafka handler", func() {
 				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(err).To(HaveOccurred())
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v2.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
 			})
 
 			It("fails when there is no CA", func() {
 				application := applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						Kafka: &aiven_nais_io_v1.KafkaSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						Kafka: &aiven_nais_io_v2.KafkaSpec{
 							Pool: aivenProjectName,
 						},
 					}).
@@ -303,14 +303,14 @@ var _ = Describe("kafka handler", func() {
 
 				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 				Expect(err).To(HaveOccurred())
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v2.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
 			})
 
 			It("fails when failing to create serviceusers", func() {
 				application := applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						Kafka: &aiven_nais_io_v1.KafkaSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						Kafka: &aiven_nais_io_v2.KafkaSpec{
 							Pool:       aivenProjectName,
 							SecretName: secretName,
 						},
@@ -344,13 +344,13 @@ var _ = Describe("kafka handler", func() {
 
 				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 				Expect(err).To(HaveOccurred())
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v2.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
 			})
 			It("succeeds when succesfully creating missing serviceusers", func() {
 				application := applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						Kafka: &aiven_nais_io_v1.KafkaSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						Kafka: &aiven_nais_io_v2.KafkaSpec{
 							Pool:       aivenProjectName,
 							SecretName: secretName,
 						},
@@ -410,8 +410,8 @@ var _ = Describe("kafka handler", func() {
 			})
 			It("doesnt create a new serviceUser if already extant", func() {
 				application := applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						Kafka: &aiven_nais_io_v1.KafkaSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						Kafka: &aiven_nais_io_v2.KafkaSpec{
 							Pool:       aivenProjectName,
 							SecretName: secretName,
 						},
@@ -472,8 +472,8 @@ var _ = Describe("kafka handler", func() {
 
 			It("Errors on specifically the pool called not-my-testing-pool", func() {
 				application := applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						Kafka: &aiven_nais_io_v1.KafkaSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						Kafka: &aiven_nais_io_v2.KafkaSpec{
 							Pool: invalidPool,
 						},
 					}).
@@ -493,8 +493,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, aivenProjectName, mock.Anything, mock.Anything).Return(nil)
 
 				application := applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						Kafka: &aiven_nais_io_v1.KafkaSpec{
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
+						Kafka: &aiven_nais_io_v2.KafkaSpec{
 							Pool:       aivenProjectName,
 							SecretName: secretName,
 						},
@@ -522,7 +522,7 @@ var _ = Describe("kafka handler", func() {
 				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(err).To(HaveOccurred())
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationLocalFailure)).ToNot(BeNil())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v2.AivenApplicationLocalFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
 			})
 		})
