@@ -100,7 +100,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			name: "UnchangedApplication",
 			args: args{
 				application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
-					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v2.KafkaSpec{SecretName: secretName}}).
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{Kafka: &aiven_nais_io_v2.KafkaSpec{SecretName: secretName}}).
 					WithStatus(aiven_nais_io_v2.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
 				hasSecret:   true,
@@ -113,7 +113,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			name: "UnchangedApplicationButSecretMissing",
 			args: args{
 				application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
-					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v2.KafkaSpec{SecretName: secretName}}).
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{Kafka: &aiven_nais_io_v2.KafkaSpec{SecretName: secretName}}).
 					WithStatus(aiven_nais_io_v2.AivenApplicationStatus{SynchronizationHash: syncHash}).
 					Build(),
 				hasSecret:   false,
@@ -126,7 +126,7 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			name: "ProtectedApplication",
 			args: args{
 				application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
-					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, Kafka: &aiven_nais_io_v2.KafkaSpec{SecretName: secretName}}).
+					WithSpec(aiven_nais_io_v2.AivenApplicationSpec{Kafka: &aiven_nais_io_v2.KafkaSpec{SecretName: secretName}}).
 					Build(),
 				hasSecret:   false,
 				isProtected: true,
@@ -202,7 +202,7 @@ func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) 
 		{
 			name: "ApplicationWhereTimeLimitIsExceededAndWhereSecretIsDeleted",
 			application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
-				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, -2)}}).
+				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, -2)}}).
 				WithStatus(aiven_nais_io_v2.AivenApplicationStatus{SynchronizationHash: syncHash}).
 				Build(),
 			hasSecret: false,
@@ -211,7 +211,7 @@ func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) 
 		{
 			name: "ApplicationWhereTimeLimitIsStillValidAndWhereSecretIsDeleted",
 			application: aiven_nais_io_v2.NewAivenApplicationBuilder(appName, namespace).
-				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, 2)}}).
+				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{ExpiresAt: &metav1.Time{Time: time.Now().AddDate(0, 0, 2)}}).
 				WithStatus(aiven_nais_io_v2.AivenApplicationStatus{SynchronizationHash: syncHash}).
 				Build(),
 			hasSecret: false,

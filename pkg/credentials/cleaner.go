@@ -137,9 +137,7 @@ func inUse(object client.Object, secretName string) (bool, error) {
 	case *batchv1.CronJob:
 		volumes = t.Spec.JobTemplate.Spec.Template.Spec.Volumes
 	case *aiven_nais_io_v2.AivenApplication:
-		if t.Spec.SecretName == secretName {
-			return true, nil
-		} else if t.Spec.Kafka != nil && t.Spec.Kafka.SecretName == secretName {
+		if t.Spec.Kafka != nil && t.Spec.Kafka.SecretName == secretName {
 			return true, nil
 		} else if t.Spec.OpenSearch != nil && t.Spec.OpenSearch.SecretName == secretName {
 			return true, nil

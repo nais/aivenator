@@ -55,7 +55,6 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 
 	It("applies labels and namespace for a basic application", func() {
 		application := aiven_nais_io_v2.NewAivenApplicationBuilder(applicationName, namespace).
-			WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName}).
 			Build()
 		secret := corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: namespace}}
 
@@ -70,7 +69,6 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 
 	It("sets correlation id annotation and secret name", func() {
 		application := aiven_nais_io_v2.NewAivenApplicationBuilder(applicationName, namespace).
-			WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName}).
 			WithAnnotation(nais_io_v1.DeploymentCorrelationIDAnnotation, correlationId).
 			Build()
 		secret := corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: namespace}}
@@ -80,12 +78,10 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 
 		Expect(validation.ValidateAnnotations(secret.GetAnnotations(), field.NewPath("metadata.annotations"))).To(BeEmpty())
 		Expect(secret.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]).To(Equal(correlationId))
-		Expect(secret.GetName()).To(Equal(application.Spec.SecretName))
 	})
 
 	It("merges labels/annotations with a pre-existing secret", func() {
 		application := aiven_nais_io_v2.NewAivenApplicationBuilder(applicationName, namespace).
-			WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName}).
 			Build()
 		secret := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -112,7 +108,6 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 
 	It("propagates aiven-generation label from application", func() {
 		application := aiven_nais_io_v2.NewAivenApplicationBuilder(applicationName, namespace).
-			WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName}).
 			Build()
 		application.Labels = map[string]string{constants.GenerationLabel: secretGeneration}
 		secret := corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: namespace}}
@@ -126,7 +121,6 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 
 	It("marks protected secret in annotations and labels", func() {
 		application := aiven_nais_io_v2.NewAivenApplicationBuilder(applicationName, namespace).
-			WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName, Protected: true}).
 			Build()
 		secret := corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: namespace}}
 
@@ -140,7 +134,6 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 
 	It("adds correct timestamp to secret data", func() {
 		application := aiven_nais_io_v2.NewAivenApplicationBuilder(applicationName, namespace).
-			WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName}).
 			Build()
 		secret := corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: namespace}}
 
@@ -155,7 +148,6 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 
 	It("adds project CA to secret data", func() {
 		application := aiven_nais_io_v2.NewAivenApplicationBuilder(applicationName, namespace).
-			WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: secretName}).
 			Build()
 		secret := corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: namespace}}
 
@@ -169,7 +161,6 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 	Describe("invalid secret name is unrecoverable", func() {
 		It("rejects empty name", func() {
 			application := aiven_nais_io_v2.NewAivenApplicationBuilder(applicationName, namespace).
-				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: ""}).
 				Build()
 			secret := corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "", Namespace: namespace}}
 
@@ -180,7 +171,6 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 
 		It("rejects name with illegal characters", func() {
 			application := aiven_nais_io_v2.NewAivenApplicationBuilder(applicationName, namespace).
-				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: "my_super_(c@@LS_ecE43109*23"}).
 				Build()
 			secret := corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "my_super_(c@@LS_ecE43109*23", Namespace: namespace}}
 
@@ -191,7 +181,6 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 
 		It("rejects name with unicode digits", func() {
 			application := aiven_nais_io_v2.NewAivenApplicationBuilder(applicationName, namespace).
-				WithSpec(aiven_nais_io_v2.AivenApplicationSpec{SecretName: "my_super_❶➁➌"}).
 				Build()
 			secret := corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "my_super_❶➁➌", Namespace: namespace}}
 

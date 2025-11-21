@@ -48,7 +48,7 @@ const (
 func generateApplication() aiven_nais_io_v2.AivenApplication {
 	application := aiven_nais_io_v2.NewAivenApplicationBuilder(MyAppName, MyNamespace).
 		WithSpec(aiven_nais_io_v2.AivenApplicationSpec{
-			SecretName: CurrentlyRequestedSecret,
+			// SecretName: CurrentlyRequestedSecret,
 		}).
 		Build()
 	application.SetLabels(map[string]string{

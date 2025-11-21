@@ -116,21 +116,6 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// mark as deprecated if we see Spec.SecretName, maybe degraded? v0v.
 	// this would do well to be a version bump and a webhook but maybe that ship has sailed
-	if application.Spec.SecretName != "" {
-		deprecatedType := aiven_nais_io_v2.AivenApplicationConditionType("Deprecated")
-		cond := application.Status.GetConditionOfType(deprecatedType)
-		if cond == nil || cond.Status != corev1.ConditionTrue || cond.Reason != "DeprecatedField" {
-			application.Status.AddCondition(aiven_nais_io_v2.AivenApplicationCondition{
-				Type:    deprecatedType,
-				Status:  corev1.ConditionTrue,
-				Reason:  "DeprecatedField",
-				Message: "Spec.SecretName is deprecated; needs resync via naiserator",
-			})
-			if r.Recorder != nil {
-				r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "DeprecatedSpecSecretName", "Deprecated", "Spec.SecretName is deprecated; migrate to Spec.{kafka,valkey,openSearch}.secretName")
-			}
-		}
-	}
 
 	applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, application, logger)
 	if err != nil {
