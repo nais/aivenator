@@ -32,7 +32,7 @@ const (
 	credStoreSecret  = "my-secret"
 	invalidPool      = "not-my-testing-pool"
 	secretName       = "my-individual-secret"
-	serviceURI       = "http://example.com"
+	serviceURI       = "example.com"
 	serviceUserName  = "service-user-name"
 )
 
@@ -140,6 +140,7 @@ var _ = Describe("kafka handler", func() {
 			})
 		})
 		Context("that has kafka configured", func() {
+			var kafkaServiceAddresses service.ServiceAddresses
 			BeforeEach(func() {
 				applicationBuilder = applicationBuilder.WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Kafka: &aiven_nais_io_v1.KafkaSpec{
@@ -147,6 +148,11 @@ var _ = Describe("kafka handler", func() {
 						SecretName: secretName,
 					},
 				})
+
+				mock := service.MockServiceAddresses{}
+				mock.EXPECT().Kafka().Return(service.ServiceAddress{URI: serviceURI})
+				mock.EXPECT().SchemaRegistry().Return(service.ServiceAddress{})
+				kafkaServiceAddresses = &mock
 			})
 
 			It("should return an error if the pool is invalid", func() {
@@ -167,14 +173,7 @@ var _ = Describe("kafka handler", func() {
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
-					Return(&service.ServiceAddresses{
-						ServiceURI: serviceURI,
-						SchemaRegistry: service.ServiceAddress{
-							URI:  "",
-							Host: "",
-							Port: 0,
-						},
-					}, nil)
+					Return(kafkaServiceAddresses, nil)
 
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
 					Return(ca, nil)
@@ -201,14 +200,7 @@ var _ = Describe("kafka handler", func() {
 					Return(&aiven.ServiceUser{Username: serviceUserName}, nil)
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
-					Return(&service.ServiceAddresses{
-						ServiceURI: serviceURI,
-						SchemaRegistry: service.ServiceAddress{
-							URI:  "",
-							Host: "",
-							Port: 0,
-						},
-					}, nil)
+					Return(kafkaServiceAddresses, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
 					Return(ca, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
@@ -285,14 +277,7 @@ var _ = Describe("kafka handler", func() {
 					Build()
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
-					Return(&service.ServiceAddresses{
-						ServiceURI: serviceURI,
-						SchemaRegistry: service.ServiceAddress{
-							URI:  "",
-							Host: "",
-							Port: 0,
-						},
-					}, nil)
+					Return(kafkaServiceAddresses, nil)
 
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
 					Return("", aiven.Error{
@@ -318,14 +303,7 @@ var _ = Describe("kafka handler", func() {
 					Build()
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
-					Return(&service.ServiceAddresses{
-						ServiceURI: serviceURI,
-						SchemaRegistry: service.ServiceAddress{
-							URI:  "",
-							Host: "",
-							Port: 0,
-						},
-					}, nil)
+					Return(kafkaServiceAddresses, nil)
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
@@ -358,14 +336,7 @@ var _ = Describe("kafka handler", func() {
 					Build()
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
-					Return(&service.ServiceAddresses{
-						ServiceURI: serviceURI,
-						SchemaRegistry: service.ServiceAddress{
-							URI:  "",
-							Host: "",
-							Port: 0,
-						},
-					}, nil)
+					Return(kafkaServiceAddresses, nil)
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
@@ -420,14 +391,7 @@ var _ = Describe("kafka handler", func() {
 
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
-					Return(&service.ServiceAddresses{
-						ServiceURI: serviceURI,
-						SchemaRegistry: service.ServiceAddress{
-							URI:  "",
-							Host: "",
-							Port: 0,
-						},
-					}, nil)
+					Return(kafkaServiceAddresses, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(&certificate.CredStoreData{
 						Keystore:   []byte("my-keystore"),
@@ -503,14 +467,7 @@ var _ = Describe("kafka handler", func() {
 
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
-					Return(&service.ServiceAddresses{
-						ServiceURI: serviceURI,
-						SchemaRegistry: service.ServiceAddress{
-							URI:  "",
-							Host: "",
-							Port: 0,
-						},
-					}, nil)
+					Return(kafkaServiceAddresses, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{Status: 404})

@@ -54,9 +54,9 @@ var _ = Describe("opensearch handler", func() {
 	var cancel context.CancelFunc
 	var opensearchHandler OpenSearchHandler
 	var application aiven_nais_io_v1.AivenApplication
+	var opensearchServiceAddresses service.ServiceAddresses
 
 	BeforeEach(func() {
-
 		root := log.New()
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
@@ -76,6 +76,14 @@ var _ = Describe("opensearch handler", func() {
 			},
 			projectName: projectName,
 		}
+		mock := service.MockServiceAddresses{}
+		mock.EXPECT().OpenSearch().Return(service.ServiceAddress{
+			URI:  serviceURI,
+			Host: serviceHost,
+			Port: servicePort,
+		})
+		opensearchServiceAddresses = &mock
+
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	})
 	AfterEach(func() {
@@ -92,13 +100,7 @@ var _ = Describe("opensearch handler", func() {
 
 	mockAivenReturnOpensearchGetOk := func() {
 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
-			Return(&service.ServiceAddresses{
-				OpenSearch: service.ServiceAddress{
-					URI:  serviceURI,
-					Host: serviceHost,
-					Port: servicePort,
-				},
-			}, nil)
+			Return(opensearchServiceAddresses, nil)
 	}
 	mockAivenReturnOpensearchGetServiceUserOk := func() {
 		{

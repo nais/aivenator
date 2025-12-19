@@ -88,7 +88,8 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		if err != nil {
 			return nil, utils.AivenFail("GetService", application, err, true, logger)
 		}
-		if len(addresses.Valkey.URI) == 0 {
+		serviceAddress := addresses.Valkey()
+		if len(serviceAddress.URI) == 0 {
 			return nil, utils.AivenFail("GetService", application, fmt.Errorf("no Valkey service found"), true, logger)
 		}
 
@@ -110,14 +111,14 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		finalSecret.StringData = utils.MergeStringMap(finalSecret.StringData, map[string]string{
 			fmt.Sprintf("%s_%s", ValkeyUser, envVarSuffix):     aivenUser.Username,
 			fmt.Sprintf("%s_%s", ValkeyPassword, envVarSuffix): aivenUser.Password,
-			fmt.Sprintf("%s_%s", ValkeyURI, envVarSuffix):      addresses.Valkey.URI,
-			fmt.Sprintf("%s_%s", ValkeyHost, envVarSuffix):     addresses.Valkey.Host,
-			fmt.Sprintf("%s_%s", ValkeyPort, envVarSuffix):     strconv.Itoa(addresses.Valkey.Port),
-			fmt.Sprintf("%s_%s", RedisPort, envVarSuffix):      strconv.Itoa(addresses.Valkey.Port),
+			fmt.Sprintf("%s_%s", ValkeyURI, envVarSuffix):      serviceAddress.URI,
+			fmt.Sprintf("%s_%s", ValkeyHost, envVarSuffix):     serviceAddress.Host,
+			fmt.Sprintf("%s_%s", ValkeyPort, envVarSuffix):     strconv.Itoa(serviceAddress.Port),
+			fmt.Sprintf("%s_%s", RedisPort, envVarSuffix):      strconv.Itoa(serviceAddress.Port),
 			fmt.Sprintf("%s_%s", RedisUser, envVarSuffix):      aivenUser.Username,
 			fmt.Sprintf("%s_%s", RedisPassword, envVarSuffix):  aivenUser.Password,
-			fmt.Sprintf("%s_%s", RedisHost, envVarSuffix):      addresses.Valkey.Host,
-			fmt.Sprintf("%s_%s", RedisURI, envVarSuffix):       strings.Replace(addresses.Valkey.URI, "valkeys", "rediss", 1),
+			fmt.Sprintf("%s_%s", RedisHost, envVarSuffix):      serviceAddress.Host,
+			fmt.Sprintf("%s_%s", RedisURI, envVarSuffix):       strings.Replace(serviceAddress.URI, "valkeys", "rediss", 1),
 		})
 
 		controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)

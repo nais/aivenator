@@ -84,23 +84,23 @@ func (_c *MockServiceManager_Get_Call) RunAndReturn(run func(context.Context, st
 }
 
 // GetServiceAddresses provides a mock function with given fields: ctx, projectName, serviceName
-func (_m *MockServiceManager) GetServiceAddresses(ctx context.Context, projectName string, serviceName string) (*ServiceAddresses, error) {
+func (_m *MockServiceManager) GetServiceAddresses(ctx context.Context, projectName string, serviceName string) (ServiceAddresses, error) {
 	ret := _m.Called(ctx, projectName, serviceName)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetServiceAddresses")
 	}
 
-	var r0 *ServiceAddresses
+	var r0 ServiceAddresses
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*ServiceAddresses, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (ServiceAddresses, error)); ok {
 		return rf(ctx, projectName, serviceName)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) *ServiceAddresses); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ServiceAddresses); ok {
 		r0 = rf(ctx, projectName, serviceName)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ServiceAddresses)
+			r0 = ret.Get(0).(ServiceAddresses)
 		}
 	}
 
@@ -133,34 +133,34 @@ func (_c *MockServiceManager_GetServiceAddresses_Call) Run(run func(ctx context.
 	return _c
 }
 
-func (_c *MockServiceManager_GetServiceAddresses_Call) Return(_a0 *ServiceAddresses, _a1 error) *MockServiceManager_GetServiceAddresses_Call {
+func (_c *MockServiceManager_GetServiceAddresses_Call) Return(_a0 ServiceAddresses, _a1 error) *MockServiceManager_GetServiceAddresses_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockServiceManager_GetServiceAddresses_Call) RunAndReturn(run func(context.Context, string, string) (*ServiceAddresses, error)) *MockServiceManager_GetServiceAddresses_Call {
+func (_c *MockServiceManager_GetServiceAddresses_Call) RunAndReturn(run func(context.Context, string, string) (ServiceAddresses, error)) *MockServiceManager_GetServiceAddresses_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetServiceAddressesFromCache provides a mock function with given fields: ctx, projectName, serviceName
-func (_m *MockServiceManager) GetServiceAddressesFromCache(ctx context.Context, projectName string, serviceName string) (*ServiceAddresses, error) {
+func (_m *MockServiceManager) GetServiceAddressesFromCache(ctx context.Context, projectName string, serviceName string) (ServiceAddresses, error) {
 	ret := _m.Called(ctx, projectName, serviceName)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetServiceAddressesFromCache")
 	}
 
-	var r0 *ServiceAddresses
+	var r0 ServiceAddresses
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*ServiceAddresses, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (ServiceAddresses, error)); ok {
 		return rf(ctx, projectName, serviceName)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) *ServiceAddresses); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ServiceAddresses); ok {
 		r0 = rf(ctx, projectName, serviceName)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ServiceAddresses)
+			r0 = ret.Get(0).(ServiceAddresses)
 		}
 	}
 
@@ -193,12 +193,12 @@ func (_c *MockServiceManager_GetServiceAddressesFromCache_Call) Run(run func(ctx
 	return _c
 }
 
-func (_c *MockServiceManager_GetServiceAddressesFromCache_Call) Return(_a0 *ServiceAddresses, _a1 error) *MockServiceManager_GetServiceAddressesFromCache_Call {
+func (_c *MockServiceManager_GetServiceAddressesFromCache_Call) Return(_a0 ServiceAddresses, _a1 error) *MockServiceManager_GetServiceAddressesFromCache_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockServiceManager_GetServiceAddressesFromCache_Call) RunAndReturn(run func(context.Context, string, string) (*ServiceAddresses, error)) *MockServiceManager_GetServiceAddressesFromCache_Call {
+func (_c *MockServiceManager_GetServiceAddressesFromCache_Call) RunAndReturn(run func(context.Context, string, string) (ServiceAddresses, error)) *MockServiceManager_GetServiceAddressesFromCache_Call {
 	_c.Call.Return(run)
 	return _c
 }

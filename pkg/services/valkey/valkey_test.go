@@ -141,14 +141,15 @@ var _ = Describe("valkey.SecretConfig", func() {
 	}
 
 	defaultServiceManagerMock := func(data testData) {
+		m := service.MockServiceAddresses{}
+		m.EXPECT().Valkey().Return(service.ServiceAddress{
+			URI:  data.serviceURI,
+			Host: data.serviceHost,
+			Port: data.servicePort,
+		})
+
 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
-			Return(&service.ServiceAddresses{
-				Valkey: service.ServiceAddress{
-					URI:  data.serviceURI,
-					Host: data.serviceHost,
-					Port: data.servicePort,
-				},
-			}, nil)
+			Return(&m, nil)
 	}
 
 	defaultAccessControl := func(data testData) *aiven.AccessControl {

@@ -13,13 +13,13 @@ const serviceAddressCacheTTL = 5 * time.Minute
 
 type ServiceManager interface {
 	Get(ctx context.Context, projectName, serviceName string) (*aiven.Service, error)
-	GetServiceAddressesFromCache(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error)
-	GetServiceAddresses(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error)
+	GetServiceAddressesFromCache(ctx context.Context, projectName, serviceName string) (ServiceAddresses, error)
+	GetServiceAddresses(ctx context.Context, projectName, serviceName string) (ServiceAddresses, error)
 }
 
 type Manager struct {
 	service      *aiven.ServicesHandler
-	addressCache map[cacheKey]*ServiceAddresses
+	addressCache map[cacheKey]*serviceAddresses
 }
 
 type cacheKey struct {
@@ -33,22 +33,45 @@ type ServiceAddress struct {
 	Port int
 }
 
-type ServiceAddresses struct {
-	ServiceURI     string
-	SchemaRegistry ServiceAddress
-	OpenSearch     ServiceAddress
-	Valkey         ServiceAddress
+type ServiceAddresses interface {
+	Kafka() ServiceAddress
+	SchemaRegistry() ServiceAddress
+	OpenSearch() ServiceAddress
+	Valkey() ServiceAddress
+}
+
+type serviceAddresses struct {
+	kafka          ServiceAddress
+	schemaRegistry ServiceAddress
+	openSearch     ServiceAddress
+	valkey         ServiceAddress
 	expires        time.Time
+}
+
+func (s *serviceAddresses) Kafka() ServiceAddress {
+	return s.kafka
+}
+
+func (s *serviceAddresses) SchemaRegistry() ServiceAddress {
+	return s.schemaRegistry
+}
+
+func (s *serviceAddresses) OpenSearch() ServiceAddress {
+	return s.openSearch
+}
+
+func (s *serviceAddresses) Valkey() ServiceAddress {
+	return s.valkey
 }
 
 func NewManager(service *aiven.ServicesHandler) ServiceManager {
 	return &Manager{
 		service:      service,
-		addressCache: map[cacheKey]*ServiceAddresses{},
+		addressCache: map[cacheKey]*serviceAddresses{},
 	}
 }
 
-func (r *Manager) GetServiceAddresses(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error) {
+func (r *Manager) GetServiceAddresses(ctx context.Context, projectName, serviceName string) (ServiceAddresses, error) {
 	_, err := r.Get(ctx, projectName, serviceName)
 	if err != nil {
 		return nil, err
@@ -56,7 +79,7 @@ func (r *Manager) GetServiceAddresses(ctx context.Context, projectName, serviceN
 	return r.getServiceAddressesFromCache(projectName, serviceName)
 }
 
-func (r *Manager) GetServiceAddressesFromCache(ctx context.Context, projectName, serviceName string) (*ServiceAddresses, error) {
+func (r *Manager) GetServiceAddressesFromCache(ctx context.Context, projectName, serviceName string) (ServiceAddresses, error) {
 	addresses, err := r.getServiceAddressesFromCache(projectName, serviceName)
 	if err != nil {
 		return r.GetServiceAddresses(ctx, projectName, serviceName)
@@ -64,7 +87,7 @@ func (r *Manager) GetServiceAddressesFromCache(ctx context.Context, projectName,
 	return addresses, nil
 }
 
-func (r *Manager) getServiceAddressesFromCache(projectName, serviceName string) (*ServiceAddresses, error) {
+func (r *Manager) getServiceAddressesFromCache(projectName, serviceName string) (*serviceAddresses, error) {
 	key := cacheKey{
 		projectName: projectName,
 		serviceName: serviceName,
@@ -93,26 +116,26 @@ func (r *Manager) Get(ctx context.Context, projectName, serviceName string) (*ai
 		projectName: projectName,
 		serviceName: serviceName,
 	}
-	addresses := &ServiceAddresses{
-		ServiceURI:     getServiceURI(service),
-		SchemaRegistry: getServiceAddress(service, "schema_registry", "https"),
-		OpenSearch:     getServiceAddress(service, "opensearch", "https"),
-		Valkey:         getServiceAddress(service, "valkey", "valkeys"),
+	addresses := &serviceAddresses{
+		kafka:          getServiceAddress(service, "kafka", ""),
+		schemaRegistry: getServiceAddress(service, "schema_registry", "https"),
+		openSearch:     getServiceAddress(service, "opensearch", "https"),
+		valkey:         getServiceAddress(service, "valkey", "valkeys"),
 		expires:        time.Now().Add(serviceAddressCacheTTL),
 	}
 	r.addressCache[key] = addresses
 	return service, err
 }
 
-func getServiceURI(service *aiven.Service) string {
-	return service.URI
-}
-
 func getServiceAddress(service *aiven.Service, componentName, scheme string) ServiceAddress {
 	component := findComponent(componentName, service.Components)
 	if component != nil {
+		uri := fmt.Sprintf("%s://%s:%d", scheme, component.Host, component.Port)
+		if scheme == "" {
+			uri = fmt.Sprintf("%s:%d", component.Host, component.Port)
+		}
 		return ServiceAddress{
-			URI:  fmt.Sprintf("%s://%s:%d", scheme, component.Host, component.Port),
+			URI:  uri,
 			Host: component.Host,
 			Port: component.Port,
 		}

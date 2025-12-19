@@ -71,7 +71,8 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	if err != nil {
 		return nil, utils.AivenFail("GetService", application, err, false, logger)
 	}
-	if len(addresses.OpenSearch.URI) == 0 {
+	serviceAddress := addresses.OpenSearch()
+	if len(serviceAddress.URI) == 0 {
 		return nil, utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
 	}
 
@@ -101,9 +102,9 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	individualSecret.StringData = utils.MergeStringMap(individualSecret.StringData, map[string]string{
 		OpenSearchUser:     aivenUser.Username,
 		OpenSearchPassword: aivenUser.Password,
-		OpenSearchURI:      addresses.OpenSearch.URI,
-		OpenSearchHost:     addresses.OpenSearch.Host,
-		OpenSearchPort:     strconv.Itoa(addresses.OpenSearch.Port),
+		OpenSearchURI:      serviceAddress.URI,
+		OpenSearchHost:     serviceAddress.Host,
+		OpenSearchPort:     strconv.Itoa(serviceAddress.Port),
 	})
 
 	controllerutil.AddFinalizer(individualSecret, constants.AivenatorFinalizer)
