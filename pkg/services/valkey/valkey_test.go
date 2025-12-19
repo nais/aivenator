@@ -2,6 +2,7 @@ package valkey
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -31,10 +32,13 @@ const (
 type testData struct {
 	instanceName             string
 	serviceName              string
-	serviceURI               string
 	redisServiceURI          string
+	serviceURI               string
 	serviceHost              string
 	servicePort              int
+	replicaServiceURI        string
+	replicaServiceHost       string
+	replicaServicePort       int
 	access                   string
 	username                 string
 	serviceNameAnnotationKey string
@@ -44,6 +48,9 @@ type testData struct {
 	uriKey                   string
 	hostKey                  string
 	portKey                  string
+	replicaUriKey            string
+	replicaHostKey           string
+	replicaPortKey           string
 	redisUsernameKey         string
 	redisPasswordKey         string
 	redisUriKey              string
@@ -99,6 +106,35 @@ var testInstances = []testData{
 		redisUsernameKey:         "REDIS_USERNAME_SESSION_STORE",
 		secretName:               "secret-1",
 	},
+	{
+		instanceName:             "with-replica",
+		serviceName:              "valkey-team-a-with-replica",
+		redisServiceURI:          "rediss://with-replica.example.com:23456",
+		serviceURI:               "valkeys://with-replica.example.com:23456",
+		serviceHost:              "with-replica.example.com",
+		servicePort:              23456,
+		replicaServiceURI:        "valkeys://replica-with-replica.example.com:23456",
+		replicaServiceHost:       "replica-with-replica.example.com",
+		replicaServicePort:       23456,
+		access:                   "readwrite",
+		username:                 "test-app-rw-3D_",
+		serviceUserAnnotationKey: "with-replica.valkey.aiven.nais.io/serviceUser",
+		serviceNameAnnotationKey: "with-replica.valkey.aiven.nais.io/serviceName",
+		usernameKey:              "VALKEY_USERNAME_WITH_REPLICA",
+		passwordKey:              "VALKEY_PASSWORD_WITH_REPLICA",
+		uriKey:                   "VALKEY_URI_WITH_REPLICA",
+		hostKey:                  "VALKEY_HOST_WITH_REPLICA",
+		portKey:                  "VALKEY_PORT_WITH_REPLICA",
+		replicaUriKey:            "VALKEY_REPLICA_URI_WITH_REPLICA",
+		replicaHostKey:           "VALKEY_REPLICA_HOST_WITH_REPLICA",
+		replicaPortKey:           "VALKEY_REPLICA_PORT_WITH_REPLICA",
+		redisUriKey:              "REDIS_URI_WITH_REPLICA",
+		redisPortKey:             "REDIS_PORT_WITH_REPLICA",
+		redisHostKey:             "REDIS_HOST_WITH_REPLICA",
+		redisPasswordKey:         "REDIS_PASSWORD_WITH_REPLICA",
+		redisUsernameKey:         "REDIS_USERNAME_WITH_REPLICA",
+		secretName:               "secret-1",
+	},
 }
 
 type mockContainer struct {
@@ -147,6 +183,15 @@ var _ = Describe("valkey.SecretConfig", func() {
 			Host: data.serviceHost,
 			Port: data.servicePort,
 		})
+		if data.replicaServicePort != 0 {
+			m.EXPECT().ValkeyReplica().Return(service.ServiceAddress{
+				URI:  data.replicaServiceURI,
+				Host: data.replicaServiceHost,
+				Port: data.replicaServicePort,
+			})
+		} else {
+			m.EXPECT().ValkeyReplica().Return(service.ServiceAddress{})
+		}
 
 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
 			Return(&m, nil)
@@ -336,6 +381,10 @@ var _ = Describe("valkey.SecretConfig", func() {
 							Instance:   "session-store",
 							Access:     "readwrite",
 							SecretName: "second-secret",
+						}, {
+							Instance:   "with-replica",
+							Access:     "readwrite",
+							SecretName: "replica-secret",
 						},
 					},
 				}).
@@ -362,7 +411,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 				for i, data := range testInstances {
 					assertHappy(&individualSecrets[i], data, err)
 				}
-				Expect(len(individualSecrets)).To(Equal(2))
+				Expect(len(individualSecrets)).To(Equal(3))
 			})
 		})
 	})
@@ -432,9 +481,44 @@ var _ = Describe("valkey.SecretConfig", func() {
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
+				makeKey := func(prefix, instanceName string) string {
+					envVarSuffix := envVarName(instanceName)
+					return fmt.Sprintf("%s_%s", prefix, envVarSuffix)
+				}
 				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				Expect(err).To(Succeed())
 				Expect(individualSecrets).To(Not(BeNil()))
+				Expect(utils.KeysFromStringMap(individualSecrets[0].StringData)).To(ConsistOf(
+					makeKey(ValkeyUser, testInstances[0].instanceName),
+					makeKey(ValkeyPassword, testInstances[0].instanceName),
+					makeKey(ValkeyURI, testInstances[0].instanceName),
+					makeKey(ValkeyHost, testInstances[0].instanceName),
+					makeKey(ValkeyPort, testInstances[0].instanceName),
+					makeKey(RedisUser, testInstances[0].instanceName),
+					makeKey(RedisPassword, testInstances[0].instanceName),
+					makeKey(RedisURI, testInstances[0].instanceName),
+					makeKey(RedisHost, testInstances[0].instanceName),
+					makeKey(RedisPort, testInstances[0].instanceName),
+					utils.AivenCAKey,
+					utils.AivenSecretUpdatedKey,
+				))
+				Expect(utils.KeysFromStringMap(individualSecrets[2].StringData)).To(ConsistOf(
+					makeKey(ValkeyUser, testInstances[2].instanceName),
+					makeKey(ValkeyPassword, testInstances[2].instanceName),
+					makeKey(ValkeyURI, testInstances[2].instanceName),
+					makeKey(ValkeyHost, testInstances[2].instanceName),
+					makeKey(ValkeyPort, testInstances[2].instanceName),
+					makeKey(ValkeyReplicaURI, testInstances[2].instanceName),
+					makeKey(ValkeyReplicaHost, testInstances[2].instanceName),
+					makeKey(ValkeyReplicaPort, testInstances[2].instanceName),
+					makeKey(RedisUser, testInstances[2].instanceName),
+					makeKey(RedisPassword, testInstances[2].instanceName),
+					makeKey(RedisURI, testInstances[2].instanceName),
+					makeKey(RedisHost, testInstances[2].instanceName),
+					makeKey(RedisPort, testInstances[2].instanceName),
+					utils.AivenCAKey,
+					utils.AivenSecretUpdatedKey,
+				))
 			})
 		})
 	})

@@ -107,6 +107,51 @@ func (_c *MockServiceAddresses_OpenSearch_Call) RunAndReturn(run func() ServiceA
 	return _c
 }
 
+// OpenSearchDashboard provides a mock function with no fields
+func (_m *MockServiceAddresses) OpenSearchDashboard() ServiceAddress {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for OpenSearchDashboard")
+	}
+
+	var r0 ServiceAddress
+	if rf, ok := ret.Get(0).(func() ServiceAddress); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(ServiceAddress)
+	}
+
+	return r0
+}
+
+// MockServiceAddresses_OpenSearchDashboard_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OpenSearchDashboard'
+type MockServiceAddresses_OpenSearchDashboard_Call struct {
+	*mock.Call
+}
+
+// OpenSearchDashboard is a helper method to define mock.On call
+func (_e *MockServiceAddresses_Expecter) OpenSearchDashboard() *MockServiceAddresses_OpenSearchDashboard_Call {
+	return &MockServiceAddresses_OpenSearchDashboard_Call{Call: _e.mock.On("OpenSearchDashboard")}
+}
+
+func (_c *MockServiceAddresses_OpenSearchDashboard_Call) Run(run func()) *MockServiceAddresses_OpenSearchDashboard_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockServiceAddresses_OpenSearchDashboard_Call) Return(_a0 ServiceAddress) *MockServiceAddresses_OpenSearchDashboard_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockServiceAddresses_OpenSearchDashboard_Call) RunAndReturn(run func() ServiceAddress) *MockServiceAddresses_OpenSearchDashboard_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SchemaRegistry provides a mock function with no fields
 func (_m *MockServiceAddresses) SchemaRegistry() ServiceAddress {
 	ret := _m.Called()
@@ -193,6 +238,51 @@ func (_c *MockServiceAddresses_Valkey_Call) Return(_a0 ServiceAddress) *MockServ
 }
 
 func (_c *MockServiceAddresses_Valkey_Call) RunAndReturn(run func() ServiceAddress) *MockServiceAddresses_Valkey_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ValkeyReplica provides a mock function with no fields
+func (_m *MockServiceAddresses) ValkeyReplica() ServiceAddress {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for ValkeyReplica")
+	}
+
+	var r0 ServiceAddress
+	if rf, ok := ret.Get(0).(func() ServiceAddress); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(ServiceAddress)
+	}
+
+	return r0
+}
+
+// MockServiceAddresses_ValkeyReplica_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ValkeyReplica'
+type MockServiceAddresses_ValkeyReplica_Call struct {
+	*mock.Call
+}
+
+// ValkeyReplica is a helper method to define mock.On call
+func (_e *MockServiceAddresses_Expecter) ValkeyReplica() *MockServiceAddresses_ValkeyReplica_Call {
+	return &MockServiceAddresses_ValkeyReplica_Call{Call: _e.mock.On("ValkeyReplica")}
+}
+
+func (_c *MockServiceAddresses_ValkeyReplica_Call) Run(run func()) *MockServiceAddresses_ValkeyReplica_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockServiceAddresses_ValkeyReplica_Call) Return(_a0 ServiceAddress) *MockServiceAddresses_ValkeyReplica_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockServiceAddresses_ValkeyReplica_Call) RunAndReturn(run func() ServiceAddress) *MockServiceAddresses_ValkeyReplica_Call {
 	_c.Call.Return(run)
 	return _c
 }

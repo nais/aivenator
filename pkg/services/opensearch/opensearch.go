@@ -28,11 +28,14 @@ const (
 
 // Environment variables
 const (
-	OpenSearchUser     = "OPEN_SEARCH_USERNAME"
-	OpenSearchPassword = "OPEN_SEARCH_PASSWORD"
-	OpenSearchURI      = "OPEN_SEARCH_URI"
-	OpenSearchHost     = "OPEN_SEARCH_HOST"
-	OpenSearchPort     = "OPEN_SEARCH_PORT"
+	OpenSearchUser          = "OPEN_SEARCH_USERNAME"
+	OpenSearchPassword      = "OPEN_SEARCH_PASSWORD"
+	OpenSearchURI           = "OPEN_SEARCH_URI"
+	OpenSearchHost          = "OPEN_SEARCH_HOST"
+	OpenSearchPort          = "OPEN_SEARCH_PORT"
+	OpenSearchDashboardURI  = "OPEN_SEARCH_DASHBOARD_URI"
+	OpenSearchDashboardHost = "OPEN_SEARCH_DASHBOARD_HOST"
+	OpenSearchDashboardPort = "OPEN_SEARCH_DASHBOARD_PORT"
 )
 
 func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string) OpenSearchHandler {
@@ -99,12 +102,17 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		ProjectAnnotation:     h.projectName,
 	}))
 
+	dashboardServiceAddress := addresses.OpenSearchDashboard()
+
 	individualSecret.StringData = utils.MergeStringMap(individualSecret.StringData, map[string]string{
-		OpenSearchUser:     aivenUser.Username,
-		OpenSearchPassword: aivenUser.Password,
-		OpenSearchURI:      serviceAddress.URI,
-		OpenSearchHost:     serviceAddress.Host,
-		OpenSearchPort:     strconv.Itoa(serviceAddress.Port),
+		OpenSearchUser:          aivenUser.Username,
+		OpenSearchPassword:      aivenUser.Password,
+		OpenSearchURI:           serviceAddress.URI,
+		OpenSearchHost:          serviceAddress.Host,
+		OpenSearchPort:          strconv.Itoa(serviceAddress.Port),
+		OpenSearchDashboardURI:  dashboardServiceAddress.URI,
+		OpenSearchDashboardHost: dashboardServiceAddress.Host,
+		OpenSearchDashboardPort: strconv.Itoa(dashboardServiceAddress.Port),
 	})
 
 	controllerutil.AddFinalizer(individualSecret, constants.AivenatorFinalizer)

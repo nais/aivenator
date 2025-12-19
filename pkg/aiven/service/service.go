@@ -37,15 +37,19 @@ type ServiceAddresses interface {
 	Kafka() ServiceAddress
 	SchemaRegistry() ServiceAddress
 	OpenSearch() ServiceAddress
+	OpenSearchDashboard() ServiceAddress
 	Valkey() ServiceAddress
+	ValkeyReplica() ServiceAddress
 }
 
 type serviceAddresses struct {
-	kafka          ServiceAddress
-	schemaRegistry ServiceAddress
-	openSearch     ServiceAddress
-	valkey         ServiceAddress
-	expires        time.Time
+	kafka               ServiceAddress
+	schemaRegistry      ServiceAddress
+	openSearch          ServiceAddress
+	openSearchDashboard ServiceAddress
+	valkey              ServiceAddress
+	valkeyReplica       ServiceAddress
+	expires             time.Time
 }
 
 func (s *serviceAddresses) Kafka() ServiceAddress {
@@ -60,8 +64,16 @@ func (s *serviceAddresses) OpenSearch() ServiceAddress {
 	return s.openSearch
 }
 
+func (s *serviceAddresses) OpenSearchDashboard() ServiceAddress {
+	return s.openSearchDashboard
+}
+
 func (s *serviceAddresses) Valkey() ServiceAddress {
 	return s.valkey
+}
+
+func (s *serviceAddresses) ValkeyReplica() ServiceAddress {
+	return s.valkeyReplica
 }
 
 func NewManager(service *aiven.ServicesHandler) ServiceManager {
@@ -117,18 +129,24 @@ func (r *Manager) Get(ctx context.Context, projectName, serviceName string) (*ai
 		serviceName: serviceName,
 	}
 	addresses := &serviceAddresses{
-		kafka:          getServiceAddress(service, "kafka", ""),
-		schemaRegistry: getServiceAddress(service, "schema_registry", "https"),
-		openSearch:     getServiceAddress(service, "opensearch", "https"),
-		valkey:         getServiceAddress(service, "valkey", "valkeys"),
-		expires:        time.Now().Add(serviceAddressCacheTTL),
+		kafka:               getPrimaryServiceAddress(service, "kafka", ""),
+		schemaRegistry:      getPrimaryServiceAddress(service, "schema_registry", "https"),
+		openSearch:          getPrimaryServiceAddress(service, "opensearch", "https"),
+		openSearchDashboard: getPrimaryServiceAddress(service, "opensearch_dashboards", "https"),
+		valkey:              getPrimaryServiceAddress(service, "valkey", "valkeys"),
+		valkeyReplica:       getServiceAddress(service, "valkey", "valkeys", "replica"),
+		expires:             time.Now().Add(serviceAddressCacheTTL),
 	}
 	r.addressCache[key] = addresses
 	return service, err
 }
 
-func getServiceAddress(service *aiven.Service, componentName, scheme string) ServiceAddress {
-	component := findComponent(componentName, service.Components)
+func getPrimaryServiceAddress(service *aiven.Service, componentName, scheme string) ServiceAddress {
+	return getServiceAddress(service, componentName, scheme, "primary")
+}
+
+func getServiceAddress(service *aiven.Service, componentName string, scheme string, usage string) ServiceAddress {
+	component := findComponent(componentName, usage, service.Components)
 	if component != nil {
 		uri := fmt.Sprintf("%s://%s:%d", scheme, component.Host, component.Port)
 		if scheme == "" {
@@ -143,9 +161,9 @@ func getServiceAddress(service *aiven.Service, componentName, scheme string) Ser
 	return ServiceAddress{}
 }
 
-func findComponent(needle string, haystack []*aiven.ServiceComponents) *aiven.ServiceComponents {
+func findComponent(needle, usage string, haystack []*aiven.ServiceComponents) *aiven.ServiceComponents {
 	for _, c := range haystack {
-		if c.Component == needle {
+		if c.Component == needle && c.Usage == usage {
 			return c
 		}
 	}

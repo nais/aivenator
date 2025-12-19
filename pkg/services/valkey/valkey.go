@@ -28,16 +28,19 @@ const (
 
 // Environment variables
 const (
-	ValkeyUser     = "VALKEY_USERNAME"
-	ValkeyPassword = "VALKEY_PASSWORD"
-	ValkeyURI      = "VALKEY_URI"
-	ValkeyHost     = "VALKEY_HOST"
-	ValkeyPort     = "VALKEY_PORT"
-	RedisUser      = "REDIS_USERNAME"
-	RedisPassword  = "REDIS_PASSWORD"
-	RedisURI       = "REDIS_URI"
-	RedisHost      = "REDIS_HOST"
-	RedisPort      = "REDIS_PORT"
+	ValkeyUser        = "VALKEY_USERNAME"
+	ValkeyPassword    = "VALKEY_PASSWORD"
+	ValkeyURI         = "VALKEY_URI"
+	ValkeyHost        = "VALKEY_HOST"
+	ValkeyPort        = "VALKEY_PORT"
+	ValkeyReplicaURI  = "VALKEY_REPLICA_URI"
+	ValkeyReplicaHost = "VALKEY_REPLICA_HOST"
+	ValkeyReplicaPort = "VALKEY_REPLICA_PORT"
+	RedisUser         = "REDIS_USERNAME"
+	RedisPassword     = "REDIS_PASSWORD"
+	RedisURI          = "REDIS_URI"
+	RedisHost         = "REDIS_HOST"
+	RedisPort         = "REDIS_PORT"
 )
 
 var namePattern = regexp.MustCompile("[^a-z0-9]")
@@ -114,12 +117,21 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 			fmt.Sprintf("%s_%s", ValkeyURI, envVarSuffix):      serviceAddress.URI,
 			fmt.Sprintf("%s_%s", ValkeyHost, envVarSuffix):     serviceAddress.Host,
 			fmt.Sprintf("%s_%s", ValkeyPort, envVarSuffix):     strconv.Itoa(serviceAddress.Port),
-			fmt.Sprintf("%s_%s", RedisPort, envVarSuffix):      strconv.Itoa(serviceAddress.Port),
 			fmt.Sprintf("%s_%s", RedisUser, envVarSuffix):      aivenUser.Username,
 			fmt.Sprintf("%s_%s", RedisPassword, envVarSuffix):  aivenUser.Password,
-			fmt.Sprintf("%s_%s", RedisHost, envVarSuffix):      serviceAddress.Host,
 			fmt.Sprintf("%s_%s", RedisURI, envVarSuffix):       strings.Replace(serviceAddress.URI, "valkeys", "rediss", 1),
+			fmt.Sprintf("%s_%s", RedisHost, envVarSuffix):      serviceAddress.Host,
+			fmt.Sprintf("%s_%s", RedisPort, envVarSuffix):      strconv.Itoa(serviceAddress.Port),
 		})
+
+		replicaServiceAddress := addresses.ValkeyReplica()
+		if replicaServiceAddress.Port != 0 {
+			finalSecret.StringData = utils.MergeStringMap(finalSecret.StringData, map[string]string{
+				fmt.Sprintf("%s_%s", ValkeyReplicaURI, envVarSuffix):  replicaServiceAddress.URI,
+				fmt.Sprintf("%s_%s", ValkeyReplicaHost, envVarSuffix): replicaServiceAddress.Host,
+				fmt.Sprintf("%s_%s", ValkeyReplicaPort, envVarSuffix): strconv.Itoa(replicaServiceAddress.Port),
+			})
+		}
 
 		controllerutil.AddFinalizer(finalSecret, constants.AivenatorFinalizer)
 

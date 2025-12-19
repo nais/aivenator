@@ -82,6 +82,11 @@ var _ = Describe("opensearch handler", func() {
 			Host: serviceHost,
 			Port: servicePort,
 		})
+		mock.EXPECT().OpenSearchDashboard().Return(service.ServiceAddress{
+			URI:  serviceURI,
+			Host: serviceHost,
+			Port: servicePort,
+		})
 		opensearchServiceAddresses = &mock
 
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -334,7 +339,16 @@ var _ = Describe("opensearch handler", func() {
 				Expect(individualSecrets).To(HaveLen(1))
 				Expect(individualSecrets[0]).To(Equal(expected))
 				Expect(utils.KeysFromStringMap(individualSecrets[0].StringData)).To(ConsistOf(
-					OpenSearchUser, OpenSearchPassword, OpenSearchURI, OpenSearchHost, OpenSearchPort, utils.AivenCAKey, utils.AivenSecretUpdatedKey,
+					OpenSearchUser,
+					OpenSearchPassword,
+					OpenSearchURI,
+					OpenSearchHost,
+					OpenSearchPort,
+					OpenSearchDashboardURI,
+					OpenSearchDashboardHost,
+					OpenSearchDashboardPort,
+					utils.AivenCAKey,
+					utils.AivenSecretUpdatedKey,
 				))
 			})
 		})
