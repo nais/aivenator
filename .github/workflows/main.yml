@@ -22,7 +22,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # ratchet:actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # ratchet:actions/checkout@v4
       - name: Install cosign
         uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # ratchet:sigstore/cosign-installer@v3.10.0
         with:
@@ -51,7 +51,7 @@ jobs:
     needs:
       - build
     steps:
-      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # ratchet:actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # ratchet:actions/checkout@v4
       - id: 'auth'
         name: 'Authenticate to Google Cloud'
         if: github.ref == 'refs/heads/main'
