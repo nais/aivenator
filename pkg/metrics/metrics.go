@@ -74,6 +74,12 @@ var (
 		Help:      "number of service users created",
 	}, []string{LabelPool})
 
+	ServiceUsersUpdated = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      "service_users_updated",
+		Namespace: Namespace,
+		Help:      "number of service users updated",
+	}, []string{LabelPool})
+
 	ServiceUsersDeleted = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:      "service_users_deleted",
 		Namespace: Namespace,

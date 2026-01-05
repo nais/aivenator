@@ -283,6 +283,69 @@ func (_c *MockServiceUserManager_ObserveServiceUsersCount_Call) RunAndReturn(run
 	return _c
 }
 
+// Update provides a mock function with given fields: ctx, serviceUserName, projectName, serviceName, accessControl, logger
+func (_m *MockServiceUserManager) Update(ctx context.Context, serviceUserName string, projectName string, serviceName string, accessControl *aiven.AccessControl, logger logrus.FieldLogger) (*aiven.ServiceUser, error) {
+	ret := _m.Called(ctx, serviceUserName, projectName, serviceName, accessControl, logger)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Update")
+	}
+
+	var r0 *aiven.ServiceUser
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *aiven.AccessControl, logrus.FieldLogger) (*aiven.ServiceUser, error)); ok {
+		return rf(ctx, serviceUserName, projectName, serviceName, accessControl, logger)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *aiven.AccessControl, logrus.FieldLogger) *aiven.ServiceUser); ok {
+		r0 = rf(ctx, serviceUserName, projectName, serviceName, accessControl, logger)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*aiven.ServiceUser)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, *aiven.AccessControl, logrus.FieldLogger) error); ok {
+		r1 = rf(ctx, serviceUserName, projectName, serviceName, accessControl, logger)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockServiceUserManager_Update_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Update'
+type MockServiceUserManager_Update_Call struct {
+	*mock.Call
+}
+
+// Update is a helper method to define mock.On call
+//   - ctx context.Context
+//   - serviceUserName string
+//   - projectName string
+//   - serviceName string
+//   - accessControl *aiven.AccessControl
+//   - logger logrus.FieldLogger
+func (_e *MockServiceUserManager_Expecter) Update(ctx interface{}, serviceUserName interface{}, projectName interface{}, serviceName interface{}, accessControl interface{}, logger interface{}) *MockServiceUserManager_Update_Call {
+	return &MockServiceUserManager_Update_Call{Call: _e.mock.On("Update", ctx, serviceUserName, projectName, serviceName, accessControl, logger)}
+}
+
+func (_c *MockServiceUserManager_Update_Call) Run(run func(ctx context.Context, serviceUserName string, projectName string, serviceName string, accessControl *aiven.AccessControl, logger logrus.FieldLogger)) *MockServiceUserManager_Update_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(*aiven.AccessControl), args[5].(logrus.FieldLogger))
+	})
+	return _c
+}
+
+func (_c *MockServiceUserManager_Update_Call) Return(_a0 *aiven.ServiceUser, _a1 error) *MockServiceUserManager_Update_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockServiceUserManager_Update_Call) RunAndReturn(run func(context.Context, string, string, string, *aiven.AccessControl, logrus.FieldLogger) (*aiven.ServiceUser, error)) *MockServiceUserManager_Update_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockServiceUserManager creates a new instance of MockServiceUserManager. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockServiceUserManager(t interface {

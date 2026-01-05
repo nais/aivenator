@@ -137,6 +137,12 @@ var testInstances = []testData{
 	},
 }
 
+var incompleteAccessControl = aiven.AccessControl{
+	ValkeyACLCategories: []string{"-@all", "+@connection", "+@scripting", "+@pubsub", "+@transaction"},
+	ValkeyACLKeys:       []string{"*"},
+	ValkeyACLChannels:   []string{"*"},
+}
+
 type mockContainer struct {
 	serviceUserManager *serviceuser.MockServiceUserManager
 	serviceManager     *service.MockServiceManager
@@ -200,6 +206,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 	defaultAccessControl := func(data testData) *aiven.AccessControl {
 		return &aiven.AccessControl{
 			ValkeyACLCategories: getValkeyACLCategories(data.access),
+			ValkeyACLCommands:   []string{"+info"},
 			ValkeyACLKeys:       []string{"*"},
 			ValkeyACLChannels:   []string{"*"},
 		}
@@ -324,22 +331,52 @@ var _ = Describe("valkey.SecretConfig", func() {
 		})
 
 		Context("and the service user already exists", func() {
-			BeforeEach(func() {
-				defaultServiceManagerMock(data)
-				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
-					Return(&aiven.ServiceUser{
-						Username: data.username,
-						Password: servicePassword,
-					}, nil)
-				mocks.projectManager.On("GetCA", mock.Anything, projectName).
-					Return("my-ca", nil)
+			Context("but with incomplete ACLs", func() {
+				BeforeEach(func() {
+					defaultServiceManagerMock(data)
+					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
+						Return(&aiven.ServiceUser{
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: incompleteAccessControl,
+						}, nil)
+					mocks.serviceUserManager.On("Update", mock.Anything, data.username, projectName, data.serviceName, defaultAccessControl(data), mock.Anything).
+						Return(&aiven.ServiceUser{
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: *defaultAccessControl(data),
+						}, nil)
+					mocks.projectManager.On("GetCA", mock.Anything, projectName).
+						Return("my-ca", nil)
 
+				})
+
+				It("updates the existing user", func() {
+					individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+					Expect(individualSecrets).To(Not(BeNil()))
+					Expect(err).To(Succeed())
+				})
 			})
 
-			It("uses the existing user", func() {
-				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
-				Expect(individualSecrets).To(Not(BeNil()))
-				Expect(err).To(Succeed())
+			Context("with complete ACLs", func() {
+				BeforeEach(func() {
+					defaultServiceManagerMock(data)
+					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
+						Return(&aiven.ServiceUser{
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: *defaultAccessControl(data),
+						}, nil)
+					mocks.projectManager.On("GetCA", mock.Anything, projectName).
+						Return("my-ca", nil)
+
+				})
+
+				It("uses the existing user", func() {
+					individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+					Expect(individualSecrets).To(Not(BeNil()))
+					Expect(err).To(Succeed())
+				})
 			})
 		})
 
@@ -353,8 +390,9 @@ var _ = Describe("valkey.SecretConfig", func() {
 					})
 				mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, defaultAccessControl(data), mock.Anything).
 					Return(&aiven.ServiceUser{
-						Username: data.username,
-						Password: servicePassword,
+						Username:      data.username,
+						Password:      servicePassword,
+						AccessControl: *defaultAccessControl(data),
 					}, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
@@ -397,8 +435,9 @@ var _ = Describe("valkey.SecretConfig", func() {
 					defaultServiceManagerMock(data)
 					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 						Return(&aiven.ServiceUser{
-							Username: data.username,
-							Password: servicePassword,
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: *defaultAccessControl(data),
 						}, nil)
 					mocks.projectManager.On("GetCA", mock.Anything, projectName).
 						Return("my-ca", nil).Once()
@@ -439,8 +478,9 @@ var _ = Describe("valkey.SecretConfig", func() {
 					defaultServiceManagerMock(data)
 					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 						Return(&aiven.ServiceUser{
-							Username: data.username,
-							Password: servicePassword,
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: *defaultAccessControl(data),
 						}, nil)
 					mocks.projectManager.On("GetCA", mock.Anything, projectName).
 						Return("my-ca", nil)
@@ -471,8 +511,9 @@ var _ = Describe("valkey.SecretConfig", func() {
 						})
 					mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, defaultAccessControl(data), mock.Anything).
 						Return(&aiven.ServiceUser{
-							Username: data.username,
-							Password: servicePassword,
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: *defaultAccessControl(data),
 						}, nil)
 				}
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).

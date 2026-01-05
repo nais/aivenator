@@ -3,6 +3,7 @@ package valkey
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -163,26 +164,37 @@ func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aive
 		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetName(), utils.SelectSuffix(valkeySpec.Access), suffix)
 	}
 
-	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
-	if err == nil {
-		return aivenUser, nil
-	}
-	if !aiven.IsNotFound(err) {
-		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
-	}
-
-	accessControl := &aiven.AccessControl{
+	accessControl := aiven.AccessControl{
 		ValkeyACLCategories: getValkeyACLCategories(valkeySpec.Access),
+		ValkeyACLCommands:   []string{"+info"},
 		ValkeyACLKeys:       []string{"*"},
 		ValkeyACLChannels:   []string{"*"},
 	}
 
-	aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, accessControl, logger)
-	if err != nil {
-		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
+	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
+	if err == nil {
+		if reflect.DeepEqual(aivenUser.AccessControl, accessControl) {
+			return aivenUser, nil
+		}
+	} else if !aiven.IsNotFound(err) {
+		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
 	}
 
-	logger.Infof("created serviceuser: %v", aivenUser.Username)
+	if aivenUser != nil {
+		aivenUser, err = h.serviceuser.Update(ctx, serviceUserName, h.projectName, serviceName, &accessControl, logger)
+		if err != nil {
+			return nil, utils.AivenFail("UpdateServiceUser", application, err, false, logger)
+		}
+
+		logger.Infof("updated serviceuser: %v", aivenUser.Username)
+	} else {
+		aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, &accessControl, logger)
+		if err != nil {
+			return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
+		}
+
+		logger.Infof("created serviceuser: %v", aivenUser.Username)
+	}
 	return aivenUser, nil
 }
 
