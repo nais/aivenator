@@ -166,7 +166,7 @@ func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aive
 
 	accessControl := aiven.AccessControl{
 		ValkeyACLCategories: getValkeyACLCategories(valkeySpec.Access),
-		ValkeyACLCommands:   []string{"+info", "+cluster slots"},
+		ValkeyACLCommands:   []string{"+info"},
 		ValkeyACLKeys:       []string{"*"},
 		ValkeyACLChannels:   []string{"*"},
 	}

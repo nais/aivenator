@@ -206,7 +206,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 	defaultAccessControl := func(data testData) *aiven.AccessControl {
 		return &aiven.AccessControl{
 			ValkeyACLCategories: getValkeyACLCategories(data.access),
-			ValkeyACLCommands:   []string{"+info", "+cluster slots"},
+			ValkeyACLCommands:   []string{"+info"},
 			ValkeyACLKeys:       []string{"*"},
 			ValkeyACLChannels:   []string{"*"},
 		}
