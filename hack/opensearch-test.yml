@@ -1,7 +1,7 @@
 apiVersion: aiven.io/v1alpha1
-kind: Valkey
+kind: OpenSearch
 metadata:
-  name: valkey-basseng-test
+  name: opensearch-basseng-test
   namespace: basseng
 spec:
   plan: startup-4
