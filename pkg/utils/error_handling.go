@@ -3,6 +3,8 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
@@ -30,6 +32,20 @@ func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication,
 func UnwrapAivenError(errorMessage error, logger logrus.FieldLogger, notFoundIsRecoverable bool) error {
 	aivenErr := &aiven.Error{}
 	if ok := errors.As(errorMessage, aivenErr); ok {
+		// In rare cases, the Aiven client can return an error with StatusOK.
+		// In these cases, the actual content of the error is not really relevant, because it is simply the response body
+		// while the error was something related to I/O.
+		// Since the response body may contain sensitive information, we do not want to log the message in this situation.
+		if aivenErr.Status == http.StatusOK {
+			return fmt.Errorf("unknown error while calling Aiven API")
+		}
+
+		if containsPossibleCredentials(aivenErr) {
+			logger.Warnf("Encountered an error that could contain credentials. The body of the error has been discarded.")
+			aivenErr.Message = "{\"msg\": \"<this message contained credentials and was discarded for safety>\"}"
+			aivenErr.MoreInfo = "<this message contained credentials and was discarded for safety>"
+		}
+
 		apiMessage := struct {
 			Message string `json:"message"`
 		}{}
@@ -62,4 +78,24 @@ func LocalFail(operation string, application *aiven_nais_io_v1.AivenApplication,
 		Reason:  operation,
 		Message: message.Error(),
 	}, aiven_nais_io_v1.AivenApplicationSucceeded)
+}
+
+var triggerWords = []string{
+	"password",
+	"token",
+	"secret",
+	"private key",
+	"certificate",
+	"avns_",
+}
+
+// containsPossibleCredentials checks if an error message contains things that looks like credentials
+func containsPossibleCredentials(err error) bool {
+	lowerErr := strings.ToLower(err.Error())
+	for _, trigger := range triggerWords {
+		if strings.Contains(lowerErr, trigger) {
+			return true
+		}
+	}
+	return false
 }
