@@ -19,8 +19,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -293,7 +293,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 					})
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -316,7 +315,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 					})
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -364,7 +362,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 						}, nil)
 					mocks.projectManager.On("GetCA", mock.Anything, projectName).
 						Return("my-ca", nil)
-
 				})
 
 				It("updates the existing user", func() {
@@ -385,7 +382,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 						}, nil)
 					mocks.projectManager.On("GetCA", mock.Anything, projectName).
 						Return("my-ca", nil)
-
 				})
 
 				It("uses the existing user", func() {
@@ -412,7 +408,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 					}, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
@@ -616,7 +611,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 				}
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {

@@ -215,7 +215,6 @@ var _ = Describe("opensearch handler", func() {
 					})
 
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("my-ca", nil)
-
 			})
 			It("sets the correct aiven fail condition", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
@@ -297,7 +296,7 @@ var _ = Describe("opensearch handler", func() {
 					Message: "Service user does not exist", Status: 404,
 				})
 
-				mocks.serviceUserManager.On("Create", mock.Anything, testNamespace + "-r-3D_", projectName, serviceName, (*aiven.AccessControl)(nil), mock.Anything).Return(&aiven.ServiceUser{
+				mocks.serviceUserManager.On("Create", mock.Anything, testNamespace+"-r-3D_", projectName, serviceName, (*aiven.AccessControl)(nil), mock.Anything).Return(&aiven.ServiceUser{
 					Username: serviceUserName,
 					Password: servicePassword,
 				}, nil)
