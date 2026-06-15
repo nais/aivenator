@@ -80,11 +80,11 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 
 	addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 	if err != nil {
-		return nil, utils.AivenFail("GetService", application, err, false, logger)
+		return nil, utils.AivenFail("GetService", application, err, true, logger)
 	}
 	serviceAddress := addresses.OpenSearch()
 	if len(serviceAddress.URI) == 0 {
-		return nil, utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
+		return nil, utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), true, logger)
 	}
 
 	logger = logger.WithField("individualSecret", spec.SecretName)
@@ -255,7 +255,7 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 	return nil
 }
 
-// This function's raison d'être is ONLY for backwardscompatibility for opensearch instances from BEFORE we perform "does the instance you want belong to your namespace?" check
+// This function's raison d'être is ONLY for backwards compatibility for opensearch instances from BEFORE we perform "does the instance you want belong to your namespace?" check.
 func (h OpenSearchHandler) resolveServiceName(ctx context.Context, namespace, instance string) (string, error) {
 	newStyleName := fmt.Sprintf("opensearch-%s-%s", namespace, instance)
 	if utils.CRExistsInNamespace(ctx, h.k8sClient, &thirdparty_aiven.OpenSearch{}, newStyleName, namespace) {

@@ -2,6 +2,7 @@ package opensearch
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -190,6 +191,33 @@ var _ = Describe("opensearch handler", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
 				Expect(err).ToNot(Succeed())
+				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(individualSecrets).To(BeNil())
+			})
+		})
+		Context("and the service is not found in Aiven", func() {
+			BeforeEach(func() {
+				application = applicationBuilder.
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+							Instance:   serviceName,
+							Access:     access,
+							SecretName: secretName,
+						},
+					}).
+					Build()
+				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{
+						Message:  "{\"message\":\"service not found\"}",
+						MoreInfo: "aiven-more-info",
+						Status:   404,
+					})
+			})
+			It("returns a recoverable not found error", func() {
+				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
+
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, utils.ErrNotFound)).To(BeTrue())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
 			})
