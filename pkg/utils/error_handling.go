@@ -15,6 +15,7 @@ import (
 
 var ErrUnrecoverable = errors.New("ErrUnrecoverable")
 var ErrNotFound = errors.New("ErrNotFound")
+var ErrNotReady = errors.New("ErrNotReady")
 
 func AivenFail(operation string, application *aiven_nais_io_v1.AivenApplication, err error, notFoundIsRecoverable bool, logger logrus.FieldLogger) error {
 	errorMessage := UnwrapAivenError(err, logger, notFoundIsRecoverable)
