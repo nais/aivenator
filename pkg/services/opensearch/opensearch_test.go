@@ -7,6 +7,7 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
+	thirdparty_aiven "github.com/nais/aivenator/internal/thirdparty/aiven"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -19,6 +20,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -32,6 +35,7 @@ const (
 	serviceName     = "my-service"
 	secretName      = "foo"
 	access          = "read"
+	testNamespace   = "my-namespace"
 )
 
 type mockContainer struct {
@@ -60,12 +64,22 @@ var _ = Describe("opensearch handler", func() {
 		root := log.New()
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
+		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", testNamespace)
 		mocks = mockContainer{
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
 			projectManager:     project.NewMockProjectManager(GinkgoT()),
 			aclManager:         opensearch.NewMockACLManager(GinkgoT()),
 		}
+
+		scheme := runtime.NewScheme()
+		Expect(thirdparty_aiven.AddToScheme(scheme)).To(Succeed())
+		// Pre-populate CRs matching test constants in testNamespace.
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			&thirdparty_aiven.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: testNamespace}},
+			&thirdparty_aiven.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: instance, Namespace: testNamespace}},
+		).Build()
+
 		opensearchHandler = OpenSearchHandler{
 			serviceuser:   mocks.serviceUserManager,
 			service:       mocks.serviceManager,
@@ -75,6 +89,7 @@ var _ = Describe("opensearch handler", func() {
 				ProjectName: projectName,
 			},
 			projectName: projectName,
+			k8sClient:   fakeClient,
 		}
 		mock := service.MockServiceAddresses{}
 		mock.EXPECT().OpenSearch().Return(service.ServiceAddress{
@@ -248,7 +263,8 @@ var _ = Describe("opensearch handler", func() {
 				expected := []corev1.Secret{
 					{
 						ObjectMeta: metav1.ObjectMeta{
-							Name: secretName,
+							Name:      secretName,
+							Namespace: testNamespace,
 							Labels: map[string]string{
 								"type":                              "aivenator.aiven.nais.io",
 								"app":                               application.Name,
@@ -280,7 +296,7 @@ var _ = Describe("opensearch handler", func() {
 					Message: "Service user does not exist", Status: 404,
 				})
 
-				mocks.serviceUserManager.On("Create", mock.Anything, "-r-9Nv", projectName, serviceName, (*aiven.AccessControl)(nil), mock.Anything).Return(&aiven.ServiceUser{
+				mocks.serviceUserManager.On("Create", mock.Anything, testNamespace + "-r-3D_", projectName, serviceName, (*aiven.AccessControl)(nil), mock.Anything).Return(&aiven.ServiceUser{
 					Username: serviceUserName,
 					Password: servicePassword,
 				}, nil)
@@ -353,6 +369,42 @@ var _ = Describe("opensearch handler", func() {
 			})
 		})
 	})
+	// Security: cross-namespace access is rejected.
+	// `resolveServiceName` scopes lookup to the requesting namespace only.
+	// Aiven APIs are mocked to succeed so that if the namespace check is ever removed (regression), the test still catches it via the assertion.
+	When("Apply is called without a matching OpenSearch CR in the requesting namespace", func() {
+		var attackerApp aiven_nais_io_v1.AivenApplication
+
+		BeforeEach(func() {
+			attackerApp = aiven_nais_io_v1.NewAivenApplicationBuilder("evil-app", "attacker-ns").
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+						Instance:   "opensearch-" + testNamespace + "-important-data",
+						Access:     "admin",
+						SecretName: "stolen-creds",
+					},
+				}).
+				Build()
+			// Mocked to succeed — if namespace check regresses, Apply() would succeed and assertion catches it.
+			mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("my-ca", nil).Maybe()
+			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, mock.Anything).
+				Return(opensearchServiceAddresses, nil).Maybe()
+			mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				Return(&aiven.ServiceUser{Username: "attacker-ns-abc", Password: servicePassword}, nil).Maybe()
+			mocks.aclManager.On("Get", mock.Anything, mock.Anything, mock.Anything).Return(&aiven.OpenSearchACLResponse{
+				OpenSearchACLConfig: aiven.OpenSearchACLConfig{Enabled: true},
+			}, nil).Maybe()
+			mocks.aclManager.On("Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				Return(&aiven.OpenSearchACLResponse{}, nil).Maybe()
+		})
+
+		It("returns an error because no ownership validation passes", func() {
+			individualSecrets, err := opensearchHandler.Apply(ctx, &attackerApp, logger)
+			Expect(err).To(HaveOccurred(), "Apply() should reject when no OpenSearch CR exists in namespace")
+			Expect(individualSecrets).To(BeNil())
+		})
+	})
+
 	When("it receives a spec w/individual secret instance, existing service user for secret", func() {
 		BeforeEach(func() {
 			mockAivenReturnCaOk()

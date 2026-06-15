@@ -7,6 +7,7 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
+	thirdparty_aiven "github.com/nais/aivenator/internal/thirdparty/aiven"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -15,6 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -38,13 +40,14 @@ const (
 	OpenSearchDashboardPort = "OPEN_SEARCH_DASHBOARD_PORT"
 )
 
-func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string) OpenSearchHandler {
+func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string, k8sClient client.Client) OpenSearchHandler {
 	return OpenSearchHandler{
 		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:       service.NewManager(aiven.Services),
 		openSearchACL: aiven.OpenSearchACLs,
 		secretConfig:  utils.NewSecretConfig(aiven, projectName),
 		projectName:   projectName,
+		k8sClient:     k8sClient,
 	}
 }
 
@@ -54,6 +57,7 @@ type OpenSearchHandler struct {
 	openSearchACL opensearch.ACLManager
 	secretConfig  utils.SecretConfig
 	projectName   string
+	k8sClient     client.Client
 }
 
 func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
@@ -62,7 +66,11 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		return nil, nil
 	}
 
-	serviceName := spec.Instance
+	serviceName, err := h.resolveServiceName(ctx, application.GetNamespace(), spec.Instance)
+	if err != nil {
+		utils.LocalFail("ResolveOpenSearchInstance", application, err, logger)
+		return nil, err
+	}
 
 	logger = logger.WithFields(log.Fields{
 		"handler": "opensearch",
@@ -245,4 +253,19 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 	}
 
 	return nil
+}
+
+// This function's raison d'être is ONLY for backwardscompatibility for opensearch instances from BEFORE we perform "does the instance you want belong to your namespace?" check
+func (h OpenSearchHandler) resolveServiceName(ctx context.Context, namespace, instance string) (string, error) {
+	newStyleName := fmt.Sprintf("opensearch-%s-%s", namespace, instance)
+	if utils.CRExistsInNamespace(ctx, h.k8sClient, &thirdparty_aiven.OpenSearch{}, newStyleName, namespace) {
+		return newStyleName, nil
+	}
+
+	if utils.CRExistsInNamespace(ctx, h.k8sClient, &thirdparty_aiven.OpenSearch{}, instance, namespace) {
+		return instance, nil
+	}
+
+	return "", fmt.Errorf("no OpenSearch CR %q or %q found in namespace %q: %w",
+		newStyleName, instance, namespace, utils.ErrNotFound)
 }
