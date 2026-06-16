@@ -432,6 +432,60 @@ var _ = Describe("opensearch handler", func() {
 		})
 	})
 
+	When("the OpenSearch CR uses new-style naming (opensearch-<ns>-<instance>)", func() {
+		BeforeEach(func() {
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+						Instance:   "roger",
+						Access:     access,
+						SecretName: secretName,
+					},
+				}).
+				Build()
+			mockAivenReturnCaOk()
+			// GetServiceAddresses must be called with the resolved new-style name
+			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, "opensearch-"+testNamespace+"-roger").
+				Return(opensearchServiceAddresses, nil)
+			mockAivenReturnOpensearchGetServiceUserOk()
+			mockAivenReturnAclManagerGetOk()
+			mockAivenReturnAclManagerUpdateOk()
+		})
+
+		It("resolves via the new-style CR name and succeeds", func() {
+			// Add the new-style CR to the fake client
+			cr := &thirdparty_aiven.OpenSearch{ObjectMeta: metav1.ObjectMeta{
+				Name: "opensearch-" + testNamespace + "-roger", Namespace: testNamespace}}
+			Expect(opensearchHandler.k8sClient.Create(ctx, cr)).To(Succeed())
+
+			individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(individualSecrets).To(HaveLen(1))
+			Expect(individualSecrets[0].Annotations[ServiceNameAnnotation]).To(Equal("opensearch-" + testNamespace + "-roger"))
+		})
+	})
+
+	When("neither new-style nor legacy OpenSearch CR exists in namespace", func() {
+		BeforeEach(func() {
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+						Instance:   "nonexistent",
+						Access:     access,
+						SecretName: secretName,
+					},
+				}).
+				Build()
+		})
+
+		It("returns ErrNotFound", func() {
+			_, err := opensearchHandler.Apply(ctx, &application, logger)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found in namespace"))
+			Expect(err.Error()).To(ContainSubstring("nonexistent"))
+		})
+	})
+
 	When("it receives a spec w/individual secret instance, existing service user for secret", func() {
 		BeforeEach(func() {
 			mockAivenReturnCaOk()

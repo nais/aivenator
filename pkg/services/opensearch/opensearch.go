@@ -2,6 +2,7 @@ package opensearch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -255,15 +256,19 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 	return nil
 }
 
-// This function's raison d'être is ONLY for backwards compatibility for opensearch instances from BEFORE we perform "does the instance you want belong to your namespace?" check.
+// This function's raison d'être is ONLY for backwards compatibility for opensearch instances from BEFORE we perform "does the instance you want belong to your namespace?" check
 func (h OpenSearchHandler) resolveServiceName(ctx context.Context, namespace, instance string) (string, error) {
 	newStyleName := fmt.Sprintf("opensearch-%s-%s", namespace, instance)
-	if utils.CRExistsInNamespace(ctx, h.k8sClient, &thirdparty_aiven.OpenSearch{}, newStyleName, namespace) {
+	if opensearchInstance, err := utils.GetResourceInNamespace(ctx, h.k8sClient, &thirdparty_aiven.OpenSearch{}, newStyleName, namespace); opensearchInstance != nil {
 		return newStyleName, nil
+	} else if err != nil && !errors.Is(err, utils.ErrNotFound) {
+		return "", err
 	}
 
-	if utils.CRExistsInNamespace(ctx, h.k8sClient, &thirdparty_aiven.OpenSearch{}, instance, namespace) {
+	if opensearchInstance, err := utils.GetResourceInNamespace(ctx, h.k8sClient, &thirdparty_aiven.OpenSearch{}, instance, namespace); opensearchInstance != nil {
 		return instance, nil
+	} else if err != nil {
+		return "", err
 	}
 
 	return "", fmt.Errorf("no OpenSearch CR %q or %q found in namespace %q: %w",

@@ -76,9 +76,11 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 	for _, valkeySpec := range application.Spec.Valkey {
 		serviceName := fmt.Sprintf("valkey-%s-%s", application.GetNamespace(), valkeySpec.Instance)
 
-		if !utils.CRExistsInNamespace(ctx, h.k8sClient, &thirdparty_aiven.Valkey{}, serviceName, application.GetNamespace()) {
-			err := fmt.Errorf("no Valkey CR %q found in namespace %q: %w",
-				serviceName, application.GetNamespace(), utils.ErrNotFound)
+		if cr, err := utils.GetResourceInNamespace(ctx, h.k8sClient, &thirdparty_aiven.Valkey{}, serviceName, application.GetNamespace()); cr == nil {
+			if err == nil {
+				err = fmt.Errorf("no Valkey CR %q found in namespace %q: %w",
+					serviceName, application.GetNamespace(), utils.ErrNotFound)
+			}
 			utils.LocalFail("ResolveValkeyInstance", application, err, logger)
 			return nil, err
 		}
