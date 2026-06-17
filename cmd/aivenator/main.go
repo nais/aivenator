@@ -15,7 +15,6 @@ import (
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/controllers/aiven_application"
 	"github.com/nais/aivenator/controllers/secrets"
-	thirdparty_aiven "github.com/nais/aivenator/internal/thirdparty/aiven"
 	"github.com/nais/aivenator/pkg/credentials"
 	aivenatormetrics "github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
@@ -147,10 +146,6 @@ func main() {
 	scheme, err := liberator_scheme.All()
 	if err != nil {
 		logger.Errorf("unable to load schemes: %s", err)
-		os.Exit(ExitRuntime)
-	}
-	if err := thirdparty_aiven.AddToScheme(scheme); err != nil {
-		logger.Errorf("unable to register aiven.io/v1alpha1 scheme: %s", err)
 		os.Exit(ExitRuntime)
 	}
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
-	thirdparty_aiven "github.com/nais/aivenator/internal/thirdparty/aiven"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
@@ -74,11 +74,11 @@ var _ = Describe("opensearch handler", func() {
 		}
 
 		scheme := runtime.NewScheme()
-		Expect(thirdparty_aiven.AddToScheme(scheme)).To(Succeed())
+		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
 		// Pre-populate CRs matching test constants in testNamespace.
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-			&thirdparty_aiven.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: testNamespace}, Status: thirdparty_aiven.ServiceStatus{State: utils.ReadyState}},
-			&thirdparty_aiven.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: instance, Namespace: testNamespace}, Status: thirdparty_aiven.ServiceStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: testNamespace}, Status: aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: instance, Namespace: testNamespace}, Status: aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState}},
 		).Build()
 
 		opensearchHandler = OpenSearchHandler{
@@ -427,9 +427,9 @@ var _ = Describe("opensearch handler", func() {
 
 		It("resolves via the new-style CR name and succeeds", func() {
 			// Add the new-style CR to the fake client
-			cr := &thirdparty_aiven.OpenSearch{
+			cr := &aiven_io_v1alpha1.OpenSearch{
 				ObjectMeta: metav1.ObjectMeta{Name: "opensearch-" + testNamespace + "-roger", Namespace: testNamespace},
-				Status:     thirdparty_aiven.ServiceStatus{State: utils.ReadyState},
+				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState},
 			}
 			Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, cr)).To(Succeed())
 
@@ -468,9 +468,9 @@ var _ = Describe("opensearch handler", func() {
 	When("OpenSearch CR exists in namespace but is NOT in RUNNING state (naming collision)", func() {
 		BeforeEach(func() {
 			// CR exists in testNamespace with a non-RUNNING state (simulates Aiven rejection)
-			cr := &thirdparty_aiven.OpenSearch{
+			cr := &aiven_io_v1alpha1.OpenSearch{
 				ObjectMeta: metav1.ObjectMeta{Name: "opensearch-" + testNamespace + "-collided", Namespace: testNamespace},
-				Status:     thirdparty_aiven.ServiceStatus{State: "POWERING_OFF"},
+				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: "NOT_RUNNING"},
 			}
 			Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, cr)).To(Succeed())
 

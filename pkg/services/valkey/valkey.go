@@ -10,7 +10,7 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
-	thirdparty_aiven "github.com/nais/aivenator/internal/thirdparty/aiven"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
@@ -76,7 +76,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 	for _, valkeySpec := range application.Spec.Valkey {
 		serviceName := fmt.Sprintf("valkey-%s-%s", application.GetNamespace(), valkeySpec.Instance)
 
-		if _, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &thirdparty_aiven.Valkey{}, serviceName, application.GetNamespace()); err != nil {
+		if _, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.Valkey{}, serviceName, application.GetNamespace()); err != nil {
 			utils.LocalFail("ResolveValkeyInstance", application, err, logger)
 			return nil, err
 		}

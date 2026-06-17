@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
-	thirdparty_aiven "github.com/nais/aivenator/internal/thirdparty/aiven"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -229,12 +229,12 @@ var _ = Describe("valkey.SecretConfig", func() {
 		}
 
 		scheme := runtime.NewScheme()
-		Expect(thirdparty_aiven.AddToScheme(scheme)).To(Succeed())
+		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
 		// Pre-populate Valkey CRs matching testInstances in namespace "team-a"
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-			&thirdparty_aiven.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-my-instance1", Namespace: namespace}, Status: thirdparty_aiven.ServiceStatus{State: utils.ReadyState}},
-			&thirdparty_aiven.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-session-store", Namespace: namespace}, Status: thirdparty_aiven.ServiceStatus{State: utils.ReadyState}},
-			&thirdparty_aiven.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-with-replica", Namespace: namespace}, Status: thirdparty_aiven.ServiceStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-my-instance1", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-session-store", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-with-replica", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
 		).Build()
 
 		valkeyHandler = ValkeyHandler{
@@ -472,9 +472,9 @@ var _ = Describe("valkey.SecretConfig", func() {
 	// colliding CR exists in-cluster but never reaches RUNNING.
 	When("Valkey CR exists in namespace but is NOT in RUNNING state (naming collision)", func() {
 		BeforeEach(func() {
-			cr := &thirdparty_aiven.Valkey{
+			cr := &aiven_io_v1alpha1.Valkey{
 				ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-collided", Namespace: namespace},
-				Status:     thirdparty_aiven.ServiceStatus{State: "POWERING_OFF"},
+				Status:     aiven_io_v1alpha1.ValkeyStatus{State: "NOT_RUNNING"},
 			}
 			Expect(valkeyHandler.k8sReader.(client.Client).Create(ctx, cr)).To(Succeed())
 

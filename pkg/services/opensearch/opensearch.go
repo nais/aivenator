@@ -8,7 +8,7 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
-	thirdparty_aiven "github.com/nais/aivenator/internal/thirdparty/aiven"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -259,13 +259,13 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 // This function's raison d'être is ONLY for backwards compatibility for opensearch instances from BEFORE we perform "does the instance you want belong to your namespace?" check
 func (h OpenSearchHandler) resolveServiceName(ctx context.Context, namespace, instance string) (string, error) {
 	newStyleName := fmt.Sprintf("opensearch-%s-%s", namespace, instance)
-	if cr, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &thirdparty_aiven.OpenSearch{}, newStyleName, namespace); cr != nil {
+	if cr, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.OpenSearch{}, newStyleName, namespace); cr != nil {
 		return newStyleName, nil
 	} else if err != nil && !errors.Is(err, utils.ErrNotFound) {
 		return "", err
 	}
 
-	cr, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &thirdparty_aiven.OpenSearch{}, instance, namespace)
+	cr, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.OpenSearch{}, instance, namespace)
 	if cr != nil {
 		return instance, nil
 	}
