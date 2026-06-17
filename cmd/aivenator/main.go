@@ -15,6 +15,7 @@ import (
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/controllers/aiven_application"
 	"github.com/nais/aivenator/controllers/secrets"
+	thirdparty_aiven "github.com/nais/aivenator/internal/thirdparty/aiven"
 	"github.com/nais/aivenator/pkg/credentials"
 	aivenatormetrics "github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
@@ -148,6 +149,10 @@ func main() {
 		logger.Errorf("unable to load schemes: %s", err)
 		os.Exit(ExitRuntime)
 	}
+	if err := thirdparty_aiven.AddToScheme(scheme); err != nil {
+		logger.Errorf("unable to register aiven.io/v1alpha1 scheme: %s", err)
+		os.Exit(ExitRuntime)
+	}
 
 	allowedProjects := viper.GetStringSlice(Projects)
 
@@ -219,7 +224,7 @@ func newAivenClient(ctx context.Context, logger log.FieldLogger) (*aiven.Client,
 func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string, recorder k8sevents.EventRecorder) error {
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
 
-	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}))
+	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}), mgr.GetAPIReader())
 	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges, recorder)
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {

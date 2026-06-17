@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
+	thirdparty_aiven "github.com/nais/aivenator/internal/thirdparty/aiven"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -19,7 +20,11 @@ import (
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -222,6 +227,16 @@ var _ = Describe("valkey.SecretConfig", func() {
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
 			projectManager:     project.NewMockProjectManager(GinkgoT()),
 		}
+
+		scheme := runtime.NewScheme()
+		Expect(thirdparty_aiven.AddToScheme(scheme)).To(Succeed())
+		// Pre-populate Valkey CRs matching testInstances in namespace "team-a"
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			&thirdparty_aiven.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-my-instance1", Namespace: namespace}, Status: thirdparty_aiven.ServiceStatus{State: utils.ReadyState}},
+			&thirdparty_aiven.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-session-store", Namespace: namespace}, Status: thirdparty_aiven.ServiceStatus{State: utils.ReadyState}},
+			&thirdparty_aiven.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-with-replica", Namespace: namespace}, Status: thirdparty_aiven.ServiceStatus{State: utils.ReadyState}},
+		).Build()
+
 		valkeyHandler = ValkeyHandler{
 			serviceuser: mocks.serviceUserManager,
 			service:     mocks.serviceManager,
@@ -230,6 +245,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 				Project:     mocks.projectManager,
 				ProjectName: projectName,
 			},
+			k8sReader: fakeClient,
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	})
@@ -277,7 +293,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 					})
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -300,7 +315,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 					})
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -348,7 +362,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 						}, nil)
 					mocks.projectManager.On("GetCA", mock.Anything, projectName).
 						Return("my-ca", nil)
-
 				})
 
 				It("updates the existing user", func() {
@@ -369,7 +382,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 						}, nil)
 					mocks.projectManager.On("GetCA", mock.Anything, projectName).
 						Return("my-ca", nil)
-
 				})
 
 				It("uses the existing user", func() {
@@ -396,7 +408,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 					}, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
@@ -452,6 +463,88 @@ var _ = Describe("valkey.SecretConfig", func() {
 				}
 				Expect(len(individualSecrets)).To(Equal(3))
 			})
+		})
+	})
+
+	// Namespace naming collision: valkey-<ns>-<instance> is ambiguous.
+	// e.g. namespace "team-a" + instance "b-cache" and namespace "team-a-b" + instance "cache"
+	// both produce "valkey-team-a-b-cache". Aiven rejects the duplicate, so the
+	// colliding CR exists in-cluster but never reaches RUNNING.
+	When("Valkey CR exists in namespace but is NOT in RUNNING state (naming collision)", func() {
+		BeforeEach(func() {
+			cr := &thirdparty_aiven.Valkey{
+				ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-collided", Namespace: namespace},
+				Status:     thirdparty_aiven.ServiceStatus{State: "POWERING_OFF"},
+			}
+			Expect(valkeyHandler.k8sReader.(client.Client).Create(ctx, cr)).To(Succeed())
+
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+						{
+							Instance:   "collided",
+							Access:     "read",
+							SecretName: "collided-secret",
+						},
+					},
+				}).
+				Build()
+		})
+
+		It("rejects because the instance is not RUNNING", func() {
+			_, err := valkeyHandler.Apply(ctx, &application, logger)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("expected RUNNING"))
+		})
+	})
+
+	// Security: cross-namespace access is rejected.
+	// The handler scopes its CR lookup to the requesting namespace only.
+	// Aiven APIs are mocked to succeed so that if the namespace check is ever removed (regression), the test still catches it via the assertion.
+	When("Apply is called without a matching Valkey CR in the requesting namespace", func() {
+		var attackerApp aiven_nais_io_v1.AivenApplication
+
+		BeforeEach(func() {
+			attackerApp = aiven_nais_io_v1.NewAivenApplicationBuilder("evil-app", "attacker-ns").
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+						{
+							Instance:   "stolen-cache",
+							Access:     "admin",
+							SecretName: "stolen-creds",
+						},
+					},
+				}).
+				Build()
+			// Mocked so that if namespace check regresses, Apply() would succeed and this test's assertion catches it.
+			m := service.MockServiceAddresses{}
+			m.On("Valkey").Return(service.ServiceAddress{
+				URI:  "valkeys://stolen.example.com:23456",
+				Host: "stolen.example.com",
+				Port: 23456,
+			}).Maybe()
+			m.On("ValkeyReplica").Return(service.ServiceAddress{}).Maybe()
+			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, "valkey-attacker-ns-stolen-cache").
+				Return(&m, nil).Maybe()
+			mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, projectName, "valkey-attacker-ns-stolen-cache", mock.Anything).
+				Return(&aiven.ServiceUser{
+					Username: "evil-app-abc",
+					Password: servicePassword,
+					AccessControl: aiven.AccessControl{
+						ValkeyACLCategories: getValkeyACLCategories("admin"),
+						ValkeyACLCommands:   []string{"+info", "+cluster|slots"},
+						ValkeyACLKeys:       []string{"*"},
+						ValkeyACLChannels:   []string{"*"},
+					},
+				}, nil).Maybe()
+			mocks.projectManager.On("GetCA", mock.Anything, projectName).
+				Return("my-ca", nil).Maybe()
+		})
+
+		It("returns an error because no ownership validation passes", func() {
+			individualSecrets, err := valkeyHandler.Apply(ctx, &attackerApp, logger)
+			Expect(err).To(HaveOccurred(), "Apply() should reject when no Valkey CR exists in namespace")
+			Expect(individualSecrets).To(BeNil())
 		})
 	})
 
@@ -518,7 +611,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 				}
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {

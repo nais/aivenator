@@ -10,6 +10,7 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
+	thirdparty_aiven "github.com/nais/aivenator/internal/thirdparty/aiven"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
@@ -17,6 +18,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -46,12 +48,13 @@ const (
 
 var namePattern = regexp.MustCompile("[^a-z0-9]")
 
-func NewValkeyHandler(ctx context.Context, aiven *aiven.Client, projectName string) ValkeyHandler {
+func NewValkeyHandler(ctx context.Context, aiven *aiven.Client, projectName string, k8sReader client.Reader) ValkeyHandler {
 	return ValkeyHandler{
 		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:      service.NewManager(aiven.Services),
 		projectName:  projectName,
 		secretConfig: utils.NewSecretConfig(aiven, projectName),
+		k8sReader:    k8sReader,
 	}
 }
 
@@ -60,6 +63,7 @@ type ValkeyHandler struct {
 	service      service.ServiceManager
 	projectName  string
 	secretConfig utils.SecretConfig
+	k8sReader    client.Reader
 }
 
 func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
@@ -71,6 +75,11 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 	var secrets []corev1.Secret
 	for _, valkeySpec := range application.Spec.Valkey {
 		serviceName := fmt.Sprintf("valkey-%s-%s", application.GetNamespace(), valkeySpec.Instance)
+
+		if _, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &thirdparty_aiven.Valkey{}, serviceName, application.GetNamespace()); err != nil {
+			utils.LocalFail("ResolveValkeyInstance", application, err, logger)
+			return nil, err
+		}
 
 		logger = logger.WithFields(log.Fields{
 			"project": h.projectName,
