@@ -2,11 +2,13 @@ package valkey
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -18,7 +20,11 @@ import (
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -31,10 +37,13 @@ const (
 type testData struct {
 	instanceName             string
 	serviceName              string
-	serviceURI               string
 	redisServiceURI          string
+	serviceURI               string
 	serviceHost              string
 	servicePort              int
+	replicaServiceURI        string
+	replicaServiceHost       string
+	replicaServicePort       int
 	access                   string
 	username                 string
 	serviceNameAnnotationKey string
@@ -44,6 +53,9 @@ type testData struct {
 	uriKey                   string
 	hostKey                  string
 	portKey                  string
+	replicaUriKey            string
+	replicaHostKey           string
+	replicaPortKey           string
 	redisUsernameKey         string
 	redisPasswordKey         string
 	redisUriKey              string
@@ -99,6 +111,41 @@ var testInstances = []testData{
 		redisUsernameKey:         "REDIS_USERNAME_SESSION_STORE",
 		secretName:               "secret-1",
 	},
+	{
+		instanceName:             "with-replica",
+		serviceName:              "valkey-team-a-with-replica",
+		redisServiceURI:          "rediss://with-replica.example.com:23456",
+		serviceURI:               "valkeys://with-replica.example.com:23456",
+		serviceHost:              "with-replica.example.com",
+		servicePort:              23456,
+		replicaServiceURI:        "valkeys://replica-with-replica.example.com:23456",
+		replicaServiceHost:       "replica-with-replica.example.com",
+		replicaServicePort:       23456,
+		access:                   "readwrite",
+		username:                 "test-app-rw-3D_",
+		serviceUserAnnotationKey: "with-replica.valkey.aiven.nais.io/serviceUser",
+		serviceNameAnnotationKey: "with-replica.valkey.aiven.nais.io/serviceName",
+		usernameKey:              "VALKEY_USERNAME_WITH_REPLICA",
+		passwordKey:              "VALKEY_PASSWORD_WITH_REPLICA",
+		uriKey:                   "VALKEY_URI_WITH_REPLICA",
+		hostKey:                  "VALKEY_HOST_WITH_REPLICA",
+		portKey:                  "VALKEY_PORT_WITH_REPLICA",
+		replicaUriKey:            "VALKEY_REPLICA_URI_WITH_REPLICA",
+		replicaHostKey:           "VALKEY_REPLICA_HOST_WITH_REPLICA",
+		replicaPortKey:           "VALKEY_REPLICA_PORT_WITH_REPLICA",
+		redisUriKey:              "REDIS_URI_WITH_REPLICA",
+		redisPortKey:             "REDIS_PORT_WITH_REPLICA",
+		redisHostKey:             "REDIS_HOST_WITH_REPLICA",
+		redisPasswordKey:         "REDIS_PASSWORD_WITH_REPLICA",
+		redisUsernameKey:         "REDIS_USERNAME_WITH_REPLICA",
+		secretName:               "secret-1",
+	},
+}
+
+var incompleteAccessControl = aiven.AccessControl{
+	ValkeyACLCategories: []string{"-@all", "+@connection", "+@scripting", "+@pubsub", "+@transaction"},
+	ValkeyACLKeys:       []string{"*"},
+	ValkeyACLChannels:   []string{"*"},
 }
 
 type mockContainer struct {
@@ -141,19 +188,30 @@ var _ = Describe("valkey.SecretConfig", func() {
 	}
 
 	defaultServiceManagerMock := func(data testData) {
+		m := service.MockServiceAddresses{}
+		m.EXPECT().Valkey().Return(service.ServiceAddress{
+			URI:  data.serviceURI,
+			Host: data.serviceHost,
+			Port: data.servicePort,
+		})
+		if data.replicaServicePort != 0 {
+			m.EXPECT().ValkeyReplica().Return(service.ServiceAddress{
+				URI:  data.replicaServiceURI,
+				Host: data.replicaServiceHost,
+				Port: data.replicaServicePort,
+			})
+		} else {
+			m.EXPECT().ValkeyReplica().Return(service.ServiceAddress{})
+		}
+
 		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
-			Return(&service.ServiceAddresses{
-				Valkey: service.ServiceAddress{
-					URI:  data.serviceURI,
-					Host: data.serviceHost,
-					Port: data.servicePort,
-				},
-			}, nil)
+			Return(&m, nil)
 	}
 
 	defaultAccessControl := func(data testData) *aiven.AccessControl {
 		return &aiven.AccessControl{
 			ValkeyACLCategories: getValkeyACLCategories(data.access),
+			ValkeyACLCommands:   []string{"+info", "+cluster|slots"},
 			ValkeyACLKeys:       []string{"*"},
 			ValkeyACLChannels:   []string{"*"},
 		}
@@ -169,6 +227,16 @@ var _ = Describe("valkey.SecretConfig", func() {
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
 			projectManager:     project.NewMockProjectManager(GinkgoT()),
 		}
+
+		scheme := runtime.NewScheme()
+		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
+		// Pre-populate Valkey CRs matching testInstances in namespace "team-a"
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-my-instance1", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-session-store", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-with-replica", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
+		).Build()
+
 		valkeyHandler = ValkeyHandler{
 			serviceuser: mocks.serviceUserManager,
 			service:     mocks.serviceManager,
@@ -177,6 +245,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 				Project:     mocks.projectManager,
 				ProjectName: projectName,
 			},
+			k8sReader: fakeClient,
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	})
@@ -224,7 +293,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 					})
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -247,7 +315,6 @@ var _ = Describe("valkey.SecretConfig", func() {
 					})
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("sets the correct aiven fail condition", func() {
@@ -278,22 +345,50 @@ var _ = Describe("valkey.SecretConfig", func() {
 		})
 
 		Context("and the service user already exists", func() {
-			BeforeEach(func() {
-				defaultServiceManagerMock(data)
-				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
-					Return(&aiven.ServiceUser{
-						Username: data.username,
-						Password: servicePassword,
-					}, nil)
-				mocks.projectManager.On("GetCA", mock.Anything, projectName).
-					Return("my-ca", nil)
+			Context("but with incomplete ACLs", func() {
+				BeforeEach(func() {
+					defaultServiceManagerMock(data)
+					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
+						Return(&aiven.ServiceUser{
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: incompleteAccessControl,
+						}, nil)
+					mocks.serviceUserManager.On("Update", mock.Anything, data.username, projectName, data.serviceName, defaultAccessControl(data), mock.Anything).
+						Return(&aiven.ServiceUser{
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: *defaultAccessControl(data),
+						}, nil)
+					mocks.projectManager.On("GetCA", mock.Anything, projectName).
+						Return("my-ca", nil)
+				})
 
+				It("updates the existing user", func() {
+					individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+					Expect(individualSecrets).To(Not(BeNil()))
+					Expect(err).To(Succeed())
+				})
 			})
 
-			It("uses the existing user", func() {
-				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
-				Expect(individualSecrets).To(Not(BeNil()))
-				Expect(err).To(Succeed())
+			Context("with complete ACLs", func() {
+				BeforeEach(func() {
+					defaultServiceManagerMock(data)
+					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
+						Return(&aiven.ServiceUser{
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: *defaultAccessControl(data),
+						}, nil)
+					mocks.projectManager.On("GetCA", mock.Anything, projectName).
+						Return("my-ca", nil)
+				})
+
+				It("uses the existing user", func() {
+					individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+					Expect(individualSecrets).To(Not(BeNil()))
+					Expect(err).To(Succeed())
+				})
 			})
 		})
 
@@ -307,12 +402,12 @@ var _ = Describe("valkey.SecretConfig", func() {
 					})
 				mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, defaultAccessControl(data), mock.Anything).
 					Return(&aiven.ServiceUser{
-						Username: data.username,
-						Password: servicePassword,
+						Username:      data.username,
+						Password:      servicePassword,
+						AccessControl: *defaultAccessControl(data),
 					}, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
@@ -335,6 +430,10 @@ var _ = Describe("valkey.SecretConfig", func() {
 							Instance:   "session-store",
 							Access:     "readwrite",
 							SecretName: "second-secret",
+						}, {
+							Instance:   "with-replica",
+							Access:     "readwrite",
+							SecretName: "replica-secret",
 						},
 					},
 				}).
@@ -347,8 +446,9 @@ var _ = Describe("valkey.SecretConfig", func() {
 					defaultServiceManagerMock(data)
 					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 						Return(&aiven.ServiceUser{
-							Username: data.username,
-							Password: servicePassword,
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: *defaultAccessControl(data),
 						}, nil)
 					mocks.projectManager.On("GetCA", mock.Anything, projectName).
 						Return("my-ca", nil).Once()
@@ -361,8 +461,90 @@ var _ = Describe("valkey.SecretConfig", func() {
 				for i, data := range testInstances {
 					assertHappy(&individualSecrets[i], data, err)
 				}
-				Expect(len(individualSecrets)).To(Equal(2))
+				Expect(len(individualSecrets)).To(Equal(3))
 			})
+		})
+	})
+
+	// Namespace naming collision: valkey-<ns>-<instance> is ambiguous.
+	// e.g. namespace "team-a" + instance "b-cache" and namespace "team-a-b" + instance "cache"
+	// both produce "valkey-team-a-b-cache". Aiven rejects the duplicate, so the
+	// colliding CR exists in-cluster but never reaches RUNNING.
+	When("Valkey CR exists in namespace but is NOT in RUNNING state (naming collision)", func() {
+		BeforeEach(func() {
+			cr := &aiven_io_v1alpha1.Valkey{
+				ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-collided", Namespace: namespace},
+				Status:     aiven_io_v1alpha1.ValkeyStatus{State: "NOT_RUNNING"},
+			}
+			Expect(valkeyHandler.k8sReader.(client.Client).Create(ctx, cr)).To(Succeed())
+
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+						{
+							Instance:   "collided",
+							Access:     "read",
+							SecretName: "collided-secret",
+						},
+					},
+				}).
+				Build()
+		})
+
+		It("rejects because the instance is not RUNNING", func() {
+			_, err := valkeyHandler.Apply(ctx, &application, logger)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("expected RUNNING"))
+		})
+	})
+
+	// Security: cross-namespace access is rejected.
+	// The handler scopes its CR lookup to the requesting namespace only.
+	// Aiven APIs are mocked to succeed so that if the namespace check is ever removed (regression), the test still catches it via the assertion.
+	When("Apply is called without a matching Valkey CR in the requesting namespace", func() {
+		var attackerApp aiven_nais_io_v1.AivenApplication
+
+		BeforeEach(func() {
+			attackerApp = aiven_nais_io_v1.NewAivenApplicationBuilder("evil-app", "attacker-ns").
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+						{
+							Instance:   "stolen-cache",
+							Access:     "admin",
+							SecretName: "stolen-creds",
+						},
+					},
+				}).
+				Build()
+			// Mocked so that if namespace check regresses, Apply() would succeed and this test's assertion catches it.
+			m := service.MockServiceAddresses{}
+			m.On("Valkey").Return(service.ServiceAddress{
+				URI:  "valkeys://stolen.example.com:23456",
+				Host: "stolen.example.com",
+				Port: 23456,
+			}).Maybe()
+			m.On("ValkeyReplica").Return(service.ServiceAddress{}).Maybe()
+			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, "valkey-attacker-ns-stolen-cache").
+				Return(&m, nil).Maybe()
+			mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, projectName, "valkey-attacker-ns-stolen-cache", mock.Anything).
+				Return(&aiven.ServiceUser{
+					Username: "evil-app-abc",
+					Password: servicePassword,
+					AccessControl: aiven.AccessControl{
+						ValkeyACLCategories: getValkeyACLCategories("admin"),
+						ValkeyACLCommands:   []string{"+info", "+cluster|slots"},
+						ValkeyACLKeys:       []string{"*"},
+						ValkeyACLChannels:   []string{"*"},
+					},
+				}, nil).Maybe()
+			mocks.projectManager.On("GetCA", mock.Anything, projectName).
+				Return("my-ca", nil).Maybe()
+		})
+
+		It("returns an error because no ownership validation passes", func() {
+			individualSecrets, err := valkeyHandler.Apply(ctx, &attackerApp, logger)
+			Expect(err).To(HaveOccurred(), "Apply() should reject when no Valkey CR exists in namespace")
+			Expect(individualSecrets).To(BeNil())
 		})
 	})
 
@@ -389,8 +571,9 @@ var _ = Describe("valkey.SecretConfig", func() {
 					defaultServiceManagerMock(data)
 					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 						Return(&aiven.ServiceUser{
-							Username: data.username,
-							Password: servicePassword,
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: *defaultAccessControl(data),
 						}, nil)
 					mocks.projectManager.On("GetCA", mock.Anything, projectName).
 						Return("my-ca", nil)
@@ -421,19 +604,54 @@ var _ = Describe("valkey.SecretConfig", func() {
 						})
 					mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, defaultAccessControl(data), mock.Anything).
 						Return(&aiven.ServiceUser{
-							Username: data.username,
-							Password: servicePassword,
+							Username:      data.username,
+							Password:      servicePassword,
+							AccessControl: *defaultAccessControl(data),
 						}, nil)
 				}
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
 					Return("my-ca", nil)
-
 			})
 
 			It("creates the new user and returns credentials for the new user", func() {
+				makeKey := func(prefix, instanceName string) string {
+					envVarSuffix := envVarName(instanceName)
+					return fmt.Sprintf("%s_%s", prefix, envVarSuffix)
+				}
 				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
 				Expect(err).To(Succeed())
 				Expect(individualSecrets).To(Not(BeNil()))
+				Expect(utils.KeysFromStringMap(individualSecrets[0].StringData)).To(ConsistOf(
+					makeKey(ValkeyUser, testInstances[0].instanceName),
+					makeKey(ValkeyPassword, testInstances[0].instanceName),
+					makeKey(ValkeyURI, testInstances[0].instanceName),
+					makeKey(ValkeyHost, testInstances[0].instanceName),
+					makeKey(ValkeyPort, testInstances[0].instanceName),
+					makeKey(RedisUser, testInstances[0].instanceName),
+					makeKey(RedisPassword, testInstances[0].instanceName),
+					makeKey(RedisURI, testInstances[0].instanceName),
+					makeKey(RedisHost, testInstances[0].instanceName),
+					makeKey(RedisPort, testInstances[0].instanceName),
+					utils.AivenCAKey,
+					utils.AivenSecretUpdatedKey,
+				))
+				Expect(utils.KeysFromStringMap(individualSecrets[2].StringData)).To(ConsistOf(
+					makeKey(ValkeyUser, testInstances[2].instanceName),
+					makeKey(ValkeyPassword, testInstances[2].instanceName),
+					makeKey(ValkeyURI, testInstances[2].instanceName),
+					makeKey(ValkeyHost, testInstances[2].instanceName),
+					makeKey(ValkeyPort, testInstances[2].instanceName),
+					makeKey(ValkeyReplicaURI, testInstances[2].instanceName),
+					makeKey(ValkeyReplicaHost, testInstances[2].instanceName),
+					makeKey(ValkeyReplicaPort, testInstances[2].instanceName),
+					makeKey(RedisUser, testInstances[2].instanceName),
+					makeKey(RedisPassword, testInstances[2].instanceName),
+					makeKey(RedisURI, testInstances[2].instanceName),
+					makeKey(RedisHost, testInstances[2].instanceName),
+					makeKey(RedisPort, testInstances[2].instanceName),
+					utils.AivenCAKey,
+					utils.AivenSecretUpdatedKey,
+				))
 			})
 		})
 	})

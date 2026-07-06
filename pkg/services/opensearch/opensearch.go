@@ -2,11 +2,13 @@ package opensearch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
@@ -15,6 +17,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -28,20 +31,24 @@ const (
 
 // Environment variables
 const (
-	OpenSearchUser     = "OPEN_SEARCH_USERNAME"
-	OpenSearchPassword = "OPEN_SEARCH_PASSWORD"
-	OpenSearchURI      = "OPEN_SEARCH_URI"
-	OpenSearchHost     = "OPEN_SEARCH_HOST"
-	OpenSearchPort     = "OPEN_SEARCH_PORT"
+	OpenSearchUser          = "OPEN_SEARCH_USERNAME"
+	OpenSearchPassword      = "OPEN_SEARCH_PASSWORD"
+	OpenSearchURI           = "OPEN_SEARCH_URI"
+	OpenSearchHost          = "OPEN_SEARCH_HOST"
+	OpenSearchPort          = "OPEN_SEARCH_PORT"
+	OpenSearchDashboardURI  = "OPEN_SEARCH_DASHBOARD_URI"
+	OpenSearchDashboardHost = "OPEN_SEARCH_DASHBOARD_HOST"
+	OpenSearchDashboardPort = "OPEN_SEARCH_DASHBOARD_PORT"
 )
 
-func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string) OpenSearchHandler {
+func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string, k8sReader client.Reader) OpenSearchHandler {
 	return OpenSearchHandler{
 		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
 		service:       service.NewManager(aiven.Services),
 		openSearchACL: aiven.OpenSearchACLs,
 		secretConfig:  utils.NewSecretConfig(aiven, projectName),
 		projectName:   projectName,
+		k8sReader:     k8sReader,
 	}
 }
 
@@ -51,6 +58,7 @@ type OpenSearchHandler struct {
 	openSearchACL opensearch.ACLManager
 	secretConfig  utils.SecretConfig
 	projectName   string
+	k8sReader     client.Reader
 }
 
 func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
@@ -59,7 +67,11 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		return nil, nil
 	}
 
-	serviceName := spec.Instance
+	serviceName, err := h.resolveServiceName(ctx, application.GetNamespace(), spec.Instance)
+	if err != nil {
+		utils.LocalFail("ResolveOpenSearchInstance", application, err, logger)
+		return nil, err
+	}
 
 	logger = logger.WithFields(log.Fields{
 		"handler": "opensearch",
@@ -71,7 +83,8 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	if err != nil {
 		return nil, utils.AivenFail("GetService", application, err, false, logger)
 	}
-	if len(addresses.OpenSearch.URI) == 0 {
+	serviceAddress := addresses.OpenSearch()
+	if len(serviceAddress.URI) == 0 {
 		return nil, utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
 	}
 
@@ -98,12 +111,17 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		ProjectAnnotation:     h.projectName,
 	}))
 
+	dashboardServiceAddress := addresses.OpenSearchDashboard()
+
 	individualSecret.StringData = utils.MergeStringMap(individualSecret.StringData, map[string]string{
-		OpenSearchUser:     aivenUser.Username,
-		OpenSearchPassword: aivenUser.Password,
-		OpenSearchURI:      addresses.OpenSearch.URI,
-		OpenSearchHost:     addresses.OpenSearch.Host,
-		OpenSearchPort:     strconv.Itoa(addresses.OpenSearch.Port),
+		OpenSearchUser:          aivenUser.Username,
+		OpenSearchPassword:      aivenUser.Password,
+		OpenSearchURI:           serviceAddress.URI,
+		OpenSearchHost:          serviceAddress.Host,
+		OpenSearchPort:          strconv.Itoa(serviceAddress.Port),
+		OpenSearchDashboardURI:  dashboardServiceAddress.URI,
+		OpenSearchDashboardHost: dashboardServiceAddress.Host,
+		OpenSearchDashboardPort: strconv.Itoa(dashboardServiceAddress.Port),
 	})
 
 	controllerutil.AddFinalizer(individualSecret, constants.AivenatorFinalizer)
@@ -236,4 +254,20 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 	}
 
 	return nil
+}
+
+// This function's raison d'être is ONLY for backwards compatibility for opensearch instances from BEFORE we perform "does the instance you want belong to your namespace?" check
+func (h OpenSearchHandler) resolveServiceName(ctx context.Context, namespace, instance string) (string, error) {
+	newStyleName := fmt.Sprintf("opensearch-%s-%s", namespace, instance)
+	if cr, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.OpenSearch{}, newStyleName, namespace); cr != nil {
+		return newStyleName, nil
+	} else if err != nil && !errors.Is(err, utils.ErrNotFound) {
+		return "", err
+	}
+
+	cr, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.OpenSearch{}, instance, namespace)
+	if cr != nil {
+		return instance, nil
+	}
+	return "", err
 }

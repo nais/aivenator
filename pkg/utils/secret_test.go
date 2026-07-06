@@ -3,7 +3,6 @@ package utils
 import (
 	"context"
 	"errors"
-	"testing"
 	"time"
 
 	"github.com/nais/aivenator/constants"
@@ -29,11 +28,6 @@ const (
 	projectCA        = "==== PROJECT CA ===="
 	secretGeneration = "123"
 )
-
-func TestSecret(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Secret Suite")
-}
 
 var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 	var handler SecretConfig

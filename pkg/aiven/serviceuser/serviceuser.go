@@ -11,6 +11,7 @@ import (
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -36,6 +37,7 @@ func NewManager(ctx context.Context, serviceUsers *aiven.ServiceUsersHandler) Se
 
 type ServiceUserManager interface {
 	Create(ctx context.Context, serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error)
+	Update(ctx context.Context, serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error)
 	Get(ctx context.Context, serviceUserName, projectName, serviceName string, logger log.FieldLogger) (*aiven.ServiceUser, error)
 	Delete(ctx context.Context, serviceUserName, projectName, serviceName string, logger log.FieldLogger) error
 	ObserveServiceUsersCount(ctx context.Context, projectName, serviceName string, logger log.FieldLogger)
@@ -157,5 +159,25 @@ func (m *Manager) Create(ctx context.Context, serviceUserName, projectName, serv
 	}
 	metrics.ServiceUsersCreated.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
 	m.ObserveServiceUsersCount(ctx, projectName, serviceName, logger)
+	return aivenUser, nil
+}
+
+func (m *Manager) Update(ctx context.Context, serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+	req := aiven.ModifyServiceUserRequest{
+		Operation:     ptr.To("set-access-control"),
+		AccessControl: accessControl,
+	}
+
+	var aivenUser *aiven.ServiceUser
+	err := metrics.ObserveAivenLatency("ServiceUser_Update", projectName, func() error {
+		var err error
+		aivenUser, err = m.serviceUsers.Update(ctx, projectName, serviceName, serviceUserName, req)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	metrics.ServiceUsersUpdated.With(prometheus.Labels{metrics.LabelPool: projectName}).Inc()
+	m.serviceUserCache.Set(cacheKey{projectName, serviceName, aivenUser.Username}, aivenUser, cache.WithExpiration(cacheExpiration))
 	return aivenUser, nil
 }

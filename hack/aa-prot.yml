@@ -4,7 +4,7 @@ metadata:
   name: aa-prot
   namespace: default
 spec:
-  secretName: my-protected-secret
   protected: true
   kafka:
     pool: nav-dev
+    secretName: my-protected-secret
