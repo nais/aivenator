@@ -219,7 +219,7 @@ func newAivenClient(ctx context.Context, logger log.FieldLogger) (*aiven.Client,
 func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string, recorder k8sevents.EventRecorder) error {
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
 
-	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}))
+	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}), mgr.GetAPIReader())
 	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges, recorder)
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {

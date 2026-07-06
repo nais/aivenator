@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type ServiceHandler interface {
@@ -25,12 +26,12 @@ type Manager struct {
 	handlers []ServiceHandler
 }
 
-func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger) Manager {
+func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger, k8sReader client.Reader) Manager {
 	return Manager{
 		handlers: []ServiceHandler{
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, mainProjectName, logger),
-			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName),
-			valkey.NewValkeyHandler(ctx, aiven, mainProjectName),
+			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName, k8sReader),
+			valkey.NewValkeyHandler(ctx, aiven, mainProjectName, k8sReader),
 		},
 	}
 }
