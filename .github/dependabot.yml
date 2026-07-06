@@ -1,17 +1,43 @@
 version: 2
 updates:
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      docker:
+        patterns:
+          - '*'
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "daily"
-    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       k8s:
         patterns:
           - k8s.io/api*
           - k8s.io/client-go
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      gomod:
+        patterns:
+          - '*'
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: "daily"
-    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      gha:
+        patterns:
+          - '*'
