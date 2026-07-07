@@ -16,21 +16,22 @@ const (
 // GetResourceInNamespace fetches a CR by name and namespace, and verifies
 // that its status.state is "RUNNING".
 // Returns (obj, nil) when found and running, (nil, err) otherwise.
-func GetResourceInNamespace(ctx context.Context, reader client.Reader, obj client.Object, name, namespace string) (client.Object, error) {
+func GetResourceInNamespace[T client.Object](ctx context.Context, reader client.Reader, obj T, name, namespace string) (T, error) {
+	var zero T
 	err := reader.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, obj)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			return nil, fmt.Errorf("%T %q not found in namespace %q: %w", obj, name, namespace, ErrNotFound)
+			return zero, fmt.Errorf("%T %q not found in namespace %q: %w", obj, name, namespace, ErrNotFound)
 		}
-		return nil, fmt.Errorf("failed to look up %T %q in namespace %q: %w", obj, name, namespace, err)
+		return zero, fmt.Errorf("failed to look up %T %q in namespace %q: %w", obj, name, namespace, err)
 	}
 
 	state, err := extractState(obj)
 	if err != nil {
-		return nil, fmt.Errorf("%T %q in namespace %q: %w", obj, name, namespace, err)
+		return zero, fmt.Errorf("%T %q in namespace %q: %w", obj, name, namespace, err)
 	}
 	if state != ReadyState {
-		return nil, fmt.Errorf("%T %q in namespace %q has state %q, expected "+ReadyState+": %w",
+		return zero, fmt.Errorf("%T %q in namespace %q has state %q, expected "+ReadyState+": %w",
 			obj, name, namespace, state, ErrNotReady)
 	}
 	return obj, nil

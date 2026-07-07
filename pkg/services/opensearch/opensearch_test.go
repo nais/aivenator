@@ -7,12 +7,12 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
-	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -76,9 +76,18 @@ var _ = Describe("opensearch handler", func() {
 		scheme := runtime.NewScheme()
 		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
 		// Pre-populate CRs matching test constants in testNamespace.
+		// The "team" tag must match the namespace, or instanceBelongsToTeam rejects ownership.
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-			&aiven_io_v1alpha1.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: testNamespace}, Status: aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState}},
-			&aiven_io_v1alpha1.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: instance, Namespace: testNamespace}, Status: aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.OpenSearch{
+				ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: testNamespace},
+				Spec:       aiven_io_v1alpha1.OpenSearchSpec{ServiceCommonSpec: aiven_io_v1alpha1.ServiceCommonSpec{Tags: map[string]string{"team": testNamespace}}},
+				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState},
+			},
+			&aiven_io_v1alpha1.OpenSearch{
+				ObjectMeta: metav1.ObjectMeta{Name: instance, Namespace: testNamespace},
+				Spec:       aiven_io_v1alpha1.OpenSearchSpec{ServiceCommonSpec: aiven_io_v1alpha1.ServiceCommonSpec{Tags: map[string]string{"team": testNamespace}}},
+				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState},
+			},
 		).Build()
 
 		opensearchHandler = OpenSearchHandler{
@@ -417,18 +426,17 @@ var _ = Describe("opensearch handler", func() {
 				}).
 				Build()
 			mockAivenReturnCaOk()
-			// GetServiceAddresses must be called with the resolved new-style name
-			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, "opensearch-"+testNamespace+"-roger").
+			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, "roger").
 				Return(opensearchServiceAddresses, nil)
 			mockAivenReturnOpensearchGetServiceUserOk()
 			mockAivenReturnAclManagerGetOk()
 			mockAivenReturnAclManagerUpdateOk()
 		})
 
-		It("resolves via the new-style CR name and succeeds", func() {
-			// Add the new-style CR to the fake client
+		It("verifies ownership via the new-style CR name and succeeds", func() {
 			cr := &aiven_io_v1alpha1.OpenSearch{
 				ObjectMeta: metav1.ObjectMeta{Name: "opensearch-" + testNamespace + "-roger", Namespace: testNamespace},
+				Spec:       aiven_io_v1alpha1.OpenSearchSpec{ServiceCommonSpec: aiven_io_v1alpha1.ServiceCommonSpec{Tags: map[string]string{"team": testNamespace}}},
 				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState},
 			}
 			Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, cr)).To(Succeed())
@@ -436,7 +444,7 @@ var _ = Describe("opensearch handler", func() {
 			individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(individualSecrets).To(HaveLen(1))
-			Expect(individualSecrets[0].Annotations[ServiceNameAnnotation]).To(Equal("opensearch-" + testNamespace + "-roger"))
+			Expect(individualSecrets[0].Annotations[ServiceNameAnnotation]).To(Equal("roger"))
 		})
 	})
 
@@ -461,16 +469,14 @@ var _ = Describe("opensearch handler", func() {
 		})
 	})
 
-	// Namespace naming collision: opensearch-<ns>-<instance> is ambiguous.
-	// e.g. namespace "a" + instance "b-foo" and namespace "a-b" + instance "foo"
-	// both produce "opensearch-a-b-foo". Aiven rejects the duplicate, so the
-	// colliding CR exists in-cluster but never reaches RUNNING.
-	When("OpenSearch CR exists in namespace but is NOT in RUNNING state (naming collision)", func() {
+	// Ownership requires the CR's "team" tag to match the namespace of requesting aivenapp, not merely that the CR exists and is RUNNING.
+	// A RUNNING CR tagged for a different team must be rejected.
+	When("the OpenSearch CR's team tag does not match the aivenapp's namespace", func() {
 		BeforeEach(func() {
-			// CR exists in testNamespace with a non-RUNNING state (simulates Aiven rejection)
 			cr := &aiven_io_v1alpha1.OpenSearch{
 				ObjectMeta: metav1.ObjectMeta{Name: "opensearch-" + testNamespace + "-collided", Namespace: testNamespace},
-				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: "NOT_RUNNING"},
+				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: "RUNNING"},
+				Spec:       aiven_io_v1alpha1.OpenSearchSpec{ServiceCommonSpec: aiven_io_v1alpha1.ServiceCommonSpec{Tags: map[string]string{"team": "innocent-team"}}},
 			}
 			Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, cr)).To(Succeed())
 
@@ -485,10 +491,10 @@ var _ = Describe("opensearch handler", func() {
 				Build()
 		})
 
-		It("rejects because the instance is not RUNNING", func() {
+		It("rejects because the instance does not belong to aivenapp team", func() {
 			_, err := opensearchHandler.Apply(ctx, &application, logger)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("expected RUNNING"))
+			Expect(err.Error()).To(ContainSubstring("does not belong to team"))
 		})
 	})
 
