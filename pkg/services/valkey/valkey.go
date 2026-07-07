@@ -10,10 +10,10 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
-	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -66,6 +66,16 @@ type ValkeyHandler struct {
 	k8sReader    client.Reader
 }
 
+func (h ValkeyHandler) instanceBelongsToTeam(ctx context.Context, namespace, instanceName string) (bool, error) {
+	instance := &aiven_io_v1alpha1.Valkey{}
+	instance, err := utils.GetResourceInNamespace(ctx, h.k8sReader, instance, instanceName, namespace)
+	if err != nil {
+		return false, err
+	}
+
+	return instance.Spec.Tags["team"] == namespace, nil
+}
+
 func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
 	logger = logger.WithFields(log.Fields{"handler": "valkey"})
 	if len(application.Spec.Valkey) == 0 {
@@ -76,8 +86,12 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 	for _, valkeySpec := range application.Spec.Valkey {
 		serviceName := fmt.Sprintf("valkey-%s-%s", application.GetNamespace(), valkeySpec.Instance)
 
-		if _, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.Valkey{}, serviceName, application.GetNamespace()); err != nil {
-			utils.LocalFail("ResolveValkeyInstance", application, err, logger)
+		belongs, err := h.instanceBelongsToTeam(ctx, application.Namespace, serviceName)
+		if err != nil {
+			utils.LocalFail("VerifyValkeyInstanceOwnership", application, err, logger)
+			return nil, err
+		} else if !belongs {
+			err = fmt.Errorf("valkey instance %q does not belong to team %q", serviceName, application.Namespace)
 			return nil, err
 		}
 
@@ -92,7 +106,7 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 				Namespace: application.GetNamespace(),
 			},
 		}
-		_, err := h.secretConfig.ApplyIndividualSecret(ctx, application, finalSecret, logger)
+		_, err = h.secretConfig.ApplyIndividualSecret(ctx, application, finalSecret, logger)
 		if err != nil {
 			return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
 		}

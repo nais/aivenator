@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
-	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -232,9 +232,21 @@ var _ = Describe("valkey.SecretConfig", func() {
 		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
 		// Pre-populate Valkey CRs matching testInstances in namespace "team-a"
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-my-instance1", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
-			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-session-store", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
-			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-with-replica", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.Valkey{
+				ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-my-instance1", Namespace: namespace},
+				Spec:       aiven_io_v1alpha1.ValkeySpec{ServiceCommonSpec: aiven_io_v1alpha1.ServiceCommonSpec{Tags: map[string]string{"team": namespace}}},
+				Status:     aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState},
+			},
+			&aiven_io_v1alpha1.Valkey{
+				ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-session-store", Namespace: namespace},
+				Spec:       aiven_io_v1alpha1.ValkeySpec{ServiceCommonSpec: aiven_io_v1alpha1.ServiceCommonSpec{Tags: map[string]string{"team": namespace}}},
+				Status:     aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState},
+			},
+			&aiven_io_v1alpha1.Valkey{
+				ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-with-replica", Namespace: namespace},
+				Spec:       aiven_io_v1alpha1.ValkeySpec{ServiceCommonSpec: aiven_io_v1alpha1.ServiceCommonSpec{Tags: map[string]string{"team": namespace}}},
+				Status:     aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState},
+			},
 		).Build()
 
 		valkeyHandler = ValkeyHandler{
@@ -495,6 +507,39 @@ var _ = Describe("valkey.SecretConfig", func() {
 			_, err := valkeyHandler.Apply(ctx, &application, logger)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("expected RUNNING"))
+		})
+	})
+
+	// Ownership requires the CR's "team" tag to equal the requesting aivenapp's namespace, not merely that the CR exists and is RUNNING.
+	// Flattened valkey-<ns>-<instance> names can collide across teams whose names are substrings of one another —
+	// e.g. namespace "team-a" + instance "b-cache" and namespace "team-a-b" + instance "cache" both yield "valkey-team-a-b-cache" —
+	// so a RUNNING CR tagged for another team must be rejected.
+	When("the Valkey CR's team tag does not match the aivenapp's namespace", func() {
+		BeforeEach(func() {
+			cr := &aiven_io_v1alpha1.Valkey{
+				ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-b-cache", Namespace: namespace},
+				Status:     aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState},
+				Spec:       aiven_io_v1alpha1.ValkeySpec{ServiceCommonSpec: aiven_io_v1alpha1.ServiceCommonSpec{Tags: map[string]string{"team": "team-a-b"}}},
+			}
+			Expect(valkeyHandler.k8sReader.(client.Client).Create(ctx, cr)).To(Succeed())
+
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+						{
+							Instance:   "b-cache",
+							Access:     "read",
+							SecretName: "b-cache-secret",
+						},
+					},
+				}).
+				Build()
+		})
+
+		It("rejects because the instance does not belong to aivenapp team", func() {
+			_, err := valkeyHandler.Apply(ctx, &application, logger)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("does not belong to team"))
 		})
 	})
 
