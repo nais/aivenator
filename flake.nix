@@ -61,9 +61,6 @@
               "nixfmt"
               "deadnix"
             ];
-            treefmtProgramsEnable = lib.genAttrs linters (_: {
-              enable = true;
-            });
           in
           inputs.treefmt-nix.lib.mkWrapper pkgs (
             {
@@ -74,7 +71,9 @@
               ];
             }
             // {
-              programs = treefmtProgramsEnable;
+              programs = lib.genAttrs linters (_: {
+                enable = true;
+              });
             }
           );
 

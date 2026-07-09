@@ -21,8 +21,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/emicklei/go-restful/v3 v3.13.0 h1:C4Bl2xDndpU6nJ4bc1jXd+uTmYPVUwkD6bFY/oTyCes=
 github.com/emicklei/go-restful/v3 v3.13.0/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
-github.com/evanphx/json-patch v5.6.0+incompatible h1:jBYDEEiFBPxA0v50tFdvOzQQTCvpL6mnFh5mB2/l16U=
-github.com/evanphx/json-patch v5.6.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
+github.com/evanphx/json-patch v0.5.2 h1:xVCHIVMUu1wtM/VkR9jVZ45N3FhZfYMMYGorLCR8P3k=
+github.com/evanphx/json-patch v0.5.2/go.mod h1:ZWS5hhDbVDyob71nXKNL0+PWn6ToqBHMikGIFbs31qQ=
 github.com/evanphx/json-patch/v5 v5.9.11 h1:/8HVnzMq13/3x9TPvjG08wUGqBTmZBsCWzjTM0wiaDU=
 github.com/evanphx/json-patch/v5 v5.9.11/go.mod h1:3j+LviiESTElxA4p3EMKAB9HXj3/XEtnUf6OZxqIQTM=
 github.com/fatih/color v1.19.0 h1:Zp3PiM21/9Ld6FzSKyL5c/BULoe/ONr9KlbYVOfG8+w=
@@ -148,8 +148,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/nais/liberator v0.0.0-20260717080908-dd3a42c2c11b h1:KPn4MvhxGDvb+6c/c75I714g8nOE8SfAe5AkIXWLNKg=
 github.com/nais/liberator v0.0.0-20260717080908-dd3a42c2c11b/go.mod h1:IY97/8zo6NvOVNSONhKeWDpp9xa/d3Rq4n7xZYtS5KI=
-github.com/nais/pgrator/pkg/api v0.0.0-20260707113111-2eb4fcfcc205 h1:/ww364CK7rsYYikK/TS2T8iC/sV8Zb+HhZ3dpZ6Gj9s=
-github.com/nais/pgrator/pkg/api v0.0.0-20260707113111-2eb4fcfcc205/go.mod h1:0/2qMyI55tTpDy5sEjyfe6er76m8I2UdlZYNJ2ZNsyM=
+github.com/nais/pgrator/pkg/api v0.0.0-20260702113208-b469e505b1d5 h1:fOWAxiK6MoEX4rwAzxilRXYjTxMSm66D3zsInrahEkg=
+github.com/nais/pgrator/pkg/api v0.0.0-20260702113208-b469e505b1d5/go.mod h1:0/2qMyI55tTpDy5sEjyfe6er76m8I2UdlZYNJ2ZNsyM=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
 github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=
