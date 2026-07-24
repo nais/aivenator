@@ -13,12 +13,14 @@ import (
 	_ "net/http/pprof" // Enable http profiling
 
 	"github.com/aiven/aiven-go-client/v2"
+	"github.com/go-logr/logr"
 	"github.com/nais/aivenator/controllers/aiven_application"
 	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/credentials"
 	aivenatormetrics "github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	"github.com/nais/liberator/pkg/logrus2logr"
 	liberator_scheme "github.com/nais/liberator/pkg/scheme"
 	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
@@ -134,6 +136,7 @@ func main() {
 		os.Exit(ExitConfig)
 	}
 	logger.SetLevel(level)
+	ctrl.SetLogger(logr.New(&logrus2logr.Logrus2Logr{Logger: logger}))
 
 	ctx := context.Background()
 
@@ -148,7 +151,6 @@ func main() {
 		logger.Errorf("unable to load schemes: %s", err)
 		os.Exit(ExitRuntime)
 	}
-
 	allowedProjects := viper.GetStringSlice(Projects)
 
 	syncPeriod := viper.GetDuration(SyncPeriod)
@@ -176,10 +178,10 @@ func main() {
 		logger.Errorln(fmt.Errorf("unable to create kubernetes clientset for events: %w", err))
 		os.Exit(ExitRuntime)
 	}
-    eb := k8sevents.NewEventBroadcasterAdapter(kubeClientset)
-    // Run broadcaster for the lifetime of the process; no explicit shutdown
-    eb.StartRecordingToSink(make(chan struct{}))
-    recorder := eb.NewRecorder("aivenator")
+	eb := k8sevents.NewEventBroadcasterAdapter(kubeClientset)
+	// Run broadcaster for the lifetime of the process; no explicit shutdown
+	eb.StartRecordingToSink(make(chan struct{}))
+	recorder := eb.NewRecorder("aivenator")
 
 	if err := manageCredentials(ctx, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject), recorder); err != nil {
 		logger.Errorln(err)
@@ -219,7 +221,7 @@ func newAivenClient(ctx context.Context, logger log.FieldLogger) (*aiven.Client,
 func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string, recorder k8sevents.EventRecorder) error {
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
 
-	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}), mgr.GetAPIReader())
+	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}), mgr.GetAPIReader(), mgr.GetClient())
 	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges, recorder)
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
