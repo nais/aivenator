@@ -5,17 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
-	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
-	"github.com/nais/aivenator/pkg/aiven/opensearch"
+	operator "github.com/nais/aivenator/pkg/aiven/operator"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -26,7 +28,11 @@ const (
 	ServiceUserAnnotation = "opensearch.aiven.nais.io/serviceUser"
 	ServiceNameAnnotation = "opensearch.aiven.nais.io/serviceName"
 	ProjectAnnotation     = "opensearch.aiven.nais.io/project"
+	InstanceAnnotation    = "opensearch.aiven.nais.io/instance"
 	DefaultACLAccess      = "read"
+	// LegacyServiceUserAnnotation holds a pre-CR username that can't name a CR; pods
+	// still use it, so it's drained via the direct Aiven API only when the secret drains.
+	LegacyServiceUserAnnotation = "opensearch.aiven.nais.io/legacyServiceUser"
 )
 
 // Environment variables
@@ -41,24 +47,27 @@ const (
 	OpenSearchDashboardPort = "OPEN_SEARCH_DASHBOARD_PORT"
 )
 
-func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string, k8sReader client.Reader) OpenSearchHandler {
+func NewOpenSearchHandler(ctx context.Context, aiven *aiven.Client, projectName string, k8sReader client.Reader, crServiceUser operator.ServiceUserManager, openSearchACL operator.OpenSearchACLManager) OpenSearchHandler {
 	return OpenSearchHandler{
-		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
-		service:       service.NewManager(aiven.Services),
-		openSearchACL: aiven.OpenSearchACLs,
-		secretConfig:  utils.NewSecretConfig(aiven, projectName),
-		projectName:   projectName,
+		crServiceUser: crServiceUser,
 		k8sReader:     k8sReader,
+		openSearchACL: openSearchACL,
+		projectName:   projectName,
+		secretConfig:  utils.NewSecretConfig(aiven, projectName),
+		service:       service.NewManager(aiven.Services),
+		serviceuser:   serviceuser.NewManager(ctx, aiven.ServiceUsers),
 	}
 }
 
 type OpenSearchHandler struct {
-	serviceuser   serviceuser.ServiceUserManager
-	service       service.ServiceManager
-	openSearchACL opensearch.ACLManager
-	secretConfig  utils.SecretConfig
-	projectName   string
+	crServiceUser operator.ServiceUserManager
 	k8sReader     client.Reader
+	openSearchACL operator.OpenSearchACLManager
+	projectName   string
+	secretConfig  utils.SecretConfig
+	service       service.ServiceManager
+	// serviceuser deletes transitional pre-CR users; drop once the drain is done.
+	serviceuser serviceuser.ServiceUserManager
 }
 
 func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
@@ -67,62 +76,78 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 		return nil, nil
 	}
 
-	serviceName, err := h.resolveServiceName(ctx, application.GetNamespace(), spec.Instance)
+	namespace := application.GetNamespace()
+	serviceName, instance, err := h.resolveInstance(ctx, namespace, spec.Instance)
 	if err != nil {
 		utils.LocalFail("ResolveOpenSearchInstance", application, err, logger)
 		return nil, err
 	}
-
 	logger = logger.WithFields(log.Fields{
-		"handler": "opensearch",
-		"project": h.projectName,
-		"service": serviceName,
+		"aivenProject":         h.projectName,
+		"serviceName":          serviceName,
+		"aivenServiceInstance": spec.Instance,
 	})
 
 	addresses, err := h.service.GetServiceAddresses(ctx, h.projectName, serviceName)
 	if err != nil {
 		return nil, utils.AivenFail("GetService", application, err, false, logger)
 	}
-	serviceAddress := addresses.OpenSearch()
-	if len(serviceAddress.URI) == 0 {
-		return nil, utils.AivenFail("GetService", application, fmt.Errorf("no OpenSearch service found"), false, logger)
-	}
 
-	logger = logger.WithField("individualSecret", spec.SecretName)
+	logger = logger.WithField("secretName", spec.SecretName)
 	individualSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      spec.SecretName,
-			Namespace: application.GetNamespace(),
+			Namespace: namespace,
 		},
 	}
 
-	_, err = h.secretConfig.ApplyIndividualSecret(ctx, application, individualSecret, logger)
-	if err != nil {
-		return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
-	}
-	aivenUser, err := h.provideServiceUser(ctx, application, serviceName, individualSecret, logger)
+	serviceUser, legacyUsername, err := h.provideServiceUser(ctx, application, instance, serviceName, logger)
 	if err != nil {
 		return nil, err
 	}
+	logger = logger.WithField("serviceUser", serviceUser.Username)
+	password, err := operator.Required(serviceUser.Secret, operator.ServiceUserPassword)
+	if err != nil {
+		return nil, utils.AivenFail("ReadServiceUserSecret", application, err, false, logger)
+	}
+	host, err := operator.Required(serviceUser.Secret, operator.ServiceUserHost)
+	if err != nil {
+		return nil, utils.AivenFail("ReadServiceUserSecret", application, err, false, logger)
+	}
+	port, err := operator.Required(serviceUser.Secret, operator.ServiceUserPort)
+	if err != nil {
+		return nil, utils.AivenFail("ReadServiceUserSecret", application, err, false, logger)
+	}
 
-	individualSecret.SetAnnotations(utils.MergeStringMap(individualSecret.GetAnnotations(), map[string]string{
-		ServiceUserAnnotation: aivenUser.Username,
+	dashboard := addresses.OpenSearchDashboard()
+	annotations := map[string]string{
 		ServiceNameAnnotation: serviceName,
 		ProjectAnnotation:     h.projectName,
-	}))
+		ServiceUserAnnotation: serviceUser.Username,
+		InstanceAnnotation:    spec.Instance,
+	}
+	if legacyUsername != "" {
+		annotations[LegacyServiceUserAnnotation] = legacyUsername
+	}
+	connection := map[string]string{
+		OpenSearchUser:          serviceUser.Username,
+		OpenSearchPassword:      password,
+		OpenSearchURI:           fmt.Sprintf("https://%s:%s", host, port),
+		OpenSearchHost:          host,
+		OpenSearchPort:          port,
+		OpenSearchDashboardURI:  dashboard.URI,
+		OpenSearchDashboardHost: dashboard.Host,
+		OpenSearchDashboardPort: strconv.Itoa(dashboard.Port),
+	}
 
-	dashboardServiceAddress := addresses.OpenSearchDashboard()
+	// Initialise the secret's identity/labels/CA/timestamp last, once provisioning
+	// has succeeded, so the project-CA fetch does not run on failure paths.
+	if _, err := h.secretConfig.ApplyIndividualSecret(ctx, application, individualSecret, logger); err != nil {
+		return nil, utils.AivenFail("GetOrInitSecret", application, err, false, logger)
+	}
 
-	individualSecret.StringData = utils.MergeStringMap(individualSecret.StringData, map[string]string{
-		OpenSearchUser:          aivenUser.Username,
-		OpenSearchPassword:      aivenUser.Password,
-		OpenSearchURI:           serviceAddress.URI,
-		OpenSearchHost:          serviceAddress.Host,
-		OpenSearchPort:          strconv.Itoa(serviceAddress.Port),
-		OpenSearchDashboardURI:  dashboardServiceAddress.URI,
-		OpenSearchDashboardHost: dashboardServiceAddress.Host,
-		OpenSearchDashboardPort: strconv.Itoa(dashboardServiceAddress.Port),
-	})
+	individualSecret.SetAnnotations(utils.MergeStringMap(individualSecret.GetAnnotations(), annotations))
+	individualSecret.StringData = utils.MergeStringMap(individualSecret.StringData, connection)
 
 	controllerutil.AddFinalizer(individualSecret, constants.AivenatorFinalizer)
 
@@ -130,144 +155,116 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	return []corev1.Secret{*individualSecret}, nil
 }
 
-func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
-	var serviceUserName string
+func (h OpenSearchHandler) resolveInstance(ctx context.Context, namespace, instance string) (string, client.Object, error) {
+	newStyleName := fmt.Sprintf("opensearch-%s-%s", namespace, instance)
+	cr, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.OpenSearch{}, newStyleName, namespace)
+	if err == nil {
+		return newStyleName, cr, nil
+	}
+	if !errors.Is(err, utils.ErrNotFound) {
+		return "", nil, err
+	}
 
+	cr, err = utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.OpenSearch{}, instance, namespace)
+	if err != nil {
+		return "", nil, err
+	}
+	return instance, cr, nil
+}
+
+func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, instance client.Object, serviceName string, logger log.FieldLogger) (*operator.ServiceUser, string, error) {
 	if application.Spec.OpenSearch.Access == "" {
 		application.Spec.OpenSearch.Access = DefaultACLAccess
 	}
+	namespace := application.GetNamespace()
 
-	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
-		serviceUserName = nameFromAnnotation
+	var existingName, existingLegacy string
+	existing := &corev1.Secret{}
+	if err := h.k8sReader.Get(ctx, client.ObjectKey{Namespace: namespace, Name: application.Spec.OpenSearch.SecretName}, existing); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, "", utils.AivenFail("GetSecret", application, err, false, logger)
+		}
 	} else {
-		suffix, err := utils.CreateSuffix(application)
-		if err != nil {
-			err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.ErrUnrecoverable)
-			utils.LocalFail("CreateSuffix", application, err, logger)
-			return nil, err
-		}
-
-		serviceUserName = fmt.Sprintf("%s%s-%s", application.GetNamespace(), utils.SelectSuffix(application.Spec.OpenSearch.Access), suffix)
+		existingName = existing.GetAnnotations()[ServiceUserAnnotation]
+		existingLegacy = existing.GetAnnotations()[LegacyServiceUserAnnotation]
 	}
-
-	logger.Info("attempting to get existing user")
-	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, h.projectName, serviceName, logger)
-	if err != nil && !aiven.IsNotFound(err) {
-		return nil, utils.AivenFail("GetServiceUser", application, err, false, logger)
-	}
-
-	if aiven.IsNotFound(err) {
-		logger.Info("user does not exist, creating")
-		aivenUser, err = h.serviceuser.Create(ctx, serviceUserName, h.projectName, serviceName, nil, logger)
-		if err != nil {
-			return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
-		}
-	}
-
-	logger.Infof("updating ACLs for %s", aivenUser.Username)
-	if err := h.updateACL(ctx, aivenUser.Username, application.Spec.OpenSearch.Access, h.projectName, serviceName); err != nil {
-		return nil, utils.AivenFail("UpdateACL", application, err, false, logger)
-	}
-
-	logger.Infof("provided serviceuser: %v", aivenUser.Username)
-	return aivenUser, nil
-}
-
-func (h OpenSearchHandler) updateACL(ctx context.Context, serviceUserName, access, projectName, serviceName string) error {
-	resp, err := h.openSearchACL.Get(ctx, projectName, serviceName)
+	serviceUserName, legacyUsername, err := operator.ResolveExistingServiceUser(ctx, h.crServiceUser, namespace, existingName, existingLegacy, serviceName)
 	if err != nil {
-		return err
+		return nil, "", utils.AivenFail("ResolveServiceUser", application, err, false, logger)
+	}
+	if serviceUserName == "" {
+		serviceUserName = utils.ServiceUserName(application.GetName(), application.Spec.OpenSearch.Access, application.Spec.OpenSearch.Instance, application.Spec.OpenSearch.SecretName, time.Now())
 	}
 
-	config := resp.OpenSearchACLConfig
-	config.Enabled = true
-	config.Add(aiven.OpenSearchACL{
-		Rules: []aiven.OpenSearchACLRule{
-			{Index: "_*", Permission: access},
-			{Index: "*", Permission: access},
-		},
-		Username: serviceUserName,
-	})
-	_, err = h.openSearchACL.Update(ctx, projectName, serviceName, aiven.OpenSearchACLRequest{
-		OpenSearchACLConfig: config,
-	})
+	serviceUser, err := h.crServiceUser.CreateServiceUser(ctx, application, operator.ServiceUserSpec{
+		Name:        serviceUserName,
+		Namespace:   namespace,
+		Project:     h.projectName,
+		ServiceName: serviceName,
+	}, logger)
+	if err != nil {
+		return nil, "", utils.AivenFail("EnsureServiceUser", application, err, false, logger)
+	}
 
-	return err
+	if err := h.openSearchACL.CreateServiceUserACLs(ctx, instance, operator.OpenSearchACLSpec{
+		Project:     h.projectName,
+		ServiceName: serviceName,
+		Namespace:   namespace,
+		Username:    serviceUser.Username,
+		Access:      application.Spec.OpenSearch.Access,
+	}, logger); err != nil {
+		return nil, "", utils.AivenFail("UpdateACL", application, err, false, logger)
+	}
+	return serviceUser, legacyUsername, nil
 }
 
 func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
 	annotations := secret.GetAnnotations()
+	serviceName, okServiceName := annotations[ServiceNameAnnotation]
+	if !okServiceName {
+		return nil
+	}
 
-	if serviceName, okServiceName := annotations[ServiceNameAnnotation]; okServiceName {
-		logger = logger.WithField("secret_name", secret.GetName())
+	serviceUserName, okServiceUser := annotations[ServiceUserAnnotation]
+	if !okServiceUser {
+		return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
+	}
+	projectName, okProjectName := annotations[ProjectAnnotation]
+	if !okProjectName {
+		return fmt.Errorf("missing annotation %s", ProjectAnnotation)
+	}
 
-		serviceUser, okServiceUser := annotations[ServiceUserAnnotation]
-		if !okServiceUser {
-			return fmt.Errorf("missing annotation %s", ServiceUserAnnotation)
-		}
+	logger = logger.WithFields(log.Fields{
+		"secretName":           secret.GetName(),
+		"serviceUser":          serviceUserName,
+		"aivenProject":         projectName,
+		"serviceName":          serviceName,
+		"aivenServiceInstance": annotations[InstanceAnnotation],
+	})
 
-		projectName, okProjectName := annotations[ProjectAnnotation]
-		if !okProjectName {
-			return fmt.Errorf("missing annotation %s", ProjectAnnotation)
-		}
+	// The ACL entry is always removed via the OpenSearchACLConfig CR: once that
+	// CR exists it is the single writer of the service's ACLs, and any direct
+	// API removal would be reverted by aiven-operator.
+	if err := h.openSearchACL.DeleteServiceUserACLs(ctx, secret.GetNamespace(), serviceName, serviceUserName, logger); err != nil {
+		return err
+	}
 
-		logger = logger.WithFields(log.Fields{
-			"serviceUser": serviceUser,
-			"project":     projectName,
-		})
+	// The CR name is also the Aiven username, so it's both the CR and the direct-delete target.
+	if err := operator.DrainServiceUser(ctx, h.crServiceUser, h.serviceuser, secret.GetNamespace(), serviceUserName, serviceUserName, projectName, serviceName, logger); err != nil {
+		return err
+	}
 
-		aclResp, err := h.openSearchACL.Get(ctx, projectName, serviceName)
-		if err != nil {
+	// A tracked legacy (pre-CR) user has no CR: its ACL entry is still removed
+	// via the OpenSearchACLConfig CR (single writer), the user itself directly
+	// via the Aiven API.
+	if legacyUsername, ok := annotations[LegacyServiceUserAnnotation]; ok {
+		if err := h.openSearchACL.DeleteServiceUserACLs(ctx, secret.GetNamespace(), serviceName, legacyUsername, logger); err != nil {
 			return err
 		}
-
-		aclConfig := aclResp.OpenSearchACLConfig
-		var aclToDelete aiven.OpenSearchACL
-		for _, acl := range aclConfig.ACLs {
-			if acl.Username == serviceUser {
-				aclToDelete = acl
-				break
-			}
-		}
-
-		// Check to see if we found an ACL to clean up
-		if aclToDelete.Username == serviceUser {
-			newACLConfig := aclConfig.Delete(ctx, aclToDelete)
-			_, err = h.openSearchACL.Update(ctx, projectName, serviceName, aiven.OpenSearchACLRequest{
-				OpenSearchACLConfig: *newACLConfig,
-			})
-			if err != nil {
-				return err
-			}
-		}
-
-		if err := h.serviceuser.Delete(ctx, serviceUser, projectName, serviceName, logger); err != nil {
-			if aiven.IsNotFound(err) {
-				logger.Infof("Service user %s does not exist", serviceUser)
-				return nil
-			}
-
+		if err := serviceuser.EnsureServiceUserDeleted(ctx, h.serviceuser, "legacy service user", legacyUsername, projectName, serviceName, logger); err != nil {
 			return err
 		}
-
-		logger.Infof("Deleted service user %s", serviceUser)
 	}
 
 	return nil
-}
-
-// This function's raison d'être is ONLY for backwards compatibility for opensearch instances from BEFORE we perform "does the instance you want belong to your namespace?" check
-func (h OpenSearchHandler) resolveServiceName(ctx context.Context, namespace, instance string) (string, error) {
-	newStyleName := fmt.Sprintf("opensearch-%s-%s", namespace, instance)
-	if cr, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.OpenSearch{}, newStyleName, namespace); cr != nil {
-		return newStyleName, nil
-	} else if err != nil && !errors.Is(err, utils.ErrNotFound) {
-		return "", err
-	}
-
-	cr, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.OpenSearch{}, instance, namespace)
-	if cr != nil {
-		return instance, nil
-	}
-	return "", err
 }
