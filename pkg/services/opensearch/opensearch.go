@@ -17,6 +17,7 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -29,9 +30,8 @@ const (
 	ProjectAnnotation     = "opensearch.aiven.nais.io/project"
 	InstanceAnnotation    = "opensearch.aiven.nais.io/instance"
 	DefaultACLAccess      = "read"
-	// LegacyServiceUserAnnotation records a pre-CR username that is invalid as a
-	// CR name and so cannot be adopted; it stays valid on Aiven for pods still
-	// holding it, and is deleted via the direct API when the secret drains.
+	// LegacyServiceUserAnnotation holds a pre-CR username that can't name a CR; pods
+	// still use it, so it's drained via the direct Aiven API only when the secret drains.
 	LegacyServiceUserAnnotation = "opensearch.aiven.nais.io/legacyServiceUser"
 )
 
@@ -180,11 +180,18 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 
 	var existingName, existingLegacy string
 	existing := &corev1.Secret{}
-	if err := h.k8sReader.Get(ctx, client.ObjectKey{Namespace: namespace, Name: application.Spec.OpenSearch.SecretName}, existing); err == nil {
+	if err := h.k8sReader.Get(ctx, client.ObjectKey{Namespace: namespace, Name: application.Spec.OpenSearch.SecretName}, existing); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, "", utils.AivenFail("GetSecret", application, err, false, logger)
+		}
+	} else {
 		existingName = existing.GetAnnotations()[ServiceUserAnnotation]
 		existingLegacy = existing.GetAnnotations()[LegacyServiceUserAnnotation]
 	}
-	serviceUserName, legacyUsername := operator.ResolveExistingServiceUser(ctx, h.crServiceUser, namespace, existingName, existingLegacy, serviceName)
+	serviceUserName, legacyUsername, err := operator.ResolveExistingServiceUser(ctx, h.crServiceUser, namespace, existingName, existingLegacy, serviceName)
+	if err != nil {
+		return nil, "", utils.AivenFail("ResolveServiceUser", application, err, false, logger)
+	}
 	if serviceUserName == "" {
 		serviceUserName = utils.ServiceUserName(application.GetName(), application.Spec.OpenSearch.Access, application.Spec.OpenSearch.Instance, application.Spec.OpenSearch.SecretName, time.Now())
 	}
@@ -242,24 +249,9 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 		return err
 	}
 
-	exists, err := h.crServiceUser.Exists(ctx, secret.GetNamespace(), serviceUserName)
-	if err != nil {
+	// The CR name is also the Aiven username, so it's both the CR and the direct-delete target.
+	if err := operator.DrainServiceUser(ctx, h.crServiceUser, h.serviceuser, secret.GetNamespace(), serviceUserName, serviceUserName, projectName, serviceName, logger); err != nil {
 		return err
-	}
-	if exists {
-		err = h.crServiceUser.DeleteServiceUser(ctx, secret.GetNamespace(), serviceUserName, logger)
-	} else {
-		// Transitional: pre-CR users have no CR and are deleted via the Aiven API.
-		err = h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger)
-	}
-	if err != nil {
-		if aiven.IsNotFound(err) {
-			logger.Infof("Service user %s does not exist", serviceUserName)
-		} else {
-			return err
-		}
-	} else {
-		logger.Infof("Deleted service user %s", serviceUserName)
 	}
 
 	// A tracked legacy (pre-CR) user has no CR: its ACL entry is still removed
@@ -269,14 +261,8 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 		if err := h.openSearchACL.DeleteServiceUserACLs(ctx, secret.GetNamespace(), serviceName, legacyUsername, logger); err != nil {
 			return err
 		}
-		if err := h.serviceuser.Delete(ctx, legacyUsername, projectName, serviceName, logger); err != nil {
-			if aiven.IsNotFound(err) {
-				logger.Infof("Legacy service user %s does not exist", legacyUsername)
-			} else {
-				return err
-			}
-		} else {
-			logger.Infof("Deleted legacy service user %s", legacyUsername)
+		if err := serviceuser.EnsureServiceUserDeleted(ctx, h.serviceuser, "legacy service user", legacyUsername, projectName, serviceName, logger); err != nil {
+			return err
 		}
 	}
 

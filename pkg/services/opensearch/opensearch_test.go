@@ -24,8 +24,10 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -190,6 +192,26 @@ var _ = Describe("opensearch handler", func() {
 
 				Expect(err).ToNot(Succeed())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
+				Expect(individualSecrets).To(BeNil())
+			})
+		})
+
+		// A transient (non-NotFound) failure reading the existing secret must not be
+		// mistaken for "no prior user" — that would silently mint a second, orphaned
+		// service user under a different name instead of surfacing a retryable error.
+		Context("and reading the existing secret fails with a non-NotFound error", func() {
+			BeforeEach(func() {
+				opensearchHandler.k8sReader = erroringReader{
+					Reader:  opensearchHandler.k8sReader,
+					failKey: client.ObjectKey{Namespace: testNamespace, Name: secretName},
+					err:     errors.New("api server down"),
+				}
+				mockAivenReturnOpensearchGetOk()
+			})
+			It("fails instead of silently minting a new service user", func() {
+				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
+
+				Expect(err).To(HaveOccurred())
 				Expect(individualSecrets).To(BeNil())
 			})
 		})
@@ -360,6 +382,9 @@ var _ = Describe("opensearch handler", func() {
 		})
 
 		Context("and the existing secret's username has a CR targeting another service", func() {
+			// Switching spec.opensearch.instance without rotating the secret name is
+			// illegal: the annotated CR is bound to the old instance's service
+			// (immutable), so provisioning must fail rather than mint a colliding user.
 			BeforeEach(func() {
 				application = applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
@@ -377,21 +402,13 @@ var _ = Describe("opensearch handler", func() {
 				Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, existing)).To(Succeed())
 				mocks.crServiceUser.On("ServiceName", mock.Anything, testNamespace, serviceUserName).Return("opensearch-my-namespace-old-instance", true, nil)
 				mockAivenReturnOpensearchGetOk()
-				mockAivenReturnCaOk()
-				mockCreateACLsOk()
 			})
 
-			It("mints a fresh username instead of re-pointing the CR", func() {
-				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
-					return mintedNameShape.MatchString(spec.Name) && spec.ServiceName == serviceName
-				}), mock.Anything).
-					Return(&operator.ServiceUser{Username: "test-app-r-a1b2c3-d4e5f-2026w30", Secret: serviceUserSecret}, nil)
-
+			It("fails instead of re-pointing the CR or minting", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
-				Expect(err).To(BeNil())
-				Expect(individualSecrets).To(HaveLen(1))
-				Expect(individualSecrets[0].GetAnnotations()).To(HaveKeyWithValue(ServiceUserAnnotation, "test-app-r-a1b2c3-d4e5f-2026w30"))
+				Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+				Expect(individualSecrets).To(BeNil())
 			})
 		})
 
@@ -644,12 +661,13 @@ var _ = Describe("opensearch handler", func() {
 				Expect(opensearchHandler.Cleanup(ctx, &secret, logger)).To(Succeed())
 			})
 
-			It("tolerates an already-deleted service user", func() {
+			// A k8s NotFound from the CR delete is propagated, not tolerated.
+			It("propagates a k8s NotFound from the CR delete", func() {
 				mocks.aclManager.On("DeleteServiceUserACLs", mock.Anything, testNamespace, serviceName, serviceUserName, mock.Anything).Return(nil)
 				mocks.crServiceUser.On("DeleteServiceUser", mock.Anything, testNamespace, serviceUserName, mock.Anything).
-					Return(aiven.Error{Message: "not found", Status: 404})
+					Return(k8serrors.NewNotFound(schema.GroupResource{Group: "aiven.io", Resource: "serviceusers"}, serviceUserName))
 
-				Expect(opensearchHandler.Cleanup(ctx, &secret, logger)).To(Succeed())
+				Expect(opensearchHandler.Cleanup(ctx, &secret, logger)).ToNot(Succeed())
 			})
 
 			It("also deletes a tracked legacy user", func() {
@@ -690,6 +708,23 @@ var _ = Describe("opensearch handler", func() {
 		})
 	})
 })
+
+// erroringReader wraps a client.Reader, injecting err for Get calls against
+// failKey while delegating everything else, so one specific read can fail
+// (e.g. the app-facing secret) without breaking unrelated lookups (e.g.
+// resolving the OpenSearch CR).
+type erroringReader struct {
+	client.Reader
+	failKey client.ObjectKey
+	err     error
+}
+
+func (r erroringReader) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if key == r.failKey {
+		return r.err
+	}
+	return r.Reader.Get(ctx, key, obj, opts...)
+}
 
 var _ = Describe("utils.ServiceUserName", func() {
 	const nameShape = `^[a-z0-9][a-z0-9-]*-(a|rw|w|r)-[0-9a-f]{6}-[0-9a-f]{5}-[0-9]{4}w[0-9]{2}$`

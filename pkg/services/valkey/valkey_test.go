@@ -2,6 +2,7 @@ package valkey
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -380,6 +381,26 @@ var _ = Describe("valkey.SecretConfig", func() {
 			})
 		})
 
+		// A transient (non-NotFound) failure reading the existing secret must not be
+		// mistaken for "no prior user" — that would silently mint a second, orphaned
+		// service user under a different name instead of surfacing a retryable error.
+		Context("and reading the existing secret fails with a non-NotFound error", func() {
+			BeforeEach(func() {
+				valkeyHandler.k8sReader = erroringReader{
+					Reader:  valkeyHandler.k8sReader,
+					failKey: client.ObjectKey{Namespace: namespace, Name: data.secretName},
+					err:     errors.New("api server down"),
+				}
+				defaultServiceManagerMock(data)
+				mocks.projectManager.On("GetCA", mock.Anything, projectName).Return("my-ca", nil)
+			})
+			It("fails instead of silently minting a new service user", func() {
+				individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+				Expect(err).To(HaveOccurred())
+				Expect(individualSecrets).To(BeNil())
+			})
+		})
+
 		Context("and the project CA cannot be fetched", func() {
 			BeforeEach(func() {
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).Return("", aiven.Error{Message: "boom", Status: 500})
@@ -451,16 +472,14 @@ var _ = Describe("valkey.SecretConfig", func() {
 		})
 	})
 
-	When("the app-facing secret's username has a CR targeting another instance's service", func() {
+	When("an instance is switched without rotating the secret name", func() {
 		data := testInstances[0]
-		// A pre-per-instance name shared by the app's instances: its CR already
-		// targets a sibling's service, and spec.serviceName is immutable, so this
-		// instance must mint its own name rather than re-point the CR.
-		const sharedUsername = "test-app-rw-5fc"
-		var minted string
+		// Switching spec.valkey[].instance while keeping the secret name is illegal:
+		// the annotated CR is bound to the old instance's service (immutable), so
+		// provisioning must fail rather than mint a colliding user or re-point it.
+		const otherInstanceUser = "test-app-rw-5fc"
 
 		BeforeEach(func() {
-			minted = utils.ServiceUserName(appName, data.access, data.instanceName, "shared-secret", time.Now())
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
@@ -470,23 +489,19 @@ var _ = Describe("valkey.SecretConfig", func() {
 				Build()
 			existing := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
 				Name: "shared-secret", Namespace: namespace,
-				Annotations: map[string]string{data.serviceUserAnnotationKey: sharedUsername},
+				Annotations: map[string]string{data.serviceUserAnnotationKey: otherInstanceUser},
 			}}
 			Expect(valkeyHandler.k8sReader.(client.Client).Create(ctx, existing)).To(Succeed())
 
-			mocks.crServiceUser.On("ServiceName", mock.Anything, namespace, sharedUsername).Return("valkey-team-a-other-instance", true, nil)
+			mocks.crServiceUser.On("ServiceName", mock.Anything, namespace, otherInstanceUser).Return("valkey-team-a-other-instance", true, nil)
 			defaultServiceManagerMock(data)
-			defaultCRServiceUserMock(data, minted)
 			mocks.projectManager.On("GetCA", mock.Anything, projectName).Return("my-ca", nil)
 		})
 
-		It("mints a per-instance username instead of re-pointing the shared CR", func() {
+		It("fails instead of re-pointing the CR or minting", func() {
 			individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
-			Expect(err).To(Succeed())
-			Expect(individualSecrets).To(HaveLen(1))
-			Expect(minted).ToNot(Equal(sharedUsername))
-			assertHappy(&individualSecrets[0], data, minted, err)
-			Expect(individualSecrets[0].GetAnnotations()).ToNot(HaveKey(data.legacyAnnotationKey))
+			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+			Expect(individualSecrets).To(BeEmpty())
 		})
 	})
 
@@ -718,6 +733,23 @@ var _ = Describe("valkey.SecretConfig", func() {
 		})
 	})
 })
+
+// erroringReader wraps a client.Reader, injecting err for Get calls against
+// failKey while delegating everything else, so one specific read can fail
+// (e.g. the app-facing secret) without breaking unrelated lookups (e.g.
+// resolving the Valkey CR).
+type erroringReader struct {
+	client.Reader
+	failKey client.ObjectKey
+	err     error
+}
+
+func (r erroringReader) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if key == r.failKey {
+		return r.err
+	}
+	return r.Reader.Get(ctx, key, obj, opts...)
+}
 
 var _ = Describe("utils.ServiceUserName", func() {
 	const nameShape = `^[a-z0-9][a-z0-9-]*-(a|rw|w|r)-[0-9a-f]{6}-[0-9a-f]{5}-[0-9]{4}w[0-9]{2}$`

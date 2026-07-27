@@ -4,19 +4,19 @@ import (
 	"context"
 	"errors"
 
-	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/pkg/utils"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
 var _ = Describe("operator.Manager", func() {
@@ -36,10 +36,9 @@ var _ = Describe("operator.Manager", func() {
 	)
 
 	// getCR reads back the ServiceUser CR as the fake client holds it.
-	getCR := func() *unstructured.Unstructured {
+	getCR := func() *aiven_io_v1alpha1.ServiceUser {
 		GinkgoHelper()
-		cr := &unstructured.Unstructured{}
-		cr.SetGroupVersionKind(serviceUserGVK)
+		cr := &aiven_io_v1alpha1.ServiceUser{}
 		Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: suNamespace, Name: suName}, cr)).To(Succeed())
 		return cr
 	}
@@ -53,27 +52,22 @@ var _ = Describe("operator.Manager", func() {
 		}
 	}
 
-	// setup rebuilds the manager over a fake client seeded with objects. The
-	// ServiceUser GVK is registered as unstructured because liberator has no
-	// typed ServiceUser (aiven-operator#1238), matching how Manager treats it.
+	// setup rebuilds the manager over a fake client seeded with objects.
 	setup := func(objects ...client.Object) {
 		scheme := runtime.NewScheme()
 		Expect(corev1.AddToScheme(scheme)).To(Succeed())
-		scheme.AddKnownTypeWithName(serviceUserGVK, &unstructured.Unstructured{})
-		scheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "aiven.io", Version: "v1alpha1", Kind: "ServiceUserList"}, &unstructured.UnstructuredList{})
+		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
 		fakeClient = fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
 		manager = &Manager{client: fakeClient}
 	}
 
 	// existingCR is a ServiceUser CR already targeting suService, used by the
 	// read-only methods and the delete path.
-	existingCR := func(serviceName string) *unstructured.Unstructured {
-		cr := &unstructured.Unstructured{}
-		cr.SetGroupVersionKind(serviceUserGVK)
-		cr.SetNamespace(suNamespace)
-		cr.SetName(suName)
-		Expect(unstructured.SetNestedField(cr.Object, serviceName, "spec", "serviceName")).To(Succeed())
-		return cr
+	existingCR := func(serviceName string) *aiven_io_v1alpha1.ServiceUser {
+		return &aiven_io_v1alpha1.ServiceUser{
+			ObjectMeta: metav1.ObjectMeta{Name: suName, Namespace: suNamespace},
+			Spec:       aiven_io_v1alpha1.ServiceUserSpec{ServiceName: serviceName},
+		}
 	}
 
 	BeforeEach(func() {
@@ -89,8 +83,8 @@ var _ = Describe("operator.Manager", func() {
 			Namespace:   suNamespace,
 			Project:     suProject,
 			ServiceName: suService,
-			AccessControl: map[string]any{
-				"valkeyAclCategories": []any{"+@read"},
+			AccessControl: &aiven_io_v1alpha1.ServiceUserAccessControl{
+				ValkeyACLCategories: []string{"+@read"},
 			},
 		}
 	}
@@ -112,20 +106,15 @@ var _ = Describe("operator.Manager", func() {
 			cr := getCR()
 			Expect(cr.GetLabels()).To(HaveKeyWithValue("app", "test-app"))
 			Expect(cr.GetLabels()).To(HaveKeyWithValue("team", suNamespace))
-			project, _, _ := unstructured.NestedString(cr.Object, "spec", "project")
-			Expect(project).To(Equal(suProject))
-			serviceName, _, _ := unstructured.NestedString(cr.Object, "spec", "serviceName")
-			Expect(serviceName).To(Equal(suService))
-			target, _, _ := unstructured.NestedString(cr.Object, "spec", "connInfoSecretTarget", "name")
-			Expect(target).To(Equal(RawSecretName(suName)))
-			acl, found, _ := unstructured.NestedSlice(cr.Object, "spec", "accessControl", "valkeyAclCategories")
-			Expect(found).To(BeTrue())
-			Expect(acl).To(ConsistOf("+@read"))
+			Expect(cr.Spec.Project).To(Equal(suProject))
+			Expect(cr.Spec.ServiceName).To(Equal(suService))
+			Expect(cr.Spec.ConnInfoSecretTarget.Name).To(Equal(RawSecretName(suName)))
+			Expect(cr.Spec.AccessControl).NotTo(BeNil())
+			Expect(cr.Spec.AccessControl.ValkeyACLCategories).To(ConsistOf("+@read"))
 		})
 
-		// aiven-operator not responding: the CR is written but no connection secret
-		// is ever published. Manager must fail (not return empty credentials) so the
-		// caller requeues until the operator catches up.
+		// CR written but the operator hasn't published the secret yet: fail so the
+		// caller requeues, rather than returning empty credentials.
 		It("returns ErrNotFound when the operator has not published the secret", func() {
 			su, err := manager.CreateServiceUser(ctx, owner, spec(), logger)
 			Expect(err).To(MatchError(utils.ErrNotFound))
@@ -155,8 +144,37 @@ var _ = Describe("operator.Manager", func() {
 			_, err := manager.CreateServiceUser(ctx, owner, s, logger)
 			Expect(err).To(Succeed())
 
-			_, found, _ := unstructured.NestedMap(getCR().Object, "spec", "accessControl")
-			Expect(found).To(BeFalse())
+			Expect(getCR().Spec.AccessControl).To(BeNil())
+		})
+
+		// Kafka's usernames contain '_' and can't name the CR; spec.Username
+		// carries the real Aiven username instead.
+		It("sets spec.username on first creation", func() {
+			setup(rawSecret(map[string][]byte{ServiceUserUsername: []byte("team_app_abc123_xyz")}))
+			s := spec()
+			s.Username = "team_app_abc123_xyz"
+
+			_, err := manager.CreateServiceUser(ctx, owner, s, logger)
+			Expect(err).To(Succeed())
+
+			Expect(getCR().Spec.Username).To(Equal("team_app_abc123_xyz"))
+		})
+
+		// spec.username is immutable, so aivenator sets it only on creation and never on
+		// an existing user: a later call requesting a different username leaves the stored
+		// value untouched instead of issuing a doomed update.
+		It("leaves spec.username untouched on an existing user", func() {
+			cr := existingCR(suService)
+			cr.Spec.Username = "already-set"
+			setup(cr, rawSecret(map[string][]byte{ServiceUserUsername: []byte("already-set")}))
+
+			s := spec()
+			s.Username = "different-candidate"
+
+			su, err := manager.CreateServiceUser(ctx, owner, s, logger)
+			Expect(err).To(Succeed())
+			Expect(su.Username).To(Equal("already-set"))
+			Expect(getCR().Spec.Username).To(Equal("already-set"))
 		})
 	})
 
@@ -193,21 +211,88 @@ var _ = Describe("operator.Manager", func() {
 			setup(existingCR(suService))
 			Expect(manager.DeleteServiceUser(ctx, suNamespace, suName, logger)).To(Succeed())
 
-			cr := &unstructured.Unstructured{}
-			cr.SetGroupVersionKind(serviceUserGVK)
+			cr := &aiven_io_v1alpha1.ServiceUser{}
 			err := fakeClient.Get(ctx, client.ObjectKey{Namespace: suNamespace, Name: suName}, cr)
 			Expect(err).To(HaveOccurred())
 		})
 
-		// Cleanup treats an absent CR as an idempotent success, so Delete surfaces a
-		// 404 the caller recognises via aiven.IsNotFound rather than a raw k8s error.
-		It("returns an Aiven 404 when the CR is already gone", func() {
+		// A k8s NotFound from the delete is propagated as a k8s error (not swallowed,
+		// not disguised as an Aiven error); the caller decides what it means.
+		It("propagates the k8s NotFound when the CR is already gone", func() {
 			err := manager.DeleteServiceUser(ctx, suNamespace, suName, logger)
 			Expect(err).To(HaveOccurred())
-			Expect(aiven.IsNotFound(err)).To(BeTrue())
-			var aivenErr aiven.Error
-			Expect(errors.As(err, &aivenErr)).To(BeTrue())
-			Expect(aivenErr.Status).To(Equal(404))
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+		})
+	})
+
+	Describe("ResolveExistingServiceUser", func() {
+		const legacyIn = "carried-legacy"
+
+		It("mints (adopt empty) and carries any legacy when there is no annotation", func() {
+			adopt, legacy, err := ResolveExistingServiceUser(ctx, manager, suNamespace, "", legacyIn, suService)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(adopt).To(BeEmpty())
+			Expect(legacy).To(Equal(legacyIn))
+		})
+
+		It("routes an annotation that is not a valid CR name to the legacy drain", func() {
+			const rawUser = "team-a_test-app_abc0_"
+			Expect(utils.IsValidCRName(rawUser)).To(BeFalse())
+			adopt, legacy, err := ResolveExistingServiceUser(ctx, manager, suNamespace, rawUser, "", suService)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(adopt).To(BeEmpty())
+			Expect(legacy).To(Equal(rawUser))
+		})
+
+		It("adopts the frozen name when its CR still targets the same service", func() {
+			setup(existingCR(suService))
+			adopt, _, err := ResolveExistingServiceUser(ctx, manager, suNamespace, suName, "", suService)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(adopt).To(Equal(suName))
+		})
+
+		// Adopting a CR name must not drop a legacy username the secret still carries,
+		// or the pre-CR Aiven user would never be drained in Cleanup.
+		It("carries a legacy username through the adopt path", func() {
+			setup(existingCR(suService))
+			adopt, legacy, err := ResolveExistingServiceUser(ctx, manager, suNamespace, suName, legacyIn, suService)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(adopt).To(Equal(suName))
+			Expect(legacy).To(Equal(legacyIn))
+		})
+
+		It("adopts the frozen name when the CR is absent, to re-create it in place", func() {
+			adopt, _, err := ResolveExistingServiceUser(ctx, manager, suNamespace, suName, "", suService)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(adopt).To(Equal(suName))
+		})
+
+		It("fails terminally when the CR is bound to a different Aiven service", func() {
+			setup(existingCR("some-other-service"))
+			adopt, _, err := ResolveExistingServiceUser(ctx, manager, suNamespace, suName, "", suService)
+			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+			Expect(adopt).To(BeEmpty())
+		})
+
+		// A read failure must never be mistaken for absence (which would silently mint),
+		// but it also isn't a permanent misconfiguration like a service mismatch: it's
+		// retryable, so the reconciler must requeue quickly rather than stall until an
+		// unrelated change comes along.
+		It("fails with a retryable error when reading the ServiceUser errors, without mistaking it for absence", func() {
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
+			fakeClient = fake.NewClientBuilder().WithScheme(scheme).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+						return errors.New("apiserver unavailable")
+					},
+				}).Build()
+			manager = &Manager{client: fakeClient}
+			adopt, _, err := ResolveExistingServiceUser(ctx, manager, suNamespace, suName, "", suService)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeFalse())
+			Expect(adopt).To(BeEmpty())
 		})
 	})
 })
