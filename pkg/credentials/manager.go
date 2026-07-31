@@ -34,7 +34,7 @@ func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string
 	openSearchACL := operator.NewOpenSearchACLManager(k8sClient, aiven.OpenSearchACLs)
 	return Manager{
 		handlers: []ServiceHandler{
-			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, mainProjectName, logger),
+			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, mainProjectName, logger, k8sReader, crServiceUser),
 			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName, k8sReader, crServiceUser, openSearchACL),
 			valkey.NewValkeyHandler(ctx, aiven, mainProjectName, k8sReader, crServiceUser),
 		},
@@ -60,7 +60,6 @@ func (c Manager) CreateSecrets(ctx context.Context, application *aiven_nais_io_v
 		finalSecrets = append(finalSecrets, individualSecrets...)
 
 		if err != nil {
-			handlerLogger.Errorf("%s failed: %s", handlerName, err)
 			errs = append(errs, fmt.Errorf("%s: %w", handlerName, err))
 			continue
 		}

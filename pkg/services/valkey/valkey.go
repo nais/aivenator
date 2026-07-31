@@ -19,6 +19,7 @@ import (
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -26,13 +27,10 @@ import (
 
 // Annotations
 const (
-	ServiceUserAnnotation = "valkey.aiven.nais.io/serviceUser"
-	ServiceNameAnnotation = "valkey.aiven.nais.io/serviceName"
-	ProjectAnnotation     = "valkey.aiven.nais.io/project"
-	InstanceAnnotation    = "valkey.aiven.nais.io/instance"
-	// LegacyServiceUserAnnotation records a pre-CR username that is invalid as a
-	// CR name and so cannot be adopted; it stays valid on Aiven for pods still
-	// holding it, and is deleted via the direct API when the secret drains.
+	ServiceUserAnnotation       = "valkey.aiven.nais.io/serviceUser"
+	ServiceNameAnnotation       = "valkey.aiven.nais.io/serviceName"
+	ProjectAnnotation           = "valkey.aiven.nais.io/project"
+	InstanceAnnotation          = "valkey.aiven.nais.io/instance"
 	LegacyServiceUserAnnotation = "valkey.aiven.nais.io/legacyServiceUser"
 )
 
@@ -186,18 +184,21 @@ type valkeyConnection struct {
 // resolveConnection provisions the service user via its ServiceUser CR and
 // returns the connection details from the operator-published secret.
 func (h ValkeyHandler) resolveConnection(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string, logger log.FieldLogger) (valkeyConnection, error) {
-	serviceUserName, legacyUsername := h.resolveServiceUserName(ctx, application, valkeySpec, serviceName)
+	serviceUserName, legacyUsername, err := h.resolveServiceUserName(ctx, application, valkeySpec, serviceName)
+	if err != nil {
+		return valkeyConnection{}, utils.AivenFail("ResolveServiceUser", application, err, false, logger)
+	}
 
 	serviceUser, err := h.crServiceUser.CreateServiceUser(ctx, application, operator.ServiceUserSpec{
 		Name:        serviceUserName,
 		Namespace:   application.GetNamespace(),
 		Project:     h.projectName,
 		ServiceName: serviceName,
-		AccessControl: map[string]any{
-			"valkeyAclCategories": toAnySlice(getValkeyACLCategories(valkeySpec.Access)),
-			"valkeyAclCommands":   []any{"+info", "+cluster|slots"},
-			"valkeyAclKeys":       []any{"*"},
-			"valkeyAclChannels":   []any{"*"},
+		AccessControl: &aiven_io_v1alpha1.ServiceUserAccessControl{
+			ValkeyACLCategories: getValkeyACLCategories(valkeySpec.Access),
+			ValkeyACLCommands:   []string{"+info", "+cluster|slots"},
+			ValkeyACLKeys:       []string{"*"},
+			ValkeyACLChannels:   []string{"*"},
 		},
 	}, logger)
 	if err != nil {
@@ -226,33 +227,31 @@ func (h ValkeyHandler) resolveConnection(ctx context.Context, application *aiven
 	}, nil
 }
 
-// resolveServiceUserName returns the CR name (== Aiven username) for this instance, plus any legacy username to drain.
-func (h ValkeyHandler) resolveServiceUserName(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string) (string, string) {
+func (h ValkeyHandler) resolveServiceUserName(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string) (string, string, error) {
 	var existingName, existingLegacy string
 	existing := &corev1.Secret{}
-	if err := h.k8sReader.Get(ctx, client.ObjectKey{Namespace: application.GetNamespace(), Name: valkeySpec.SecretName}, existing); err == nil {
+	if err := h.k8sReader.Get(ctx, client.ObjectKey{Namespace: application.GetNamespace(), Name: valkeySpec.SecretName}, existing); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return "", "", err
+		}
+	} else {
 		annotations := existing.GetAnnotations()
 		existingName = annotations[instanceAnnotation(valkeySpec.Instance, ServiceUserAnnotation)]
 		existingLegacy = annotations[instanceAnnotation(valkeySpec.Instance, LegacyServiceUserAnnotation)]
 	}
 
-	serviceUserName, legacyUsername := operator.ResolveExistingServiceUser(ctx, h.crServiceUser, application.GetNamespace(), existingName, existingLegacy, serviceName)
+	serviceUserName, legacyUsername, err := operator.ResolveExistingServiceUser(ctx, h.crServiceUser, application.GetNamespace(), existingName, existingLegacy, serviceName)
+	if err != nil {
+		return "", "", err
+	}
 	if serviceUserName == "" {
 		serviceUserName = utils.ServiceUserName(application.GetName(), valkeySpec.Access, valkeySpec.Instance, valkeySpec.SecretName, time.Now())
 	}
-	return serviceUserName, legacyUsername
+	return serviceUserName, legacyUsername, nil
 }
 
 func instanceAnnotation(instance, annotation string) string {
 	return fmt.Sprintf("%s.%s", keyName(instance, "-"), annotation)
-}
-
-func toAnySlice(values []string) []any {
-	out := make([]any, len(values))
-	for i, v := range values {
-		out[i] = v
-	}
-	return out
 }
 
 func keyName(instanceName, replacement string) string {
@@ -300,7 +299,7 @@ func (h ValkeyHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logge
 			serviceUserNameKey := fmt.Sprintf("%s.%s", instance, ServiceUserAnnotation)
 			serviceUserName, okServiceUser := annotations[serviceUserNameKey]
 			if !okServiceUser {
-				instanceLogger.Errorf("missing annotation %s", serviceUserNameKey)
+				instanceLogger.WithField(utils.FieldInvariant, "missing serviceUser annotation").Errorf("missing annotation %s", serviceUserNameKey)
 				continue
 			}
 			instanceLogger = instanceLogger.WithField("serviceUser", serviceUserName)
@@ -309,37 +308,15 @@ func (h ValkeyHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logge
 				return fmt.Errorf("missing annotation %s", ProjectAnnotation)
 			}
 
-			exists, err := h.crServiceUser.Exists(ctx, secret.GetNamespace(), serviceUserName)
-			if err != nil {
+			if err := operator.DrainServiceUser(ctx, h.crServiceUser, h.serviceuser, secret.GetNamespace(), serviceUserName, serviceUserName, projectName, serviceName, instanceLogger); err != nil {
 				return err
-			}
-			if exists {
-				err = h.crServiceUser.DeleteServiceUser(ctx, secret.GetNamespace(), serviceUserName, instanceLogger)
-			} else {
-				// Transitional: pre-CR users have no CR and are deleted via the Aiven API.
-				err = h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, instanceLogger)
-			}
-			if err != nil {
-				if aiven.IsNotFound(err) {
-					instanceLogger.Infof("Service user %s does not exist", serviceUserName)
-				} else {
-					return fmt.Errorf("deleting service user %s: %w", serviceUserName, err)
-				}
-			} else {
-				instanceLogger.Infof("Deleted service user %s", serviceUserName)
 			}
 
 			// A tracked legacy (pre-CR) user has no CR, so it is always deleted
 			// directly via the Aiven API.
 			if legacyUsername, ok := annotations[fmt.Sprintf("%s.%s", instance, LegacyServiceUserAnnotation)]; ok {
-				if err := h.serviceuser.Delete(ctx, legacyUsername, projectName, serviceName, instanceLogger); err != nil {
-					if aiven.IsNotFound(err) {
-						instanceLogger.Infof("Legacy service user %s does not exist", legacyUsername)
-					} else {
-						return err
-					}
-				} else {
-					instanceLogger.Infof("Deleted legacy service user %s", legacyUsername)
+				if err := serviceuser.EnsureServiceUserDeleted(ctx, h.serviceuser, "legacy service user", legacyUsername, projectName, serviceName, instanceLogger); err != nil {
+					return err
 				}
 			}
 		}

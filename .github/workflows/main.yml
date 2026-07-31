@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # ratchet:actions/checkout@v4
       - id: 'auth'
         name: 'Authenticate to Google Cloud'
-        if: github.ref == 'refs/heads/main'
+        # if: github.ref == 'refs/heads/main'
         uses: 'google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093' # ratchet:google-github-actions/auth@v3.0.0
         with:
           workload_identity_provider: ${{ secrets.NAIS_IO_WORKLOAD_IDENTITY_PROVIDER }}
@@ -63,7 +63,7 @@ jobs:
       - name: 'Set up Cloud SDK'
         uses: 'google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db' # ratchet:google-github-actions/setup-gcloud@v1
       - name: 'Log in to Google Artifact Registry'
-        if: github.ref == 'refs/heads/main'
+        # if: github.ref == 'refs/heads/main'
         run: |-
           echo '${{ steps.auth.outputs.access_token }}' | docker login -u oauth2accesstoken --password-stdin https://${{ env.GOOGLE_REGISTRY }}
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # ratchet:azure/setup-helm@v3
@@ -82,7 +82,7 @@ jobs:
             helm package "$chart"
           done
       - name: Push Chart
-        if: github.ref == 'refs/heads/main'
+        # if: github.ref == 'refs/heads/main'
         run: |-
           for chart in *.tgz; do
             helm push "$chart" oci://${{ env.GOOGLE_REGISTRY }}/nais-io/nais/feature
@@ -90,7 +90,7 @@ jobs:
 
   deploy:
     name: Deploy
-    if: github.actor != 'dependabot[bot]' && github.ref == 'refs/heads/main'
+    if: github.actor != 'dependabot[bot]' # && github.ref == 'refs/heads/main'
     needs:
       - build
       - chart
@@ -104,8 +104,13 @@ jobs:
           version: ${{ needs.build.outputs.version }}
           targets: |
             [
-              { "target": { "kind": "tenant", "tenant": "ci-nais" }, "wait": true },
               { "target": { "kind": "onprem", "tenant": "ci-nais" }, "wait": true },
-              { "target": { "kind": "tenant" } },
-              { "target": { "kind": "onprem" } }
+              { "target": { "kind": "tenant", "tenant": "ci-nais" }, "wait": true },
+              { "target": { "tenant": "atil", "environment": "dev" }, "wait": true },
+              { "target": { "tenant": "dev-nais", "environment": "dev" }, "wait": true },
+              { "target": { "tenant": "ldir", "environment": "non-prod" }, "wait": true },
+              { "target": { "tenant": "nav", "environment": "dev" }, "wait": true },
+              { "target": { "tenant": "nav", "environment": "dev-fss" }, "wait": true },
+              { "target": { "tenant": "ssb", "environment": "test" }, "wait": true },
+              { "target": { "tenant": "test-nais", "environment": "sandbox" }, "wait": true }
             ]
