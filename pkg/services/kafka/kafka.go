@@ -42,11 +42,9 @@ const (
 )
 
 const (
-	InstanceAnnotation    = "kafka.aiven.nais.io/instance"
-	PoolAnnotation        = "kafka.aiven.nais.io/pool"
-	ServiceUserAnnotation = "kafka.aiven.nais.io/serviceUser"
-	// LegacyServiceUserAnnotation holds a pre-CR username that can't name a CR; pods
-	// still use it, so it's drained via the direct Aiven API only when the secret drains.
+	InstanceAnnotation          = "kafka.aiven.nais.io/instance"
+	PoolAnnotation              = "kafka.aiven.nais.io/pool"
+	ServiceUserAnnotation       = "kafka.aiven.nais.io/serviceUser"
 	LegacyServiceUserAnnotation = "kafka.aiven.nais.io/legacyServiceUser"
 )
 
@@ -76,8 +74,7 @@ type KafkaHandler struct {
 	projects      []string
 	secretConfig  utils.SecretConfig
 	service       service.ServiceManager
-	// serviceuser deletes transitional raw-named users (drop post-drain) and backs the counter.
-	serviceuser serviceuser.ServiceUserManager
+	serviceuser   serviceuser.ServiceUserManager
 }
 
 func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
@@ -146,7 +143,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 		ServiceUserAnnotation: crName,
 	}
 	individualSecret.SetAnnotations(utils.MergeStringMap(individualSecret.GetAnnotations(), annotations))
-	logger.Infof("Provided service user %s", aivenUser.Username)
+	logger.WithField(utils.FieldInvariant, "Provided service user").Infof("Provided service user %s", aivenUser.Username)
 
 	accessCert, err := operator.Required(aivenUser.Secret, operator.ServiceUserAccessCert)
 	if err != nil {
@@ -200,8 +197,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	return []corev1.Secret{*individualSecret}, nil
 }
 
-// provideServiceUser provisions the Kafka user's ServiceUser CR.
-// The CR name and spec.username are frozen per secret (docs/kafka-serviceuser-username-rotation-bug.md).
+// The CR name and spec.username are frozen per secret.
 func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName, serviceName string, logger log.FieldLogger) (*operator.ServiceUser, string, string, bool, error) {
 	namespace := application.GetNamespace()
 
@@ -290,7 +286,6 @@ func (h KafkaHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger
 		"aivenServiceInstance": annotations[InstanceAnnotation],
 	})
 
-	// A valid CR name is the SU CR to delete; a raw pre-CR name is the username to delete directly.
 	crName, directTarget := serviceUserName, ""
 	if !utils.IsValidCRName(serviceUserName) {
 		crName, directTarget = "", serviceUserName
@@ -299,7 +294,6 @@ func (h KafkaHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger
 		return err
 	}
 
-	// A tracked legacy (pre-CR) user has no CR and is deleted directly via the Aiven API.
 	if legacyUsername, ok := annotations[LegacyServiceUserAnnotation]; ok {
 		if err := serviceuser.EnsureServiceUserDeleted(ctx, h.serviceuser, "legacy service user", legacyUsername, projectName, serviceName, logger); err != nil {
 			return err
@@ -325,7 +319,7 @@ func (h *KafkaHandler) countUsers(ctx context.Context, logger log.FieldLogger) {
 			for _, prj := range h.projects {
 				serviceName, err := h.nameResolver.ResolveKafkaServiceName(ctx, prj)
 				if err != nil {
-					logger.Warnf("unable to count service users for pool %s: %v", prj, err)
+					logger.WithField(utils.FieldInvariant, "unable to count service users for pool").Warnf("unable to count service users for pool %s: %v", prj, err)
 					continue
 				}
 				h.serviceuser.ObserveServiceUsersCount(ctx, prj, serviceName, logger)

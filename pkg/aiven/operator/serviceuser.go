@@ -7,6 +7,7 @@ import (
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -45,9 +46,7 @@ type ServiceUserSpec struct {
 	Namespace     string
 	Project       string
 	ServiceName   string
-	// Username sets spec.username, the real Aiven username; immutable once created.
-	// Kafka needs it because its '_'-delimited usernames can't name the CR.
-	Username string
+	Username      string
 }
 
 type Manager struct {
@@ -73,7 +72,7 @@ func (m *Manager) CreateServiceUser(ctx context.Context, owner client.Object, sp
 		serviceUser.Spec.ConnInfoSecretTarget = aiven_io_v1alpha1.ConnInfoSecretTarget{Name: RawSecretName(spec.Name)}
 		// spec.username is immutable (CRD CEL rule): set it only at creation and leave an
 		// existing value untouched, so aivenator never issues a rejected update.
-		// TODO: this empty-check assumes only Kafka ever sets a username.
+		// TODO: this emptiness-check assumes only Kafka ever sets a username - only needed until kafka can migrate service user name's to same scheme as opensearch/valkey
 		// Revisit before OpenSearch/Valkey do too, or an adopt could get silently stuck or rejected.
 		if serviceUser.Spec.Username == "" {
 			serviceUser.Spec.Username = spec.Username
@@ -91,9 +90,12 @@ func (m *Manager) CreateServiceUser(ctx context.Context, owner client.Object, sp
 	secretName := RawSecretName(spec.Name)
 	if err := m.client.Get(ctx, client.ObjectKey{Namespace: spec.Namespace, Name: secretName}, secret); err != nil {
 		if k8serrors.IsNotFound(err) {
-			return nil, fmt.Errorf("serviceuser secret %s/%s not found: %w", spec.Namespace, secretName, utils.ErrNotFound)
+			return nil, &utils.SecretNotReadyError{Namespace: spec.Namespace, Secret: secretName}
 		}
 		return nil, err
+	}
+	if app, ok := owner.(*aiven_nais_io_v1.AivenApplication); ok {
+		utils.ClearSecretPending(app, secretName)
 	}
 
 	data := make(map[string]string, len(secret.Data))
@@ -104,7 +106,7 @@ func (m *Manager) CreateServiceUser(ctx context.Context, owner client.Object, sp
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("ensured ServiceUser %s/%s", spec.Namespace, spec.Name)
+	logger.WithField(utils.FieldInvariant, "ensured ServiceUser").Infof("ensured ServiceUser %s/%s", spec.Namespace, spec.Name)
 	return &ServiceUser{Username: username, Secret: data}, nil
 }
 
@@ -113,9 +115,9 @@ func (m *Manager) DeleteServiceUser(ctx context.Context, namespace, name string,
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 	}
 	if err := m.client.Delete(ctx, serviceUser); err != nil {
-		return err // raw k8s error, including NotFound; the caller decides what it means
+		return err
 	}
-	logger.Infof("deleted ServiceUser %s/%s", namespace, name)
+	logger.WithField(utils.FieldInvariant, "deleted ServiceUser").Infof("deleted ServiceUser %s/%s", namespace, name)
 	return nil
 }
 
@@ -143,11 +145,6 @@ func (m *Manager) ServiceName(ctx context.Context, namespace, name string) (stri
 	return serviceUser.Spec.ServiceName, true, nil
 }
 
-// ResolveExistingServiceUser decides the CR name for an app secret's annotation:
-//   - adopts the frozen name when its CR targets serviceName or is gone (re-created in place);
-//   - returns a plain (retryable) error on a read failure, never minting an orphan;
-//   - returns ErrUnrecoverable only on a genuine service mismatch, which a retry can't fix;
-//   - routes a non-CR-name annotation to the legacy direct-API drain.
 func ResolveExistingServiceUser(ctx context.Context, mgr ServiceUserManager, namespace, existingName, existingLegacy, serviceName string) (adopt, legacy string, err error) {
 	legacy = existingLegacy
 	switch {
@@ -167,9 +164,6 @@ func ResolveExistingServiceUser(ctx context.Context, mgr ServiceUserManager, nam
 	return adopt, legacy, nil
 }
 
-// DrainServiceUser deletes the ServiceUser CR crName if present (aiven-operator then drops
-// the Aiven user), else deletes directTarget via the direct API. Callers whose CR name is
-// also the username pass both (opensearch, valkey); Kafka passes just one.
 func DrainServiceUser(ctx context.Context, crMgr ServiceUserManager, suMgr serviceuser.ServiceUserManager, namespace, crName, directTarget, projectName, serviceName string, logger log.FieldLogger) error {
 	if crName != "" {
 		exists, err := crMgr.Exists(ctx, namespace, crName)
@@ -180,7 +174,7 @@ func DrainServiceUser(ctx context.Context, crMgr ServiceUserManager, suMgr servi
 			if err := crMgr.DeleteServiceUser(ctx, namespace, crName, logger); err != nil {
 				return err
 			}
-			logger.Infof("Deleted service user %s", crName)
+			logger.WithField(utils.FieldInvariant, "Deleted service user").Infof("Deleted service user %s", crName)
 			return nil
 		}
 	}

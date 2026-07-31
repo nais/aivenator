@@ -60,7 +60,6 @@ func (c Manager) CreateSecrets(ctx context.Context, application *aiven_nais_io_v
 		finalSecrets = append(finalSecrets, individualSecrets...)
 
 		if err != nil {
-			handlerLogger.Errorf("%s failed: %s", handlerName, err)
 			errs = append(errs, fmt.Errorf("%s: %w", handlerName, err))
 			continue
 		}

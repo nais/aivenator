@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -310,6 +311,26 @@ var _ = Describe("kafka handler", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
+			})
+
+			It("counts each retry on the pending secret and only escalates at the threshold", func() {
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
+					Return(kafkaServiceAddresses, nil)
+				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, &utils.SecretNotReadyError{Namespace: teamNamespaceName, Secret: "raw-secret"})
+
+				application := applicationBuilder.Build()
+				var notReady *utils.SecretNotReadyError
+				for attempt := 1; attempt <= utils.SecretMissEscalateThreshold; attempt++ {
+					_, err := kafkaHandler.Apply(ctx, &application, logger)
+					Expect(errors.As(err, &notReady)).To(BeTrue(), "attempt %d", attempt)
+					cond := application.Status.GetConditionOfType(utils.PendingSecretConditionType("raw-secret"))
+					Expect(cond).ToNot(BeNil(), "attempt %d", attempt)
+					Expect(cond.Reason).To(Equal(strconv.Itoa(attempt)), "attempt %d", attempt)
+					Expect(notReady.Escalated).To(Equal(attempt >= utils.SecretMissEscalateThreshold), "attempt %d", attempt)
+				}
 			})
 
 			// Operator hasn't published the secret yet: the returned Secret lacks

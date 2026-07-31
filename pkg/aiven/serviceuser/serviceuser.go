@@ -142,9 +142,6 @@ func (m *Manager) Delete(ctx context.Context, serviceUserName, projectName, serv
 	return nil
 }
 
-// EnsureServiceUserDeleted deletes the named Aiven service user, treating a
-// not-found response as success — the desired end state is that the user is gone.
-// kind labels the user in log lines, e.g. "service user" or "legacy service user".
 func EnsureServiceUserDeleted(ctx context.Context, mgr ServiceUserManager, kind, serviceUserName, projectName, serviceName string, logger log.FieldLogger) error {
 	if err := mgr.Delete(ctx, serviceUserName, projectName, serviceName, logger); err != nil {
 		if aiven.IsNotFound(err) {
