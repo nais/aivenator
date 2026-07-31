@@ -27,12 +27,10 @@ import (
 
 // Annotations
 const (
-	ServiceUserAnnotation = "valkey.aiven.nais.io/serviceUser"
-	ServiceNameAnnotation = "valkey.aiven.nais.io/serviceName"
-	ProjectAnnotation     = "valkey.aiven.nais.io/project"
-	InstanceAnnotation    = "valkey.aiven.nais.io/instance"
-	// LegacyServiceUserAnnotation holds a pre-CR username that can't name a CR; pods
-	// still use it, so it's drained via the direct Aiven API only when the secret drains.
+	ServiceUserAnnotation       = "valkey.aiven.nais.io/serviceUser"
+	ServiceNameAnnotation       = "valkey.aiven.nais.io/serviceName"
+	ProjectAnnotation           = "valkey.aiven.nais.io/project"
+	InstanceAnnotation          = "valkey.aiven.nais.io/instance"
 	LegacyServiceUserAnnotation = "valkey.aiven.nais.io/legacyServiceUser"
 )
 
@@ -229,7 +227,6 @@ func (h ValkeyHandler) resolveConnection(ctx context.Context, application *aiven
 	}, nil
 }
 
-// resolveServiceUserName returns the CR name (== Aiven username) for this instance and any legacy username to drain, or an error when the existing user can't be resolved.
 func (h ValkeyHandler) resolveServiceUserName(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string) (string, string, error) {
 	var existingName, existingLegacy string
 	existing := &corev1.Secret{}
@@ -302,7 +299,7 @@ func (h ValkeyHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logge
 			serviceUserNameKey := fmt.Sprintf("%s.%s", instance, ServiceUserAnnotation)
 			serviceUserName, okServiceUser := annotations[serviceUserNameKey]
 			if !okServiceUser {
-				instanceLogger.Errorf("missing annotation %s", serviceUserNameKey)
+				instanceLogger.WithField(utils.FieldInvariant, "missing serviceUser annotation").Errorf("missing annotation %s", serviceUserNameKey)
 				continue
 			}
 			instanceLogger = instanceLogger.WithField("serviceUser", serviceUserName)
@@ -311,7 +308,6 @@ func (h ValkeyHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logge
 				return fmt.Errorf("missing annotation %s", ProjectAnnotation)
 			}
 
-			// The CR name is also the Aiven username, so it's both the CR and the direct-delete target.
 			if err := operator.DrainServiceUser(ctx, h.crServiceUser, h.serviceuser, secret.GetNamespace(), serviceUserName, serviceUserName, projectName, serviceName, instanceLogger); err != nil {
 				return err
 			}

@@ -76,7 +76,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	fail := func(err error) (ctrl.Result, error) {
 		if err != nil {
-			logger.Error(err)
+			utils.ReportFailure(logger, err, "reconcile failed", err)
 		}
 		application.Status.SynchronizationState = rolloutFailed
 		cr := ctrl.Result{}
@@ -134,7 +134,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, application, logger)
 	if err != nil {
-		utils.LocalFail("HandleProtectedAndTimeLimited", &application, err, logger)
+		utils.LocalFailBeforeApply("HandleProtectedAndTimeLimited", &application, err, logger)
 		if r.Recorder != nil && application.GetName() != "" {
 			r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "HandleProtectedFailed", "HandleProtected", "Failed handling protection/expiration: %v", err)
 		}
@@ -180,13 +180,13 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	hash, err := application.Hash()
 	if err != nil {
-		utils.LocalFail("Hash", &application, err, logger)
+		utils.LocalFailBeforeApply("Hash", &application, err, logger)
 		return fail(err)
 	}
 
 	needsSync, err := r.NeedsSynchronization(ctx, application, hash, logger)
 	if err != nil {
-		utils.LocalFail("NeedsSynchronization", &application, err, logger)
+		utils.LocalFailBeforeApply("NeedsSynchronization", &application, err, logger)
 		return fail(err)
 	}
 
@@ -294,7 +294,7 @@ func success(application *aiven_nais_io_v1.AivenApplication, hash string) {
 	s.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
 		Type:   aiven_nais_io_v1.AivenApplicationSucceeded,
 		Status: corev1.ConditionTrue,
-	})
+	}, utils.PendingSecretConditionTypes(s)...)
 	s.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
 		Type:   aiven_nais_io_v1.AivenApplicationAivenFailure,
 		Status: corev1.ConditionFalse,

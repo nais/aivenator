@@ -231,6 +231,25 @@ var _ = Describe("opensearch handler", func() {
 			})
 		})
 
+		Context("and the operator has not yet published the ServiceUser secret", func() {
+			BeforeEach(func() {
+				mockAivenReturnOpensearchGetOk()
+				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, &utils.SecretNotReadyError{Namespace: testNamespace, Secret: "raw-secret"})
+			})
+			It("counts each retry and only escalates at the threshold", func() {
+				var notReady *utils.SecretNotReadyError
+				for attempt := 1; attempt <= utils.SecretMissEscalateThreshold; attempt++ {
+					_, err := opensearchHandler.Apply(ctx, &application, logger)
+					Expect(errors.As(err, &notReady)).To(BeTrue(), "attempt %d", attempt)
+					cond := application.Status.GetConditionOfType(utils.PendingSecretConditionType("raw-secret"))
+					Expect(cond).ToNot(BeNil(), "attempt %d", attempt)
+					Expect(cond.Reason).To(Equal(strconv.Itoa(attempt)), "attempt %d", attempt)
+					Expect(notReady.Escalated).To(Equal(attempt >= utils.SecretMissEscalateThreshold), "attempt %d", attempt)
+				}
+			})
+		})
+
 		Context("and updating ACLs fails", func() {
 			BeforeEach(func() {
 				mockAivenReturnOpensearchGetOk()

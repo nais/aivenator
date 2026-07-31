@@ -361,6 +361,26 @@ var _ = Describe("valkey.SecretConfig", func() {
 			})
 		})
 
+		Context("and the operator has not yet published the ServiceUser secret", func() {
+			BeforeEach(func() {
+				defaultServiceManagerMock(data)
+				mocks.projectManager.On("GetCA", mock.Anything, projectName).Return("my-ca", nil)
+				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, &utils.SecretNotReadyError{Namespace: namespace, Secret: "raw-secret"})
+			})
+			It("counts each retry and only escalates at the threshold", func() {
+				var notReady *utils.SecretNotReadyError
+				for attempt := 1; attempt <= utils.SecretMissEscalateThreshold; attempt++ {
+					_, err := valkeyHandler.Apply(ctx, &application, logger)
+					Expect(errors.As(err, &notReady)).To(BeTrue(), "attempt %d", attempt)
+					cond := application.Status.GetConditionOfType(utils.PendingSecretConditionType("raw-secret"))
+					Expect(cond).ToNot(BeNil(), "attempt %d", attempt)
+					Expect(cond.Reason).To(Equal(strconv.Itoa(attempt)), "attempt %d", attempt)
+					Expect(notReady.Escalated).To(Equal(attempt >= utils.SecretMissEscalateThreshold), "attempt %d", attempt)
+				}
+			})
+		})
+
 		// The operator publishes the ServiceUser secret; a missing key must fail
 		// loudly rather than project an empty credential into the app secret.
 		Context("and the operator secret is missing a required key", func() {

@@ -25,13 +25,11 @@ import (
 
 // Annotations
 const (
-	ServiceUserAnnotation = "opensearch.aiven.nais.io/serviceUser"
-	ServiceNameAnnotation = "opensearch.aiven.nais.io/serviceName"
-	ProjectAnnotation     = "opensearch.aiven.nais.io/project"
-	InstanceAnnotation    = "opensearch.aiven.nais.io/instance"
-	DefaultACLAccess      = "read"
-	// LegacyServiceUserAnnotation holds a pre-CR username that can't name a CR; pods
-	// still use it, so it's drained via the direct Aiven API only when the secret drains.
+	ServiceUserAnnotation       = "opensearch.aiven.nais.io/serviceUser"
+	ServiceNameAnnotation       = "opensearch.aiven.nais.io/serviceName"
+	ProjectAnnotation           = "opensearch.aiven.nais.io/project"
+	InstanceAnnotation          = "opensearch.aiven.nais.io/instance"
+	DefaultACLAccess            = "read"
 	LegacyServiceUserAnnotation = "opensearch.aiven.nais.io/legacyServiceUser"
 )
 
@@ -249,7 +247,6 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 		return err
 	}
 
-	// The CR name is also the Aiven username, so it's both the CR and the direct-delete target.
 	if err := operator.DrainServiceUser(ctx, h.crServiceUser, h.serviceuser, secret.GetNamespace(), serviceUserName, serviceUserName, projectName, serviceName, logger); err != nil {
 		return err
 	}
