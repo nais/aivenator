@@ -4,6 +4,7 @@ dependencies:
       - monitoring-crds
       - replicator
       - kyverno
+      - aiven-operator
 environmentKinds:
   - tenant
   - onprem
