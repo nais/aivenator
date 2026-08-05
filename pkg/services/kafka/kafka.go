@@ -41,32 +41,31 @@ const (
 const (
 	ServiceUserAnnotation = "kafka.aiven.nais.io/serviceUser"
 	PoolAnnotation        = "kafka.aiven.nais.io/pool"
-	InstanceAnnotation    = "kafka.aiven.nais.io/instance"
 )
 
 func NewKafkaHandler(ctx context.Context, aiven *aiven.Client, projects []string, projectName string, logger log.FieldLogger) KafkaHandler {
 	generator := certificate.NewNativeGenerator()
 	handler := KafkaHandler{
+		project:      project.NewManager(aiven.CA),
+		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
+		service:      service.NewManager(aiven.Services),
 		generator:    generator,
 		nameResolver: liberator_service.NewCachedNameResolver(aiven.Services),
-		project:      project.NewManager(aiven.CA),
 		projects:     projects,
 		secretConfig: utils.NewSecretConfig(aiven, projectName),
-		service:      service.NewManager(aiven.Services),
-		serviceuser:  serviceuser.NewManager(ctx, aiven.ServiceUsers),
 	}
 	handler.StartUserCounter(ctx, logger)
 	return handler
 }
 
 type KafkaHandler struct {
+	project      project.ProjectManager
+	serviceuser  serviceuser.ServiceUserManager
+	service      service.ServiceManager
 	generator    certificate.Generator
 	nameResolver liberator_service.NameResolver
-	project      project.ProjectManager
 	projects     []string
 	secretConfig utils.SecretConfig
-	service      service.ServiceManager
-	serviceuser  serviceuser.ServiceUserManager
 }
 
 func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
@@ -87,10 +86,8 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	}
 
 	logger = logger.WithFields(log.Fields{
-		"pool":                 projectName,
-		"aivenProject":         projectName,
-		"serviceName":          serviceName,
-		"aivenServiceInstance": spec.Pool,
+		"pool":    projectName,
+		"service": serviceName,
 	})
 
 	if !strings.ContainsString(h.projects, projectName) {
@@ -112,7 +109,7 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 
 	// Only manage individual secret when a name is provided
 	var individualSecret *corev1.Secret
-	logger = logger.WithField("secretName", spec.SecretName)
+	logger = logger.WithField("secret_name", spec.SecretName)
 	logger.Info("Creating individual secret for Kafka")
 	individualSecret = &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -128,19 +125,18 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	if err != nil {
 		return nil, err
 	}
-	logger = logger.WithField("serviceUser", aivenUser.Username)
 	individualSecret.SetAnnotations(utils.MergeStringMap(individualSecret.GetAnnotations(), map[string]string{
 		ServiceUserAnnotation: aivenUser.Username,
 		PoolAnnotation:        spec.Pool,
-		InstanceAnnotation:    spec.Pool,
 	}))
-	logger.Infof("Provided service user %s", aivenUser.Username)
+	logger.Infof("Created service user %s", aivenUser.Username)
 
 	credStore, err := h.generator.MakeCredStores(aivenUser.AccessKey, aivenUser.AccessCert, ca)
 	if err != nil {
 		utils.LocalFail("CreateCredStores", application, err, logger)
-		if cleanupErr := h.Cleanup(ctx, individualSecret, logger); cleanupErr != nil {
-			return nil, cleanupErr
+		error := h.Cleanup(ctx, individualSecret, logger)
+		if error != nil {
+			return nil, error
 		}
 		return nil, err
 	}
@@ -167,20 +163,31 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	return []corev1.Secret{*individualSecret}, nil
 }
 
-// provideServiceUser reuses the username on the existing secret so a
-// re-reconcile keeps the same Aiven user, else mints a fresh one. Kafka stays on
-// the direct Aiven API because its '_'-delimited usernames cannot name a
-// ServiceUser CR (aiven-operator#1238).
-func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
-	serviceUserName, ok := secret.GetAnnotations()[ServiceUserAnnotation]
-	if !ok {
-		var err error
-		if serviceUserName, err = h.serviceUserName(application, logger); err != nil {
+func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+	var aivenUser *aiven.ServiceUser
+	var err error
+
+	var serviceUserName string
+
+	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
+		serviceUserName = nameFromAnnotation
+	} else {
+		suffix, err := utils.CreateSuffix(application)
+		if err != nil {
+			err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.ErrUnrecoverable)
+			utils.LocalFail("CreateSuffix", application, err, logger)
+			return nil, err
+		}
+
+		serviceUserName, err = kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, suffix)
+		if err != nil {
+			err = fmt.Errorf("unable to create service user name: %s %w", err, utils.ErrUnrecoverable)
+			utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
 			return nil, err
 		}
 	}
 
-	aivenUser, err := h.serviceuser.Get(ctx, serviceUserName, projectName, serviceName, logger)
+	aivenUser, err = h.serviceuser.Get(ctx, serviceUserName, projectName, serviceName, logger)
 	if err == nil {
 		return aivenUser, nil
 	}
@@ -193,22 +200,6 @@ func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven
 		return nil, utils.AivenFail("CreateServiceUser", application, err, false, logger)
 	}
 	return aivenUser, nil
-}
-
-func (h KafkaHandler) serviceUserName(application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) (string, error) {
-	suffix, err := utils.CreateSuffix(application)
-	if err != nil {
-		err = fmt.Errorf("unable to create service user suffix: %s %w", err, utils.ErrUnrecoverable)
-		utils.LocalFail("CreateSuffix", application, err, logger)
-		return "", err
-	}
-	serviceUserName, err := kafka_nais_io_v1.ServiceUserNameWithSuffix(application.Namespace, application.Name, suffix)
-	if err != nil {
-		err = fmt.Errorf("unable to create service user name: %s %w", err, utils.ErrUnrecoverable)
-		utils.LocalFail("ServiceUserNameWithSuffix", application, err, logger)
-		return "", err
-	}
-	return serviceUserName, nil
 }
 
 func (h KafkaHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {
@@ -230,10 +221,8 @@ func (h KafkaHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger
 	}
 
 	logger = logger.WithFields(log.Fields{
-		"aivenProject":         projectName,
-		"serviceName":          serviceName,
-		"serviceUser":          serviceUserName,
-		"aivenServiceInstance": annotations[InstanceAnnotation],
+		"aivenProject(pool)": projectName,
+		"aivenService":       serviceName,
 	})
 
 	err = h.serviceuser.Delete(ctx, serviceUserName, projectName, serviceName, logger)

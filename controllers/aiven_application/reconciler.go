@@ -58,8 +58,8 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	defer cancel()
 
 	logger := r.Logger.WithFields(log.Fields{
-		"aivenapp": req.Name,
-		"team":     req.Namespace,
+		"aiven_application": req.Name,
+		"team":              req.Namespace,
 	})
 
 	logger.Infof("Processing request")
@@ -176,7 +176,8 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	r.appChanges <- application
 
-	logger = logger.WithField(nais_io_v1.DeploymentCorrelationIDAnnotation, application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]) // TODO: OpenSearch aivenapps are often manually created w/o naiserator deployment correlation ID
+	// TODO: OpenSearch aivenapps are often manually created w/o naiserator deployment correlation ID
+	logger = logger.WithField(nais_io_v1.DeploymentCorrelationIDAnnotation, application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation])
 
 	hash, err := application.Hash()
 	if err != nil {
@@ -206,33 +207,29 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}).Observe(used.Seconds())
 	}()
 
-	logger.Infof("Processing aivenapp")
+	logger.Infof("Creating secret(s)")
 	if r.Recorder != nil {
 		r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "CreateSecrets", "CreateSecrets", "Creating Aiven secrets")
 	}
-	secrets, err := r.Manager.CreateSecrets(ctx, &application, logger)
+	secrets, err := r.Manager.CreateSecret(ctx, &application, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
 		if r.Recorder != nil {
 			r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "SecretGenerationFailed", "CreateSecrets", "Failed generating secrets: %v", err)
 		}
-		// fall through: still persist whichever secrets did succeed
+		return fail(err)
 	}
 
 	logger.Infof("Saving %d secret(s) to cluster", len(secrets))
 	for _, secret := range secrets {
-		secretLogger := logger.WithField("secretName", secret.Name)
-		if saveErr := r.SaveSecret(ctx, &secret, secretLogger); saveErr != nil {
-			utils.LocalFail("SaveSecret", &application, saveErr, secretLogger)
+		logger := logger.WithFields(log.Fields{"secret_name": secret.Name})
+		if err := r.SaveSecret(ctx, &secret, logger); err != nil {
+			utils.LocalFail("SaveSecret", &application, err, logger)
 			if r.Recorder != nil {
-				r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "SecretWriteFailed", "SaveSecret", "Failed saving secret %s: %v", secret.Name, saveErr)
+				r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "SecretWriteFailed", "SaveSecret", "Failed saving secret %s: %v", secret.Name, err)
 			}
-			return fail(saveErr)
+			return fail(err)
 		}
-	}
-
-	if err != nil {
-		return fail(err)
 	}
 
 	success(&application, hash)

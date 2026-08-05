@@ -82,6 +82,67 @@ func (_c *MockACLManager_Get_Call) RunAndReturn(run func(context.Context, string
 	return _c
 }
 
+// Update provides a mock function with given fields: ctx, project, service, req
+func (_m *MockACLManager) Update(ctx context.Context, project string, service string, req aiven.OpenSearchACLRequest) (*aiven.OpenSearchACLResponse, error) {
+	ret := _m.Called(ctx, project, service, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Update")
+	}
+
+	var r0 *aiven.OpenSearchACLResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, aiven.OpenSearchACLRequest) (*aiven.OpenSearchACLResponse, error)); ok {
+		return rf(ctx, project, service, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, aiven.OpenSearchACLRequest) *aiven.OpenSearchACLResponse); ok {
+		r0 = rf(ctx, project, service, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*aiven.OpenSearchACLResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, aiven.OpenSearchACLRequest) error); ok {
+		r1 = rf(ctx, project, service, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockACLManager_Update_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Update'
+type MockACLManager_Update_Call struct {
+	*mock.Call
+}
+
+// Update is a helper method to define mock.On call
+//   - ctx context.Context
+//   - project string
+//   - service string
+//   - req aiven.OpenSearchACLRequest
+func (_e *MockACLManager_Expecter) Update(ctx interface{}, project interface{}, service interface{}, req interface{}) *MockACLManager_Update_Call {
+	return &MockACLManager_Update_Call{Call: _e.mock.On("Update", ctx, project, service, req)}
+}
+
+func (_c *MockACLManager_Update_Call) Run(run func(ctx context.Context, project string, service string, req aiven.OpenSearchACLRequest)) *MockACLManager_Update_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(aiven.OpenSearchACLRequest))
+	})
+	return _c
+}
+
+func (_c *MockACLManager_Update_Call) Return(_a0 *aiven.OpenSearchACLResponse, _a1 error) *MockACLManager_Update_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockACLManager_Update_Call) RunAndReturn(run func(context.Context, string, string, aiven.OpenSearchACLRequest) (*aiven.OpenSearchACLResponse, error)) *MockACLManager_Update_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockACLManager creates a new instance of MockACLManager. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockACLManager(t interface {

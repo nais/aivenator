@@ -2,13 +2,10 @@ package credentials
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
-	operator "github.com/nais/aivenator/pkg/aiven/operator"
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/services/kafka"
 	"github.com/nais/aivenator/pkg/services/opensearch"
@@ -29,54 +26,49 @@ type Manager struct {
 	handlers []ServiceHandler
 }
 
-func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger, k8sReader client.Reader, k8sClient client.Client) Manager {
-	crServiceUser := operator.NewServiceUserManager(k8sClient)
-	openSearchACL := operator.NewOpenSearchACLManager(k8sClient, aiven.OpenSearchACLs)
+func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger, k8sReader client.Reader) Manager {
 	return Manager{
 		handlers: []ServiceHandler{
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, mainProjectName, logger),
-			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName, k8sReader, crServiceUser, openSearchACL),
-			valkey.NewValkeyHandler(ctx, aiven, mainProjectName, k8sReader, crServiceUser),
+			opensearch.NewOpenSearchHandler(ctx, aiven, mainProjectName, k8sReader),
+			valkey.NewValkeyHandler(ctx, aiven, mainProjectName, k8sReader),
 		},
 	}
 }
 
-func (c Manager) CreateSecrets(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]v1.Secret, error) {
+func (c Manager) CreateSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]v1.Secret, error) {
 	var finalSecrets []v1.Secret
-	var errs []error
+	logger.Info("Processing secrets.")
 	for _, handler := range c.handlers {
-		handlerName := reflect.TypeOf(handler).String()
-		handlerLogger := logger.WithField("handler", handlerName)
-		handlerLogger.Infof("Processing %s secrets.", handlerName)
-
+		logger.WithField("ServiceHandler", reflect.TypeOf(handler).String())
 		processingStart := time.Now()
-		individualSecrets, err := handler.Apply(ctx, application, handlerLogger)
-		used := time.Since(processingStart)
+		logger = logger.WithField("aivenService", reflect.TypeOf(handler).String())
+		logger.Infof("Processing %s secrets.", reflect.TypeOf(handler).String())
+		individualSecrets, err := handler.Apply(ctx, application, logger)
+		if err != nil {
+			return nil, err
+		}
+		for _, s := range individualSecrets {
+			logger.Infof("Individual secret processed: %s", s.Name)
+		}
 
+		used := time.Since(processingStart)
+		handlerName := reflect.TypeOf(handler).String()
 		metrics.HandlerProcessingTime.With(prometheus.Labels{
 			metrics.LabelHandler: handlerName,
 		}).Observe(used.Seconds())
 
-		finalSecrets = append(finalSecrets, individualSecrets...)
-
-		if err != nil {
-			handlerLogger.Errorf("%s failed: %s", handlerName, err)
-			errs = append(errs, fmt.Errorf("%s: %w", handlerName, err))
-			continue
-		}
-
-		for _, s := range individualSecrets {
-			handlerLogger.Infof("Individual secret processed: %s", s.Name)
+		if individualSecrets != nil {
+			finalSecrets = append(finalSecrets, individualSecrets...)
 		}
 	}
 
-	return finalSecrets, errors.Join(errs...)
+	return finalSecrets, nil
 }
 
 func (c Manager) Cleanup(ctx context.Context, s *v1.Secret, logger log.FieldLogger) error {
 	for _, handler := range c.handlers {
-		handlerLogger := logger.WithField("handler", reflect.TypeOf(handler).String())
-		err := handler.Cleanup(ctx, s, handlerLogger)
+		err := handler.Cleanup(ctx, s, logger)
 		if err != nil {
 			return err
 		}

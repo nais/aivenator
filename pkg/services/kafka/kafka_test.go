@@ -27,23 +27,21 @@ import (
 )
 
 const (
-	aivenProjectName  = "a-project-name"
-	ca                = "my-ca"
-	teamNamespaceName = "test-ns"
-	teamAppName       = "test-app"
-	credStoreSecret   = "my-secret"
-	invalidPool       = "not-my-testing-pool"
-	secretName        = "my-individual-secret"
-	serviceURI        = "example.com"
-	serviceUserName   = "service-user-name"
+	aivenProjectName = "a-project-name"
+	ca               = "my-ca"
+	credStoreSecret  = "my-secret"
+	invalidPool      = "not-my-testing-pool"
+	secretName       = "my-individual-secret"
+	serviceURI       = "example.com"
+	serviceUserName  = "service-user-name"
 )
 
 type mockContainer struct {
-	generator          *certificate.MockGenerator
-	nameResolver       *liberator_service.MockNameResolver
 	projectManager     *project.MockProjectManager
-	serviceManager     *service.MockServiceManager
 	serviceUserManager *serviceuser.MockServiceUserManager
+	serviceManager     *service.MockServiceManager
+	nameResolver       *liberator_service.MockNameResolver
+	generator          *certificate.MockGenerator
 }
 
 func TestKafka(t *testing.T) {
@@ -67,27 +65,27 @@ var _ = Describe("kafka handler", func() {
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
 		mocks = mockContainer{
-			generator:          certificate.NewMockGenerator(GinkgoT()),
-			nameResolver:       liberator_service.NewMockNameResolver(GinkgoT()),
 			projectManager:     project.NewMockProjectManager(GinkgoT()),
-			serviceManager:     service.NewMockServiceManager(GinkgoT()),
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
+			serviceManager:     service.NewMockServiceManager(GinkgoT()),
+			nameResolver:       liberator_service.NewMockNameResolver(GinkgoT()),
+			generator:          certificate.NewMockGenerator(GinkgoT()),
 		}
 		kafkaHandler = KafkaHandler{
+			project:      mocks.projectManager,
+			serviceuser:  mocks.serviceUserManager,
+			service:      mocks.serviceManager,
 			generator:    mocks.generator,
 			nameResolver: mocks.nameResolver,
-			project:      mocks.projectManager,
-			projects:     []string{"dev-nais-dev", aivenProjectName},
-			service:      mocks.serviceManager,
-			serviceuser:  mocks.serviceUserManager,
 			secretConfig: utils.SecretConfig{
 				Project:     mocks.projectManager,
 				ProjectName: aivenProjectName,
 			},
+			projects: []string{"dev-nais-dev", aivenProjectName},
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 
-		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder(teamAppName, teamNamespaceName)
+		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", "test-ns")
 	})
 	AfterEach(func() {
 		cancel()
@@ -128,31 +126,6 @@ var _ = Describe("kafka handler", func() {
 			It("should not return an error", func() {
 				err := kafkaHandler.Cleanup(ctx, individualSecret, logger)
 				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-		Context("but deleting the service user fails with a server error", func() {
-			BeforeEach(func() {
-				individualSecret.SetAnnotations(map[string]string{
-					ServiceUserAnnotation: serviceUserName,
-					PoolAnnotation:        aivenProjectName,
-				})
-				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, aivenProjectName, mock.Anything, mock.Anything).Return(aiven.Error{Message: "boom", Status: 500})
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
-			})
-			It("returns the error", func() {
-				Expect(kafkaHandler.Cleanup(ctx, individualSecret, logger)).ToNot(Succeed())
-			})
-		})
-		Context("but the kafka service name cannot be resolved", func() {
-			BeforeEach(func() {
-				individualSecret.SetAnnotations(map[string]string{
-					ServiceUserAnnotation: serviceUserName,
-					PoolAnnotation:        aivenProjectName,
-				})
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("", errors.New("aiven unreachable"))
-			})
-			It("returns the error", func() {
-				Expect(kafkaHandler.Cleanup(ctx, individualSecret, logger)).ToNot(Succeed())
 			})
 		})
 	})
@@ -204,24 +177,16 @@ var _ = Describe("kafka handler", func() {
 
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
 					Return(ca, nil)
-				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, aiven.Error{Message: "not found", Status: 404})
-				mocks.serviceUserManager.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to create"))
 
-				application := applicationBuilder.Build()
-				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{
+						Message:  "aiven-error",
+						MoreInfo: "aiven-more-info",
+						Status:   404,
+					})
 
-				Expect(err).To(HaveOccurred())
-				Expect(individualSecrets).To(BeNil())
-			})
-
-			// A non-404 from Get is a live Aiven failure, not "user absent", so it
-			// must surface rather than fall through to Create.
-			It("should return an error when getting the service user fails", func() {
-				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
-				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
-					Return(kafkaServiceAddresses, nil)
-				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
-				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, aiven.Error{Message: "boom", Status: 500})
+				mocks.serviceUserManager.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{Message: "aiven-error", Status: 500})
 
 				application := applicationBuilder.Build()
 				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
@@ -231,8 +196,7 @@ var _ = Describe("kafka handler", func() {
 			})
 
 			It("should re-use supplied secret", func() {
-				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, aiven.Error{Message: "not found", Status: 404})
-				mocks.serviceUserManager.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(&aiven.ServiceUser{Username: serviceUserName}, nil)
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
@@ -260,7 +224,6 @@ var _ = Describe("kafka handler", func() {
 							constants.AivenatorProtectedKey:   "false",
 							"nais.io/deploymentCorrelationID": "",
 							PoolAnnotation:                    aivenProjectName,
-							InstanceAnnotation:                aivenProjectName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
@@ -341,8 +304,19 @@ var _ = Describe("kafka handler", func() {
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(kafkaServiceAddresses, nil)
-				mocks.serviceUserManager.On("Get", mock.Anything, "test-ns_test-app_2cf0e5d8_3D_", aivenProjectName, "kafka", mock.Anything).Return(nil, aiven.Error{Message: "not found", Status: 404})
-				mocks.serviceUserManager.On("Create", mock.Anything, "test-ns_test-app_2cf0e5d8_3D_", aivenProjectName, "kafka", mock.Anything, mock.Anything).Return(nil, errors.New("not able to create")).Once()
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{
+						Message:  "aiven-error",
+						MoreInfo: "aiven-more-info",
+						Status:   404,
+					})
+
+				mocks.serviceUserManager.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{
+						Message:  "aiven-error",
+						MoreInfo: "aiven-more-info",
+						Status:   500,
+					})
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
 					Return(ca, nil)
 
@@ -363,9 +337,16 @@ var _ = Describe("kafka handler", func() {
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(kafkaServiceAddresses, nil)
-				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, aiven.Error{Message: "not found", Status: 404})
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{
+						Message:  "aiven-error",
+						MoreInfo: "aiven-more-info",
+						Status:   404,
+					})
 				mocks.serviceUserManager.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return(&aiven.ServiceUser{Username: serviceUserName}, nil)
+					Return(&aiven.ServiceUser{
+						Username: serviceUserName,
+					}, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(&certificate.CredStoreData{
 						Keystore:   []byte("my-keystore"),
@@ -388,7 +369,6 @@ var _ = Describe("kafka handler", func() {
 							constants.AivenatorProtectedKey:   "false",
 							"nais.io/deploymentCorrelationID": "",
 							PoolAnnotation:                    aivenProjectName,
-							InstanceAnnotation:                aivenProjectName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
@@ -399,7 +379,7 @@ var _ = Describe("kafka handler", func() {
 
 				Expect(individualSecrets[0]).To(Equal(expected))
 			})
-			It("doesn't create a new serviceUser if already extant", func() {
+			It("doesnt create a new serviceUser if already extant", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{
@@ -423,7 +403,10 @@ var _ = Describe("kafka handler", func() {
 					Return(ca, nil)
 
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return(&aiven.ServiceUser{Username: serviceUserName}, nil)
+					Return(&aiven.ServiceUser{
+						Username: serviceUserName,
+					}, nil)
+
 				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
 
 				Expect(mocks.serviceUserManager.AssertNotCalled(GinkgoT(), "Create",
@@ -440,7 +423,6 @@ var _ = Describe("kafka handler", func() {
 							constants.AivenatorProtectedKey:   "false",
 							ServiceUserAnnotation:             serviceUserName,
 							PoolAnnotation:                    aivenProjectName,
-							InstanceAnnotation:                aivenProjectName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
@@ -472,7 +454,7 @@ var _ = Describe("kafka handler", func() {
 				Expect(individualSecrets).To(BeNil())
 			})
 			It("fails when makecredstores fails", func() {
-				mocks.serviceUserManager.On("Delete", mock.Anything, "", aivenProjectName, "kafka", mock.Anything).Return(nil)
+				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, aivenProjectName, mock.Anything, mock.Anything).Return(nil)
 
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
@@ -487,9 +469,10 @@ var _ = Describe("kafka handler", func() {
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(kafkaServiceAddresses, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
-				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, aiven.Error{Message: "not found", Status: 404})
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{Status: 404})
 				mocks.serviceUserManager.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return(&aiven.ServiceUser{}, nil)
+					Return(&aiven.ServiceUser{Username: serviceUserName}, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, fmt.Errorf("local-fail"))
 

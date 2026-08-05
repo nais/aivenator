@@ -2,22 +2,17 @@ package opensearch
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
-	operator "github.com/nais/aivenator/pkg/aiven/operator"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
+	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
-	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -38,25 +33,17 @@ const (
 	serviceHost     = "example.com"
 	servicePort     = 1234
 	instance        = "my-instance"
-	serviceName     = "opensearch-my-namespace-my-instance"
+	serviceName     = "my-service"
 	secretName      = "foo"
-	// legacySeededUsername uses the pre-CR base64 suffix alphabet (uppercase,
-	// '_'): invalid as a CR name, so Apply must mint a fresh username instead of adopting it.
-	legacySeededUsername = "team-a-r-3D_"
-	access               = "read"
-	testNamespace        = "my-namespace"
+	access          = "read"
+	testNamespace   = "my-namespace"
 )
 
-// mintedNameShape pins a freshly minted username to the target scheme for this
-// suite's app ("test-app") and read access: test-app-r-<h1>-<h2>-<YYYYwWW>.
-var mintedNameShape = regexp.MustCompile(`^test-app-r-[0-9a-f]{6}-[0-9a-f]{5}-[0-9]{4}w[0-9]{2}$`)
-
 type mockContainer struct {
-	aclManager         *operator.MockOpenSearchACLManager
-	crServiceUser      *operator.MockServiceUserManager
-	projectManager     *project.MockProjectManager
-	serviceManager     *service.MockServiceManager
 	serviceUserManager *serviceuser.MockServiceUserManager
+	serviceManager     *service.MockServiceManager
+	projectManager     *project.MockProjectManager
+	aclManager         *opensearch.MockACLManager
 }
 
 func TestOpensearch(t *testing.T) {
@@ -74,86 +61,55 @@ var _ = Describe("opensearch handler", func() {
 	var application aiven_nais_io_v1.AivenApplication
 	var opensearchServiceAddresses service.ServiceAddresses
 
-	serviceUserSecret := map[string]string{
-		operator.ServiceUserUsername: serviceUserName,
-		operator.ServiceUserPassword: servicePassword,
-		operator.ServiceUserHost:     serviceHost,
-		operator.ServiceUserPort:     strconv.Itoa(servicePort),
-	}
-
 	BeforeEach(func() {
 		root := log.New()
 		root.Out = GinkgoWriter
 		logger = log.NewEntry(root)
 		applicationBuilder = aiven_nais_io_v1.NewAivenApplicationBuilder("test-app", testNamespace)
 		mocks = mockContainer{
-			aclManager:         operator.NewMockOpenSearchACLManager(GinkgoT()),
-			crServiceUser:      operator.NewMockServiceUserManager(GinkgoT()),
-			projectManager:     project.NewMockProjectManager(GinkgoT()),
-			serviceManager:     service.NewMockServiceManager(GinkgoT()),
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
+			serviceManager:     service.NewMockServiceManager(GinkgoT()),
+			projectManager:     project.NewMockProjectManager(GinkgoT()),
+			aclManager:         opensearch.NewMockACLManager(GinkgoT()),
 		}
 
 		scheme := runtime.NewScheme()
 		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
-		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+		// Pre-populate CRs matching test constants in testNamespace.
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
 			&aiven_io_v1alpha1.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: testNamespace}, Status: aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState}},
-			// Seed the app-facing secret with a legacy (pre-CR, RFC-1123-invalid)
-			// username, so the existing specs exercise the legacy-tracking flow.
-			// Valid-name adoption and fresh minting use their own secrets.
-			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: testNamespace, Annotations: map[string]string{ServiceUserAnnotation: legacySeededUsername}}},
+			&aiven_io_v1alpha1.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: instance, Namespace: testNamespace}, Status: aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState}},
 		).Build()
 
 		opensearchHandler = OpenSearchHandler{
-			crServiceUser: mocks.crServiceUser,
-			k8sReader:     fakeClient,
-			openSearchACL: mocks.aclManager,
-			projectName:   projectName,
-			service:       mocks.serviceManager,
 			serviceuser:   mocks.serviceUserManager,
+			service:       mocks.serviceManager,
+			openSearchACL: mocks.aclManager,
 			secretConfig: utils.SecretConfig{
 				Project:     mocks.projectManager,
 				ProjectName: projectName,
 			},
+			projectName: projectName,
+			k8sReader:   fakeClient,
 		}
-		addressesMock := service.MockServiceAddresses{}
-		addressesMock.On("OpenSearch").Return(service.ServiceAddress{
+		mock := service.MockServiceAddresses{}
+		mock.EXPECT().OpenSearch().Return(service.ServiceAddress{
 			URI:  serviceURI,
 			Host: serviceHost,
 			Port: servicePort,
-		}).Maybe()
-		addressesMock.On("OpenSearchDashboard").Return(service.ServiceAddress{
+		})
+		mock.EXPECT().OpenSearchDashboard().Return(service.ServiceAddress{
 			URI:  serviceURI,
 			Host: serviceHost,
 			Port: servicePort,
-		}).Maybe()
-		opensearchServiceAddresses = &addressesMock
+		})
+		opensearchServiceAddresses = &mock
 
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	})
 	AfterEach(func() {
 		cancel()
 	})
-
-	mockAivenReturnOpensearchGetOk := func() {
-		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
-			Return(opensearchServiceAddresses, nil)
-	}
-	mockAivenReturnCaOk := func() {
-		mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("my-ca", nil)
-	}
-	mockCreateServiceUserOk := func() {
-		mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(&operator.ServiceUser{
-				Username: serviceUserName,
-				Secret:   serviceUserSecret,
-			}, nil)
-	}
-	mockCreateACLsOk := func() {
-		mocks.aclManager.On("CreateServiceUserACLs", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(nil)
-	}
 
 	When("it receives a spec without OpenSearch", func() {
 		It("doesn't crash", func() {
@@ -163,21 +119,67 @@ var _ = Describe("opensearch handler", func() {
 		})
 	})
 
-	When("it receives a spec with OpenSearch requested", func() {
-		BeforeEach(func() {
-			application = applicationBuilder.
-				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-						Instance:   instance,
-						Access:     access,
-						SecretName: secretName,
+	mockAivenReturnOpensearchGetOk := func() {
+		mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
+			Return(opensearchServiceAddresses, nil)
+	}
+	mockAivenReturnOpensearchGetServiceUserOk := func() {
+		{
+			mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				Return(&aiven.ServiceUser{
+					Username: serviceUserName,
+					Password: servicePassword,
+				}, nil)
+		}
+	}
+	mockAivenReturnCaOk := func() {
+		mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("my-ca", nil)
+	}
+	mockAivenReturnAclManagerGetOk := func() {
+		mocks.aclManager.On("Get", mock.Anything, mock.Anything, mock.Anything).Return(&aiven.OpenSearchACLResponse{
+			OpenSearchACLConfig: aiven.OpenSearchACLConfig{
+				ACLs: []aiven.OpenSearchACL{
+					{
+						Rules:    nil,
+						Username: serviceUserName,
 					},
-				}).
-				Build()
-		})
+				},
+				Enabled:     true,
+				ExtendedAcl: false,
+			},
+		}, nil).Once()
+	}
+	mockAivenReturnAclManagerUpdateOk := func() {
+		mocks.aclManager.On("Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&aiven.OpenSearchACLResponse{
+				OpenSearchACLConfig: aiven.OpenSearchACLConfig{
+					ACLs: []aiven.OpenSearchACL{
+						{
+							Rules: []aiven.OpenSearchACLRule{
+								{Index: "*", Permission: access},
+								{Index: "_*", Permission: access},
+							},
+							Username: serviceUserName,
+						},
+					},
+					Enabled:     true,
+					ExtendedAcl: false,
+				},
+			}, nil).Once()
+	}
 
+	When("it receives a spec with OpenSearch requested", func() {
 		Context("and the service is unavailable", func() {
 			BeforeEach(func() {
+				application = applicationBuilder.
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+							Instance:   serviceName,
+							Access:     access,
+							SecretName: secretName,
+						},
+					}).
+					Build()
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
 						Message:  "aiven-error",
@@ -193,12 +195,26 @@ var _ = Describe("opensearch handler", func() {
 				Expect(individualSecrets).To(BeNil())
 			})
 		})
-
-		Context("and the service user cannot be provisioned", func() {
+		Context("and service users are unavailable", func() {
 			BeforeEach(func() {
+				application = applicationBuilder.
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+							Instance:   serviceName,
+							Access:     access,
+							SecretName: secretName,
+						},
+					}).
+					Build()
 				mockAivenReturnOpensearchGetOk()
-				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return(nil, errors.New("failed to provision"))
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, aiven.Error{
+						Message:  "aiven-error",
+						MoreInfo: "aiven-more-info",
+						Status:   500,
+					})
+
+				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("my-ca", nil)
 			})
 			It("sets the correct aiven fail condition", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
@@ -208,101 +224,136 @@ var _ = Describe("opensearch handler", func() {
 				Expect(individualSecrets).To(BeNil())
 			})
 		})
+	})
 
-		Context("and updating ACLs fails", func() {
+	When("it receives a spec", func() {
+		BeforeEach(func() {
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+						Instance:   serviceName,
+						Access:     access,
+						SecretName: secretName,
+					},
+				}).
+				Build()
+			mockAivenReturnOpensearchGetOk()
+			mockAivenReturnAclManagerGetOk()
+			mockAivenReturnAclManagerUpdateOk()
+		})
+		Context("and the service user already exists", func() {
 			BeforeEach(func() {
-				mockAivenReturnOpensearchGetOk()
-				mockCreateServiceUserOk()
-				mocks.aclManager.On("CreateServiceUserACLs", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return(errors.New("acl failure"))
+				mockAivenReturnOpensearchGetServiceUserOk()
+				mockAivenReturnCaOk()
+				application = applicationBuilder.
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+							Instance:   serviceName,
+							Access:     access,
+							SecretName: secretName,
+						},
+					}).
+					Build()
 			})
-			It("sets the correct aiven fail condition", func() {
+
+			It("Uses the existing user", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
-				Expect(err).ToNot(Succeed())
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
-				Expect(individualSecrets).To(BeNil())
+				Expect(err).To(BeNil())
+				expected := []corev1.Secret{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      secretName,
+							Namespace: testNamespace,
+							Labels: map[string]string{
+								"type":                              "aivenator.aiven.nais.io",
+								"app":                               application.Name,
+								"team":                              application.Namespace,
+								"aiven.nais.io/secret-generation":   "0",
+								"aivenator.aiven.nais.io/protected": "false",
+							},
+							Annotations: map[string]string{
+								ServiceNameAnnotation:             serviceName,
+								ProjectAnnotation:                 projectName,
+								"nais.io/deploymentCorrelationID": "",
+								constants.AivenatorProtectedKey:   "false",
+								ServiceUserAnnotation:             serviceUserName,
+							},
+							Finalizers: []string{constants.AivenatorFinalizer},
+						},
+					},
+				}
+				individualSecrets[0].StringData = nil
+				Expect(individualSecrets).To(Equal(expected))
 			})
 		})
 
-		// The operator publishes the ServiceUser secret; a key missing from it
-		// (operator not done, or a contract drift) must fail loudly, not silently
-		// project an empty credential.
-		Context("and the operator secret is missing a required key", func() {
-			BeforeEach(func() {
-				mockAivenReturnOpensearchGetOk()
-				mockCreateACLsOk()
-				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return(&operator.ServiceUser{
-						Username: serviceUserName,
-						Secret:   map[string]string{operator.ServiceUserHost: serviceHost, operator.ServiceUserPort: strconv.Itoa(servicePort)},
-					}, nil)
-			})
-			It("sets the correct aiven fail condition", func() {
-				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
-
-				Expect(err).ToNot(Succeed())
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
-				Expect(individualSecrets).To(BeNil())
-			})
-		})
-
-		Context("and the project CA cannot be fetched", func() {
-			BeforeEach(func() {
-				mockAivenReturnOpensearchGetOk()
-				mockCreateServiceUserOk()
-				mockCreateACLsOk()
-				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("", aiven.Error{Message: "boom", Status: 500})
-			})
-			It("sets the correct aiven fail condition", func() {
-				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
-
-				Expect(err).ToNot(Succeed())
-				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
-				Expect(individualSecrets).To(BeNil())
-			})
-		})
-
-		Context("and the existing secret carries a legacy (pre-CR) username", func() {
+		Context("and the service user doesn't exist", func() {
 			BeforeEach(func() {
 				mockAivenReturnOpensearchGetOk()
 				mockAivenReturnCaOk()
-				mockCreateACLsOk()
+				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, aiven.Error{
+					Message: "Service user does not exist", Status: 404,
+				})
+
+				mocks.serviceUserManager.On("Create", mock.Anything, testNamespace+"-r-3D_", projectName, serviceName, (*aiven.AccessControl)(nil), mock.Anything).Return(&aiven.ServiceUser{
+					Username: serviceUserName,
+					Password: servicePassword,
+				}, nil)
 			})
 
-			It("mints a fresh username and tracks the legacy one", func() {
-				const mintedUsername = "test-app-r-a1b2c3-d4e5f-2026w30"
+			It("Creates and returns creds for the new user", func() {
+				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
-				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
-					return mintedNameShape.MatchString(spec.Name) && spec.ServiceName == serviceName && spec.Project == projectName && spec.Namespace == testNamespace
-				}), mock.Anything).
-					Return(&operator.ServiceUser{
-						Username: mintedUsername,
-						Secret:   serviceUserSecret,
-					}, nil)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(individualSecrets).To(Not(BeNil()))
+			})
+		})
+	})
 
+	When("it receives a spec with individual secret instance", func() {
+		BeforeEach(func() {
+			mockAivenReturnCaOk()
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+						Instance:   instance,
+						Access:     access,
+						SecretName: "foo",
+					},
+				}).
+				Build()
+			mockAivenReturnOpensearchGetOk()
+			mockAivenReturnAclManagerGetOk()
+			mockAivenReturnAclManagerUpdateOk()
+		})
+		Context("and the service user already exists", func() {
+			BeforeEach(func() {
+				mockAivenReturnOpensearchGetServiceUserOk()
+			})
+			It("uses the existing user", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
 				Expect(err).To(BeNil())
+				expected := corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      application.Spec.OpenSearch.SecretName,
+						Namespace: application.GetNamespace(),
+						Annotations: map[string]string{
+							ProjectAnnotation:                 projectName,
+							ServiceNameAnnotation:             instance,
+							ServiceUserAnnotation:             serviceUserName,
+							constants.AivenatorProtectedKey:   "false",
+							"nais.io/deploymentCorrelationID": "",
+						},
+						Labels:     individualSecrets[0].Labels,
+						Finalizers: []string{constants.AivenatorFinalizer},
+					},
+					Data:       individualSecrets[0].Data,
+					StringData: individualSecrets[0].StringData,
+				}
 				Expect(individualSecrets).To(HaveLen(1))
-				annotations := individualSecrets[0].GetAnnotations()
-				Expect(annotations).To(HaveKeyWithValue(ServiceNameAnnotation, serviceName))
-				Expect(annotations).To(HaveKeyWithValue(ProjectAnnotation, projectName))
-				Expect(annotations).To(HaveKeyWithValue(ServiceUserAnnotation, mintedUsername))
-				Expect(annotations).To(HaveKeyWithValue(LegacyServiceUserAnnotation, legacySeededUsername))
-				Expect(individualSecrets[0].Finalizers).To(ContainElement(constants.AivenatorFinalizer))
-			})
-
-			It("fills the secret with the connection details", func() {
-				mockCreateServiceUserOk()
-
-				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
-
-				Expect(err).To(BeNil())
-				Expect(individualSecrets).To(HaveLen(1))
-				Expect(individualSecrets[0].StringData).To(HaveKeyWithValue(OpenSearchUser, serviceUserName))
-				Expect(individualSecrets[0].StringData).To(HaveKeyWithValue(OpenSearchPassword, servicePassword))
-				Expect(individualSecrets[0].StringData).To(HaveKeyWithValue(OpenSearchURI, "https://example.com:1234"))
+				Expect(individualSecrets[0]).To(Equal(expected))
 				Expect(utils.KeysFromStringMap(individualSecrets[0].StringData)).To(ConsistOf(
 					OpenSearchUser,
 					OpenSearchPassword,
@@ -317,227 +368,10 @@ var _ = Describe("opensearch handler", func() {
 				))
 			})
 		})
-
-		Context("and the existing secret carries a valid CR-mode username", func() {
-			BeforeEach(func() {
-				application = applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-							Instance:   instance,
-							Access:     access,
-							SecretName: "adopted-secret",
-						},
-					}).
-					Build()
-				existing := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
-					Name: "adopted-secret", Namespace: testNamespace,
-					Annotations: map[string]string{ServiceUserAnnotation: serviceUserName},
-				}}
-				Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, existing)).To(Succeed())
-				mocks.crServiceUser.On("ServiceName", mock.Anything, testNamespace, serviceUserName).Return(serviceName, true, nil)
-				mockAivenReturnOpensearchGetOk()
-				mockAivenReturnCaOk()
-				mockCreateACLsOk()
-			})
-
-			It("adopts the existing username", func() {
-				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
-					return spec.Name == serviceUserName && spec.ServiceName == serviceName && spec.Project == projectName && spec.Namespace == testNamespace
-				}), mock.Anything).
-					Return(&operator.ServiceUser{
-						Username: serviceUserName,
-						Secret:   serviceUserSecret,
-					}, nil)
-
-				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
-
-				Expect(err).To(BeNil())
-				Expect(individualSecrets).To(HaveLen(1))
-				annotations := individualSecrets[0].GetAnnotations()
-				Expect(annotations).To(HaveKeyWithValue(ServiceUserAnnotation, serviceUserName))
-				Expect(annotations).ToNot(HaveKey(LegacyServiceUserAnnotation))
-			})
-		})
-
-		Context("and the existing secret's username has a CR targeting another service", func() {
-			BeforeEach(func() {
-				application = applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-							Instance:   instance,
-							Access:     access,
-							SecretName: "adopted-secret",
-						},
-					}).
-					Build()
-				existing := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
-					Name: "adopted-secret", Namespace: testNamespace,
-					Annotations: map[string]string{ServiceUserAnnotation: serviceUserName},
-				}}
-				Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, existing)).To(Succeed())
-				mocks.crServiceUser.On("ServiceName", mock.Anything, testNamespace, serviceUserName).Return("opensearch-my-namespace-old-instance", true, nil)
-				mockAivenReturnOpensearchGetOk()
-				mockAivenReturnCaOk()
-				mockCreateACLsOk()
-			})
-
-			It("mints a fresh username instead of re-pointing the CR", func() {
-				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
-					return mintedNameShape.MatchString(spec.Name) && spec.ServiceName == serviceName
-				}), mock.Anything).
-					Return(&operator.ServiceUser{Username: "test-app-r-a1b2c3-d4e5f-2026w30", Secret: serviceUserSecret}, nil)
-
-				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
-
-				Expect(err).To(BeNil())
-				Expect(individualSecrets).To(HaveLen(1))
-				Expect(individualSecrets[0].GetAnnotations()).To(HaveKeyWithValue(ServiceUserAnnotation, "test-app-r-a1b2c3-d4e5f-2026w30"))
-			})
-		})
-
-		Context("and the app-facing secret does not yet exist", func() {
-			BeforeEach(func() {
-				application = applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-							Instance:   instance,
-							Access:     access,
-							SecretName: "new-secret",
-						},
-					}).
-					Build()
-				mockAivenReturnOpensearchGetOk()
-				mockAivenReturnCaOk()
-				mockCreateACLsOk()
-			})
-
-			It("mints a username in the target scheme and marks the secret", func() {
-				const mintedName = "test-app-r-a1b2c3-d4e5f-2026w30"
-
-				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
-					return mintedNameShape.MatchString(spec.Name)
-				}), mock.Anything).
-					Return(&operator.ServiceUser{
-						Username: mintedName,
-						Secret:   serviceUserSecret,
-					}, nil)
-
-				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(individualSecrets).To(HaveLen(1))
-				Expect(individualSecrets[0].GetAnnotations()).To(HaveKeyWithValue(ServiceUserAnnotation, mintedName))
-			})
-		})
-
-		Context("and the service user has no specified OpenSearch access", func() {
-			BeforeEach(func() {
-				application = applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-							Instance:   instance,
-							Access:     "",
-							SecretName: secretName,
-						},
-					}).
-					Build()
-				mockAivenReturnOpensearchGetOk()
-				mockAivenReturnCaOk()
-				mockCreateServiceUserOk()
-			})
-			It("the service user receives default ACLs", func() {
-				mocks.aclManager.On("CreateServiceUserACLs", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.OpenSearchACLSpec) bool {
-					return spec.Access == DefaultACLAccess && spec.Username == serviceUserName && spec.ServiceName == serviceName
-				}), mock.Anything).Return(nil)
-
-				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
-
-				Expect(err).To(BeNil())
-				Expect(individualSecrets).To(HaveLen(1))
-				Expect(application.Spec.OpenSearch.Access).To(Equal(DefaultACLAccess))
-			})
-		})
-
-		// Backwards compatibility: apps from before the "opensearch-<ns>-<instance>"
-		// naming convention have spec.Instance set to the already-existing, full
-		// service name directly. Apply must still find their CR.
-		Context("and the CR predates the namespaced naming convention", func() {
-			const legacyServiceName = "legacy-opensearch-instance"
-
-			BeforeEach(func() {
-				application = applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-							Instance:   legacyServiceName,
-							Access:     access,
-							SecretName: secretName,
-						},
-					}).
-					Build()
-				cr := &aiven_io_v1alpha1.OpenSearch{
-					ObjectMeta: metav1.ObjectMeta{Name: legacyServiceName, Namespace: testNamespace},
-					Status:     aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState},
-				}
-				Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, cr)).To(Succeed())
-				mockAivenReturnCaOk()
-				mockCreateServiceUserOk()
-			})
-
-			It("falls back to the instance value as the service name", func() {
-				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, legacyServiceName).
-					Return(opensearchServiceAddresses, nil)
-				mocks.aclManager.On("CreateServiceUserACLs", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.OpenSearchACLSpec) bool {
-					return spec.ServiceName == legacyServiceName
-				}), mock.Anything).Return(nil)
-
-				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
-
-				Expect(err).To(Succeed())
-				Expect(individualSecrets).To(HaveLen(1))
-				Expect(individualSecrets[0].GetAnnotations()).To(HaveKeyWithValue(ServiceNameAnnotation, legacyServiceName))
-			})
-		})
-
-		// Regression guard: once the namespaced CR is known to exist (even if not
-		// ready), Apply must not silently fall back to a same-named legacy CR.
-		Context("and a namespaced CR exists but is not ready, while a same-named legacy CR would also match", func() {
-			const collidingInstance = "collided-legacy"
-
-			BeforeEach(func() {
-				notReady := &aiven_io_v1alpha1.OpenSearch{
-					ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("opensearch-%s-%s", testNamespace, collidingInstance), Namespace: testNamespace},
-					Status:     aiven_io_v1alpha1.OpenSearchStatus{State: "NOT_RUNNING"},
-				}
-				Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, notReady)).To(Succeed())
-				decoy := &aiven_io_v1alpha1.OpenSearch{
-					ObjectMeta: metav1.ObjectMeta{Name: collidingInstance, Namespace: testNamespace},
-					Status:     aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState},
-				}
-				Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, decoy)).To(Succeed())
-
-				application = applicationBuilder.
-					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
-						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-							Instance:   collidingInstance,
-							Access:     access,
-							SecretName: secretName,
-						},
-					}).
-					Build()
-			})
-
-			It("rejects on the not-ready namespaced CR instead of falling back to the decoy", func() {
-				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
-
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("expected RUNNING"))
-				Expect(individualSecrets).To(BeNil())
-			})
-		})
 	})
-
 	// Security: cross-namespace access is rejected.
-	// The service name is derived from the requesting namespace, so a spec
-	// naming another team's instance resolves to a CR that cannot exist here.
+	// `resolveServiceName` scopes lookup to the requesting namespace only.
+	// Aiven APIs are mocked to succeed so that if the namespace check is ever removed (regression), the test still catches it via the assertion.
 	When("Apply is called without a matching OpenSearch CR in the requesting namespace", func() {
 		var attackerApp aiven_nais_io_v1.AivenApplication
 
@@ -545,16 +379,23 @@ var _ = Describe("opensearch handler", func() {
 			attackerApp = aiven_nais_io_v1.NewAivenApplicationBuilder("evil-app", "attacker-ns").
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
-						Instance:   instance,
+						Instance:   "opensearch-" + testNamespace + "-important-data",
 						Access:     "admin",
 						SecretName: "stolen-creds",
 					},
 				}).
 				Build()
-			// Mocked to succeed — if the namespace check regresses, Apply() would succeed and the assertion catches it.
+			// Mocked to succeed — if namespace check regresses, Apply() would succeed and assertion catches it.
 			mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return("my-ca", nil).Maybe()
 			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, mock.Anything).
 				Return(opensearchServiceAddresses, nil).Maybe()
+			mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				Return(&aiven.ServiceUser{Username: "attacker-ns-abc", Password: servicePassword}, nil).Maybe()
+			mocks.aclManager.On("Get", mock.Anything, mock.Anything, mock.Anything).Return(&aiven.OpenSearchACLResponse{
+				OpenSearchACLConfig: aiven.OpenSearchACLConfig{Enabled: true},
+			}, nil).Maybe()
+			mocks.aclManager.On("Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				Return(&aiven.OpenSearchACLResponse{}, nil).Maybe()
 		})
 
 		It("returns an error because no ownership validation passes", func() {
@@ -564,7 +405,42 @@ var _ = Describe("opensearch handler", func() {
 		})
 	})
 
-	When("no OpenSearch CR exists in namespace for the instance", func() {
+	When("the OpenSearch CR uses new-style naming (opensearch-<ns>-<instance>)", func() {
+		BeforeEach(func() {
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+						Instance:   "roger",
+						Access:     access,
+						SecretName: secretName,
+					},
+				}).
+				Build()
+			mockAivenReturnCaOk()
+			// GetServiceAddresses must be called with the resolved new-style name
+			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, "opensearch-"+testNamespace+"-roger").
+				Return(opensearchServiceAddresses, nil)
+			mockAivenReturnOpensearchGetServiceUserOk()
+			mockAivenReturnAclManagerGetOk()
+			mockAivenReturnAclManagerUpdateOk()
+		})
+
+		It("resolves via the new-style CR name and succeeds", func() {
+			// Add the new-style CR to the fake client
+			cr := &aiven_io_v1alpha1.OpenSearch{
+				ObjectMeta: metav1.ObjectMeta{Name: "opensearch-" + testNamespace + "-roger", Namespace: testNamespace},
+				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState},
+			}
+			Expect(opensearchHandler.k8sReader.(client.Client).Create(ctx, cr)).To(Succeed())
+
+			individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(individualSecrets).To(HaveLen(1))
+			Expect(individualSecrets[0].Annotations[ServiceNameAnnotation]).To(Equal("opensearch-" + testNamespace + "-roger"))
+		})
+	})
+
+	When("neither new-style nor legacy OpenSearch CR exists in namespace", func() {
 		BeforeEach(func() {
 			application = applicationBuilder.
 				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
@@ -589,8 +465,9 @@ var _ = Describe("opensearch handler", func() {
 	// e.g. namespace "a" + instance "b-foo" and namespace "a-b" + instance "foo"
 	// both produce "opensearch-a-b-foo". Aiven rejects the duplicate, so the
 	// colliding CR exists in-cluster but never reaches RUNNING.
-	When("the OpenSearch CR exists but is NOT in RUNNING state (naming collision)", func() {
+	When("OpenSearch CR exists in namespace but is NOT in RUNNING state (naming collision)", func() {
 		BeforeEach(func() {
+			// CR exists in testNamespace with a non-RUNNING state (simulates Aiven rejection)
 			cr := &aiven_io_v1alpha1.OpenSearch{
 				ObjectMeta: metav1.ObjectMeta{Name: "opensearch-" + testNamespace + "-collided", Namespace: testNamespace},
 				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: "NOT_RUNNING"},
@@ -615,130 +492,33 @@ var _ = Describe("opensearch handler", func() {
 		})
 	})
 
-	When("Cleanup is called", func() {
-		var secret corev1.Secret
-
+	When("it receives a spec w/individual secret instance, existing service user for secret", func() {
 		BeforeEach(func() {
-			secret = corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      secretName,
-					Namespace: testNamespace,
-					Annotations: map[string]string{
-						ServiceNameAnnotation: serviceName,
-						ServiceUserAnnotation: serviceUserName,
-						ProjectAnnotation:     projectName,
-					},
-				},
-			}
+			mockAivenReturnCaOk()
+			mockAivenReturnOpensearchGetOk()
+			mockAivenReturnAclManagerGetOk()
+			mockAivenReturnAclManagerUpdateOk()
 		})
-
-		Context("for a secret backed by a ServiceUser CR (new mode)", func() {
+		Context("and the service user has no specified Opensearch ACLs", func() {
 			BeforeEach(func() {
-				mocks.crServiceUser.On("Exists", mock.Anything, testNamespace, serviceUserName).Return(true, nil)
+				application = applicationBuilder.
+					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+						OpenSearch: &aiven_nais_io_v1.OpenSearchSpec{
+							Instance:   instance,
+							Access:     "",
+							SecretName: secretName,
+						},
+					}).
+					Build()
+				mockAivenReturnOpensearchGetServiceUserOk()
 			})
+			It("the service user receives default ACLs", func() {
+				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
-			It("removes the ACL entry via the CR and deletes the ServiceUser CR", func() {
-				mocks.aclManager.On("DeleteServiceUserACLs", mock.Anything, testNamespace, serviceName, serviceUserName, mock.Anything).Return(nil)
-				mocks.crServiceUser.On("DeleteServiceUser", mock.Anything, testNamespace, serviceUserName, mock.Anything).Return(nil)
-
-				Expect(opensearchHandler.Cleanup(ctx, &secret, logger)).To(Succeed())
-			})
-
-			It("tolerates an already-deleted service user", func() {
-				mocks.aclManager.On("DeleteServiceUserACLs", mock.Anything, testNamespace, serviceName, serviceUserName, mock.Anything).Return(nil)
-				mocks.crServiceUser.On("DeleteServiceUser", mock.Anything, testNamespace, serviceUserName, mock.Anything).
-					Return(aiven.Error{Message: "not found", Status: 404})
-
-				Expect(opensearchHandler.Cleanup(ctx, &secret, logger)).To(Succeed())
-			})
-
-			It("also deletes a tracked legacy user", func() {
-				const legacyUsername = "team-a-r-3D_"
-				secret.Annotations[LegacyServiceUserAnnotation] = legacyUsername
-				mocks.aclManager.On("DeleteServiceUserACLs", mock.Anything, testNamespace, serviceName, serviceUserName, mock.Anything).Return(nil)
-				mocks.crServiceUser.On("DeleteServiceUser", mock.Anything, testNamespace, serviceUserName, mock.Anything).Return(nil)
-				mocks.aclManager.On("DeleteServiceUserACLs", mock.Anything, testNamespace, serviceName, legacyUsername, mock.Anything).Return(nil)
-				mocks.serviceUserManager.On("Delete", mock.Anything, legacyUsername, projectName, serviceName, mock.Anything).Return(nil)
-
-				Expect(opensearchHandler.Cleanup(ctx, &secret, logger)).To(Succeed())
+				Expect(err).To(BeNil())
+				Expect(individualSecrets).To(HaveLen(1))
+				Expect(application.Spec.OpenSearch.Access).To(Equal(DefaultACLAccess))
 			})
 		})
-
-		Context("for a pre-migration secret (old mode, no CR marker)", func() {
-			It("removes the ACL entry via the CR but deletes the user via the direct API", func() {
-				mocks.crServiceUser.On("Exists", mock.Anything, testNamespace, serviceUserName).Return(false, nil)
-				mocks.aclManager.On("DeleteServiceUserACLs", mock.Anything, testNamespace, serviceName, serviceUserName, mock.Anything).Return(nil)
-				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, projectName, serviceName, mock.Anything).Return(nil)
-
-				Expect(opensearchHandler.Cleanup(ctx, &secret, logger)).To(Succeed())
-			})
-
-			It("returns the error when the direct-API delete fails", func() {
-				mocks.crServiceUser.On("Exists", mock.Anything, testNamespace, serviceUserName).Return(false, nil)
-				mocks.aclManager.On("DeleteServiceUserACLs", mock.Anything, testNamespace, serviceName, serviceUserName, mock.Anything).Return(nil)
-				mocks.serviceUserManager.On("Delete", mock.Anything, serviceUserName, projectName, serviceName, mock.Anything).Return(aiven.Error{Message: "boom", Status: 500})
-
-				Expect(opensearchHandler.Cleanup(ctx, &secret, logger)).ToNot(Succeed())
-			})
-		})
-
-		Context("for a secret without OpenSearch annotations", func() {
-			It("is a no-op", func() {
-				secret.Annotations = map[string]string{}
-				Expect(opensearchHandler.Cleanup(ctx, &secret, logger)).To(Succeed())
-			})
-		})
-	})
-})
-
-var _ = Describe("utils.ServiceUserName", func() {
-	const nameShape = `^[a-z0-9][a-z0-9-]*-(a|rw|w|r)-[0-9a-f]{6}-[0-9a-f]{5}-[0-9]{4}w[0-9]{2}$`
-	mintTime := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
-	// familyPrefix is <app>-<access>-<h1>: the name minus its trailing h2 and week.
-	familyPrefix := func(name string) string {
-		segs := strings.Split(name, "-")
-		return strings.Join(segs[:len(segs)-2], "-")
-	}
-
-	It("matches the target scheme and encodes the access level", func() {
-		for access, code := range map[string]string{"admin": "a", "readwrite": "rw", "write": "w", "read": "r", "": "r", "bogus": "r"} {
-			name := utils.ServiceUserName("my-api", access, "my-instance", "my-secret", mintTime)
-			Expect(name).To(MatchRegexp(nameShape), "access %q", access)
-			Expect(name).To(HavePrefix("my-api-"+code+"-"), "access %q should map to code %q", access, code)
-		}
-	})
-
-	It("is always a valid CR name", func() {
-		accesses := []string{"admin", "readwrite", "write", "read", ""}
-		for i := range 500 {
-			name := utils.ServiceUserName(fmt.Sprintf("app-%d", i), accesses[i%len(accesses)], fmt.Sprintf("instance-%d", i), fmt.Sprintf("secret-%d", i), mintTime.AddDate(0, 0, i))
-			Expect(utils.IsValidCRName(name)).To(BeTrue(), "not a valid CR name: %q", name)
-		}
-	})
-
-	It("caps pathological names at Aiven's 64-char limit", func() {
-		name := utils.ServiceUserName("an-application-with-a-very-long-name-close-to-k8s-limits-yes", "readwrite", "an-equally-long-instance-name-that-blows-the-budget", "a-very-long-secret-name-too", mintTime)
-		Expect(len(name)).To(BeNumerically("<=", aiven_nais_io_v1.MaxServiceUserNameLength))
-		Expect(utils.IsValidCRName(name)).To(BeTrue())
-		Expect(name).To(MatchRegexp(nameShape))
-	})
-
-	It("keeps the family prefix stable across secretName and week", func() {
-		base := utils.ServiceUserName("my-api", "readwrite", "my-instance", "secret-a", mintTime)
-		otherSecret := utils.ServiceUserName("my-api", "readwrite", "my-instance", "secret-b", mintTime)
-		otherWeek := utils.ServiceUserName("my-api", "readwrite", "my-instance", "secret-a", mintTime.AddDate(0, 0, 21))
-		Expect(familyPrefix(base)).To(Equal(familyPrefix(otherSecret)))
-		Expect(familyPrefix(base)).To(Equal(familyPrefix(otherWeek)))
-	})
-
-	It("gives distinct secretNames distinct usernames", func() {
-		a := utils.ServiceUserName("my-api", "read", "my-instance", "secret-a", mintTime)
-		b := utils.ServiceUserName("my-api", "read", "my-instance", "secret-b", mintTime)
-		Expect(a).ToNot(Equal(b))
-	})
-
-	It("ends with the ISO week-year and week of its mint time", func() {
-		year, week := mintTime.ISOWeek()
-		Expect(utils.ServiceUserName("my-api", "read", "my-instance", "my-secret", mintTime)).To(HaveSuffix(fmt.Sprintf("-%04dw%02d", year, week)))
 	})
 })
