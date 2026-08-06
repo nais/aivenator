@@ -20,6 +20,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -313,6 +314,20 @@ func (r *AivenApplicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.GenerationChangedPredicate{},
 			predicate.AnnotationChangedPredicate{},
 			predicate.LabelChangedPredicate{},
+			predicate.Funcs{
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					oldApp, ok1 := e.ObjectOld.(*aiven_nais_io_v1.AivenApplication)
+					newApp, ok2 := e.ObjectNew.(*aiven_nais_io_v1.AivenApplication)
+					if !ok1 || !ok2 {
+						return false
+					}
+					return oldApp.Status.SynchronizationHash != "" &&
+						newApp.Status.SynchronizationHash == ""
+				},
+				CreateFunc:  func(e event.CreateEvent) bool { return false },
+				DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+				GenericFunc: func(e event.GenericEvent) bool { return false },
+			},
 		)).
 		Complete(r)
 }
