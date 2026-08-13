@@ -3,14 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
-
-	_ "net/http/pprof" // Enable http profiling
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/controllers/aiven_application"
@@ -121,12 +118,6 @@ func main() {
 		os.Exit(ExitConfig)
 	}
 
-	go func() {
-		// Serve profiling data on 6060
-		err := http.ListenAndServe("localhost:6060", nil)
-		logger.Errorf("Failed to serve profiling: %v", err)
-	}()
-
 	logger.SetFormatter(logfmt)
 	level, err := log.ParseLevel(viper.GetString(LogLevel))
 	if err != nil {
@@ -176,10 +167,10 @@ func main() {
 		logger.Errorln(fmt.Errorf("unable to create kubernetes clientset for events: %w", err))
 		os.Exit(ExitRuntime)
 	}
-    eb := k8sevents.NewEventBroadcasterAdapter(kubeClientset)
-    // Run broadcaster for the lifetime of the process; no explicit shutdown
-    eb.StartRecordingToSink(make(chan struct{}))
-    recorder := eb.NewRecorder("aivenator")
+	eb := k8sevents.NewEventBroadcasterAdapter(kubeClientset)
+	// Run broadcaster for the lifetime of the process; no explicit shutdown
+	eb.StartRecordingToSink(make(chan struct{}))
+	recorder := eb.NewRecorder("aivenator")
 
 	if err := manageCredentials(ctx, aivenClient, logger, mgr, allowedProjects, viper.GetString(MainProject), recorder); err != nil {
 		logger.Errorln(err)
