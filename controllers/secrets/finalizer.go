@@ -3,6 +3,8 @@ package secrets
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/credentials"
 	log "github.com/sirupsen/logrus"
@@ -15,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"time"
 )
 
 const (
@@ -33,8 +34,8 @@ func (s *SecretsFinalizer) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	var secret v1.Secret
 
 	logger := s.Logger.WithFields(log.Fields{
-		"secret_name": req.Name,
-		"team":        req.Namespace,
+		"secretName": req.Name,
+		"team":       req.Namespace,
 	})
 
 	failRetry := func(err error) (ctrl.Result, error) {

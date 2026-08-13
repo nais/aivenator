@@ -11,16 +11,38 @@
     inputs.flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = import inputs.nixpkgs { localSystem = { inherit system; }; };
+        pkgs = import inputs.nixpkgs {
+          localSystem = { inherit system; };
+          overlays = [
+            (
+              final: prev:
+              let
+                version = "1.26.6";
+                newerGoVersion = prev.go_latest.overrideAttrs (old: {
+                  inherit version;
+                  src = prev.fetchurl {
+                    url = "https://go.dev/dl/go${version}.src.tar.gz";
+                    hash = "sha256-oHIcVMaIkBRI13rZs+x+p8R0cwdV/4kTgukuy5P/LLE=";
+                  };
+                });
+                nixpkgsVersion = prev.go_latest.version;
+                newVersionNotInNixpkgs = -1 == builtins.compareVersions nixpkgsVersion version;
+              in
+              {
+                go_latest = if newVersionNotInNixpkgs then newerGoVersion else prev.go_latest;
+                buildGoModule = prev.buildGoModule.override { go = final.go_latest; };
+              }
+            )
+          ];
+        };
         inherit (pkgs) lib;
       in
       {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             delve
-            go
+            go_latest
             ginkgo
-            postgresql
           ];
         };
         formatter =
@@ -39,9 +61,6 @@
               "nixfmt"
               "deadnix"
             ];
-            treefmtProgramsEnable = lib.genAttrs linters (_: {
-              enable = true;
-            });
           in
           inputs.treefmt-nix.lib.mkWrapper pkgs (
             {
@@ -52,7 +71,9 @@
               ];
             }
             // {
-              programs = treefmtProgramsEnable;
+              programs = lib.genAttrs linters (_: {
+                enable = true;
+              });
             }
           );
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
@@ -186,16 +185,13 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 		existingName = existing.GetAnnotations()[ServiceUserAnnotation]
 		existingLegacy = existing.GetAnnotations()[LegacyServiceUserAnnotation]
 	}
-	serviceUserName, legacyUsername, err := operator.ResolveExistingServiceUser(ctx, h.crServiceUser, namespace, existingName, existingLegacy, serviceName)
+	res, err := operator.ResolveServiceUserName(ctx, h.crServiceUser, namespace, application.GetName(), application.Spec.OpenSearch.Access, application.Spec.OpenSearch.Instance, application.Spec.OpenSearch.SecretName, serviceName, existingName, existingLegacy, logger)
 	if err != nil {
 		return nil, "", utils.AivenFail("ResolveServiceUser", application, err, false, logger)
 	}
-	if serviceUserName == "" {
-		serviceUserName = utils.ServiceUserName(application.GetName(), application.Spec.OpenSearch.Access, application.Spec.OpenSearch.Instance, application.Spec.OpenSearch.SecretName, time.Now())
-	}
 
 	serviceUser, err := h.crServiceUser.CreateServiceUser(ctx, application, operator.ServiceUserSpec{
-		Name:        serviceUserName,
+		Name:        res.Name,
 		Namespace:   namespace,
 		Project:     h.projectName,
 		ServiceName: serviceName,
@@ -213,7 +209,7 @@ func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *
 	}, logger); err != nil {
 		return nil, "", utils.AivenFail("UpdateACL", application, err, false, logger)
 	}
-	return serviceUser, legacyUsername, nil
+	return serviceUser, res.Legacy, nil
 }
 
 func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, logger log.FieldLogger) error {

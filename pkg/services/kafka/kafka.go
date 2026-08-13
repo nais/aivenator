@@ -161,8 +161,9 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	credStore, err := h.generator.MakeCredStores(accessKey, accessCert, ca)
 	if err != nil {
 		utils.LocalFail("CreateCredStores", application, err, logger)
-		if createdFresh {
-			// Roll back only a user this reconcile created; adopted/migrated ones are live.
+		// Deterministic usernames let a fresh CR reproduce and adopt the live legacy
+		// account, so username equality — not name provenance — decides liveness.
+		if createdFresh && aivenUser.Username != legacyUsername {
 			return nil, errors.Join(err, h.Cleanup(ctx, individualSecret, logger))
 		}
 		return nil, err
@@ -212,28 +213,22 @@ func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven
 		existingLegacy = existing.GetAnnotations()[LegacyServiceUserAnnotation]
 	}
 
-	crName, legacyUsername, err := operator.ResolveExistingServiceUser(ctx, h.crServiceUser, namespace, existingName, existingLegacy, serviceName)
+	res, err := operator.ResolveServiceUserName(ctx, h.crServiceUser, namespace, application.GetName(), "", application.Spec.Kafka.Pool, application.Spec.Kafka.SecretName, serviceName, existingName, existingLegacy, logger)
 	if err != nil {
 		return nil, "", "", false, utils.AivenFail("ResolveServiceUser", application, err, false, logger)
 	}
 
-	// A minted (non-adopted) name means this call is creating a brand-new ServiceUser
-	// CR, safe to roll back on a later failure this reconcile; an adopted name — from
-	// an existing secret or an existing CR — is live and must never be deleted.
-	createdFresh := crName == ""
-
-	// spec.username is immutable and carried by the CR; mint it only for a new CR.
-	// On adopt it stays empty so the operator wrapper preserves the CR's value.
+	// The account identity (spec.username) is declared only at CR creation; on an
+	// existing CR the immutable declared value stands.
 	username := ""
-	if createdFresh {
-		crName = utils.ServiceUserName(application.GetName(), "", application.Spec.Kafka.Pool, application.Spec.Kafka.SecretName, time.Now())
+	if res.Creating {
 		if username, err = h.serviceUserName(application, logger); err != nil {
 			return nil, "", "", false, err
 		}
 	}
 
 	aivenUser, err := h.crServiceUser.CreateServiceUser(ctx, application, operator.ServiceUserSpec{
-		Name:        crName,
+		Name:        res.Name,
 		Namespace:   namespace,
 		Project:     projectName,
 		ServiceName: serviceName,
@@ -242,7 +237,7 @@ func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven
 	if err != nil {
 		return nil, "", "", false, utils.AivenFail("EnsureServiceUser", application, err, false, logger)
 	}
-	return aivenUser, crName, legacyUsername, createdFresh, nil
+	return aivenUser, res.Name, res.Legacy, !res.Adopted, nil
 }
 
 func (h KafkaHandler) serviceUserName(application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) (string, error) {

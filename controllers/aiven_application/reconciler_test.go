@@ -2,18 +2,26 @@ package aiven_application
 
 import (
 	"context"
+	"errors"
 	"github.com/nais/aivenator/constants"
 	"github.com/nais/aivenator/pkg/credentials"
+	"github.com/nais/aivenator/pkg/metrics"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	nais_io_v1 "github.com/nais/liberator/pkg/apis/nais.io/v1"
 	nais_io_v1alpha1 "github.com/nais/liberator/pkg/apis/nais.io/v1alpha1"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"testing"
 	"time"
 )
@@ -187,6 +195,73 @@ func TestAivenApplicationReconciler_NeedsSynchronization(t *testing.T) {
 			}
 		})
 	}
+}
+
+// notConvergedSeries reads the app's gauge presence without creating the series.
+func notConvergedSeries(t *testing.T) int {
+	t.Helper()
+	return testutil.CollectAndCount(metrics.AppNotConverged)
+}
+
+func TestAivenApplicationReconciler_NotConvergedGauge(t *testing.T) {
+	scheme := setupScheme()
+	ctx := context.Background()
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: namespace, Name: appName}}
+	gauge := prometheus.Labels{metrics.LabelNamespace: namespace, metrics.LabelAivenApp: appName}
+
+	t.Run("FailedReconcileIncrementsTheAppSeries", func(t *testing.T) {
+		defer metrics.AppNotConverged.Reset()
+		r := AivenApplicationReconciler{
+			Client: fake.NewClientBuilder().WithScheme(scheme).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+						return errors.New("apiserver unavailable")
+					},
+				}).Build(),
+			Logger:  log.NewEntry(log.New()),
+			Manager: credentials.Manager{},
+		}
+		if _, err := r.Reconcile(ctx, req); err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		if got := testutil.ToFloat64(metrics.AppNotConverged.With(gauge)); got != 1 {
+			t.Errorf("gauge = %v, want 1", got)
+		}
+	})
+
+	t.Run("SuccessfulReconcileRemovesTheAppSeries", func(t *testing.T) {
+		defer metrics.AppNotConverged.Reset()
+		app := aiven_nais_io_v1.NewAivenApplicationBuilder(appName, namespace).Build()
+		r := AivenApplicationReconciler{
+			Client:     fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&app).WithStatusSubresource(&app).Build(),
+			Logger:     log.NewEntry(log.New()),
+			Manager:    credentials.Manager{},
+			appChanges: make(chan aiven_nais_io_v1.AivenApplication, 1),
+		}
+		metrics.AppNotConverged.With(gauge).Inc() // series from an earlier failing reconcile
+		if _, err := r.Reconcile(ctx, req); err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		if got := notConvergedSeries(t); got != 0 {
+			t.Errorf("series count = %v, want 0", got)
+		}
+	})
+
+	t.Run("DeletedAppRemovesTheAppSeries", func(t *testing.T) {
+		defer metrics.AppNotConverged.Reset()
+		r := AivenApplicationReconciler{
+			Client:  fake.NewClientBuilder().WithScheme(scheme).Build(),
+			Logger:  log.NewEntry(log.New()),
+			Manager: credentials.Manager{},
+		}
+		metrics.AppNotConverged.With(gauge).Inc() // series from an earlier failing reconcile
+		if _, err := r.Reconcile(ctx, req); err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		if got := notConvergedSeries(t); got != 0 {
+			t.Errorf("series count = %v, want 0", got)
+		}
+	})
 }
 
 func TestAivenApplicationReconciler_HandleProtectedAndTimeLimited(t *testing.T) {

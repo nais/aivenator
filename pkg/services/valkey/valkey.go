@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
@@ -77,6 +76,19 @@ type ValkeyHandler struct {
 func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
 	if len(application.Spec.Valkey) == 0 {
 		return nil, nil
+	}
+
+	// One Secret object per instance is the contract with SaveSecret, whose update
+	// is a wholesale replace: a duplicate name would silently drop every earlier
+	// instance's credentials and cleanup annotations.
+	seen := make(map[string]bool, len(application.Spec.Valkey))
+	for _, valkeySpec := range application.Spec.Valkey {
+		if seen[valkeySpec.SecretName] {
+			err := fmt.Errorf("multiple valkey instances share secretName %q: %w", valkeySpec.SecretName, utils.ErrUnrecoverable)
+			utils.LocalFail("ValidateSecretNames", application, err, logger)
+			return nil, err
+		}
+		seen[valkeySpec.SecretName] = true
 	}
 
 	// Each instance is provisioned independently: one failing instance collects
@@ -184,13 +196,13 @@ type valkeyConnection struct {
 // resolveConnection provisions the service user via its ServiceUser CR and
 // returns the connection details from the operator-published secret.
 func (h ValkeyHandler) resolveConnection(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string, logger log.FieldLogger) (valkeyConnection, error) {
-	serviceUserName, legacyUsername, err := h.resolveServiceUserName(ctx, application, valkeySpec, serviceName)
+	res, err := h.resolveServiceUserName(ctx, application, valkeySpec, serviceName, logger)
 	if err != nil {
 		return valkeyConnection{}, utils.AivenFail("ResolveServiceUser", application, err, false, logger)
 	}
 
 	serviceUser, err := h.crServiceUser.CreateServiceUser(ctx, application, operator.ServiceUserSpec{
-		Name:        serviceUserName,
+		Name:        res.Name,
 		Namespace:   application.GetNamespace(),
 		Project:     h.projectName,
 		ServiceName: serviceName,
@@ -223,16 +235,18 @@ func (h ValkeyHandler) resolveConnection(ctx context.Context, application *aiven
 		uri:            fmt.Sprintf("valkeys://%s:%s", host, port),
 		host:           host,
 		port:           port,
-		legacyUsername: legacyUsername,
+		legacyUsername: res.Legacy,
 	}, nil
 }
 
-func (h ValkeyHandler) resolveServiceUserName(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string) (string, string, error) {
+// resolveServiceUserName reads this instance's annotations off the app secret
+// and resolves them to a usable CR name.
+func (h ValkeyHandler) resolveServiceUserName(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string, logger log.FieldLogger) (operator.NameResolution, error) {
 	var existingName, existingLegacy string
 	existing := &corev1.Secret{}
 	if err := h.k8sReader.Get(ctx, client.ObjectKey{Namespace: application.GetNamespace(), Name: valkeySpec.SecretName}, existing); err != nil {
 		if !k8serrors.IsNotFound(err) {
-			return "", "", err
+			return operator.NameResolution{}, err
 		}
 	} else {
 		annotations := existing.GetAnnotations()
@@ -240,14 +254,7 @@ func (h ValkeyHandler) resolveServiceUserName(ctx context.Context, application *
 		existingLegacy = annotations[instanceAnnotation(valkeySpec.Instance, LegacyServiceUserAnnotation)]
 	}
 
-	serviceUserName, legacyUsername, err := operator.ResolveExistingServiceUser(ctx, h.crServiceUser, application.GetNamespace(), existingName, existingLegacy, serviceName)
-	if err != nil {
-		return "", "", err
-	}
-	if serviceUserName == "" {
-		serviceUserName = utils.ServiceUserName(application.GetName(), valkeySpec.Access, valkeySpec.Instance, valkeySpec.SecretName, time.Now())
-	}
-	return serviceUserName, legacyUsername, nil
+	return operator.ResolveServiceUserName(ctx, h.crServiceUser, application.GetNamespace(), application.GetName(), valkeySpec.Access, valkeySpec.Instance, valkeySpec.SecretName, serviceName, existingName, existingLegacy, logger)
 }
 
 func instanceAnnotation(instance, annotation string) string {

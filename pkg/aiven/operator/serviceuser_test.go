@@ -3,13 +3,18 @@ package operator
 import (
 	"context"
 	"errors"
+	"time"
 
+	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
+	logtest "github.com/sirupsen/logrus/hooks/test"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -225,53 +230,83 @@ var _ = Describe("operator.Manager", func() {
 		})
 	})
 
-	Describe("ResolveExistingServiceUser", func() {
+	Describe("ResolveServiceUserName", func() {
 		const legacyIn = "carried-legacy"
+		const suApp = "test-app"
 
-		It("mints (adopt empty) and carries any legacy when there is no annotation", func() {
-			adopt, legacy, err := ResolveExistingServiceUser(ctx, manager, suNamespace, "", legacyIn, suService)
+		// resolve invokes the fold with the fixture's annotation values; the family
+		// tuple matches existingCR's app label and suService.
+		resolve := func(existingName, existingLegacy string) (NameResolution, error) {
+			return ResolveServiceUserName(ctx, manager, suNamespace, suApp, "", "instance", "secret", suService, existingName, existingLegacy, log.NewEntry(log.New()))
+		}
+
+		It("mints a creating week-stamped name and carries any legacy when nothing exists", func() {
+			res, err := resolve("", legacyIn)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(adopt).To(BeEmpty())
-			Expect(legacy).To(Equal(legacyIn))
+			Expect(res.Name).To(HavePrefix(utils.ServiceUserNamePrefix(suApp, "", "instance", "secret") + "-"))
+			Expect(res.Legacy).To(Equal(legacyIn))
+			Expect(res.Adopted).To(BeFalse())
+			Expect(res.Creating).To(BeTrue())
 		})
 
-		It("routes an annotation that is not a valid CR name to the legacy drain", func() {
+		It("routes an annotation that is not a valid CR name to the legacy drain, then mints", func() {
 			const rawUser = "team-a_test-app_abc0_"
 			Expect(utils.IsValidCRName(rawUser)).To(BeFalse())
-			adopt, legacy, err := ResolveExistingServiceUser(ctx, manager, suNamespace, rawUser, "", suService)
+			res, err := resolve(rawUser, "")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(adopt).To(BeEmpty())
-			Expect(legacy).To(Equal(rawUser))
+			Expect(res.Legacy).To(Equal(rawUser))
+			Expect(res.Adopted).To(BeFalse())
+			Expect(res.Creating).To(BeTrue())
+		})
+
+		// A surviving family CR (labelled with the app, same prefix and service) from
+		// a failed earlier attempt is adopted instead of minting a sibling; it exists,
+		// so nothing is being created.
+		It("recovers a stranded family CR when the secret has no annotation", func() {
+			stranded := utils.ServiceUserNamePrefix(suApp, "", "instance", "secret") + "-2026w01"
+			cr := existingCR(suService)
+			cr.Name = stranded
+			cr.Labels = map[string]string{"app": suApp}
+			setup(cr)
+			res, err := resolve("", "")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(res.Name).To(Equal(stranded))
+			Expect(res.Adopted).To(BeFalse())
+			Expect(res.Creating).To(BeFalse())
 		})
 
 		It("adopts the frozen name when its CR still targets the same service", func() {
 			setup(existingCR(suService))
-			adopt, _, err := ResolveExistingServiceUser(ctx, manager, suNamespace, suName, "", suService)
+			res, err := resolve(suName, "")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(adopt).To(Equal(suName))
+			Expect(res.Name).To(Equal(suName))
+			Expect(res.Adopted).To(BeTrue())
+			Expect(res.Creating).To(BeFalse())
 		})
 
 		// Adopting a CR name must not drop a legacy username the secret still carries,
 		// or the pre-CR Aiven user would never be drained in Cleanup.
 		It("carries a legacy username through the adopt path", func() {
 			setup(existingCR(suService))
-			adopt, legacy, err := ResolveExistingServiceUser(ctx, manager, suNamespace, suName, legacyIn, suService)
+			res, err := resolve(suName, legacyIn)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(adopt).To(Equal(suName))
-			Expect(legacy).To(Equal(legacyIn))
+			Expect(res.Name).To(Equal(suName))
+			Expect(res.Legacy).To(Equal(legacyIn))
 		})
 
 		It("adopts the frozen name when the CR is absent, to re-create it in place", func() {
-			adopt, _, err := ResolveExistingServiceUser(ctx, manager, suNamespace, suName, "", suService)
+			res, err := resolve(suName, "")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(adopt).To(Equal(suName))
+			Expect(res.Name).To(Equal(suName))
+			Expect(res.Adopted).To(BeTrue())
+			Expect(res.Creating).To(BeTrue())
 		})
 
 		It("fails terminally when the CR is bound to a different Aiven service", func() {
 			setup(existingCR("some-other-service"))
-			adopt, _, err := ResolveExistingServiceUser(ctx, manager, suNamespace, suName, "", suService)
+			res, err := resolve(suName, "")
 			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
-			Expect(adopt).To(BeEmpty())
+			Expect(res.Name).To(BeEmpty())
 		})
 
 		// A read failure must never be mistaken for absence (which would silently mint),
@@ -289,10 +324,10 @@ var _ = Describe("operator.Manager", func() {
 					},
 				}).Build()
 			manager = &Manager{client: fakeClient}
-			adopt, _, err := ResolveExistingServiceUser(ctx, manager, suNamespace, suName, "", suService)
+			res, err := resolve(suName, "")
 			Expect(err).To(HaveOccurred())
 			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeFalse())
-			Expect(adopt).To(BeEmpty())
+			Expect(res.Name).To(BeEmpty())
 		})
 	})
 })
@@ -300,3 +335,115 @@ var _ = Describe("operator.Manager", func() {
 func ptrTo[T any](v T) *T {
 	return &v
 }
+
+var _ = Describe("service user name recovery", func() {
+	const (
+		ns      = "team-a"
+		app     = "test-app"
+		service = "valkey-team-a-cache"
+		prefix  = "test-app-rw-aaaaaa-bbbbb"
+	)
+
+	var (
+		ctx     context.Context
+		manager *Manager
+	)
+
+	su := func(name, serviceName string, labels map[string]string) *aiven_io_v1alpha1.ServiceUser {
+		return &aiven_io_v1alpha1.ServiceUser{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns, Labels: labels},
+			Spec:       aiven_io_v1alpha1.ServiceUserSpec{ServiceName: serviceName},
+		}
+	}
+
+	newManager := func(objects ...client.Object) {
+		scheme := runtime.NewScheme()
+		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
+		manager = &Manager{client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()}
+	}
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	Describe("FindAdoptable", func() {
+		// Every decoy sorts above the family member, so a broken exclusion filter
+		// flips the winner and fails the assertion instead of passing silently.
+		It("adopts the family CR, ignoring other apps, families and services", func() {
+			newManager(
+				su(prefix+"-2026w03", service, map[string]string{"app": app}),
+				su(prefix+"-2026w09", "other-service", map[string]string{"app": app}),
+				su("test-app-rw-zzzzzz-ddddd-2026w09", service, map[string]string{"app": app}),
+				su(prefix+"-2026w05", service, map[string]string{"app": "other-app"}),
+			)
+			name, err := manager.FindAdoptable(ctx, ns, app, prefix, service, log.NewEntry(log.New()))
+			Expect(err).To(Succeed())
+			Expect(name).To(Equal(prefix + "-2026w03"))
+		})
+
+		// The Error must ride the caller's logger so the reconcile's structured
+		// fields (aivenapp, team, correlation id) reach dashboards and alerts.
+		It("logs a tripwire on the caller's logger when the family has multiple members", func() {
+			root, hook := logtest.NewNullLogger()
+			fieldedLogger := log.NewEntry(root).WithField("aivenapp", app)
+			sightings := metrics.ServiceUserFamilyDuplicates.With(prometheus.Labels{metrics.LabelNamespace: ns})
+			before := testutil.ToFloat64(sightings)
+			newManager(
+				su(prefix+"-2026w01", service, map[string]string{"app": app}),
+				su(prefix+"-2026w03", service, map[string]string{"app": app}),
+			)
+			name, err := manager.FindAdoptable(ctx, ns, app, prefix, service, fieldedLogger)
+			Expect(err).To(Succeed())
+			Expect(name).To(Equal(prefix + "-2026w03"))
+			Expect(hook.Entries).ToNot(BeEmpty())
+			Expect(hook.LastEntry().Level).To(Equal(log.ErrorLevel))
+			Expect(hook.LastEntry().Data).To(HaveKeyWithValue(utils.FieldInvariant, "multiple ServiceUser CRs in family"))
+			Expect(hook.LastEntry().Data).To(HaveKeyWithValue("aivenapp", app))
+			Expect(testutil.ToFloat64(sightings)).To(Equal(before + 1))
+		})
+
+		// Cleanup deletes the CR, but the operator's finalizer keeps it terminating
+		// for a while; its credentials die with finalization, so a redeploy in that
+		// window must mint fresh instead of adopting it.
+		It("does not adopt a family CR that is being deleted", func() {
+			terminating := su(prefix+"-2026w03", service, map[string]string{"app": app})
+			terminating.SetDeletionTimestamp(ptrTo(metav1.Now()))
+			// The fake client rejects a deleting object without a finalizer; a real
+			// terminating CR always holds the operator's.
+			terminating.SetFinalizers([]string{"finalizers.aiven.io/processing"})
+			newManager(terminating)
+			name, err := manager.FindAdoptable(ctx, ns, app, prefix, service, log.NewEntry(log.New()))
+			Expect(err).To(Succeed())
+			Expect(name).To(BeEmpty())
+		})
+
+		// The mint name is deterministic within a week, so this CR — excluded from
+		// adoption by its service binding — would be silently updated by the mint's
+		// CreateOrUpdate, rejected on the immutable field every reconcile.
+		It("fails terminally when the would-be mint name is held by a CR bound to another service", func() {
+			collision := utils.ServiceUserName("test-app", "readwrite", "instance", "secret", time.Now())
+			prefixNow := utils.ServiceUserNamePrefix("test-app", "readwrite", "instance", "secret")
+			newManager(su(collision, "other-service", map[string]string{"app": app}))
+			name, err := manager.FindAdoptable(ctx, ns, app, prefixNow, service, log.NewEntry(log.New()))
+			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+			Expect(name).To(BeEmpty())
+		})
+
+		// An earlier week's name cannot collide with the mint; blocking on it would
+		// wedge apps over harmless stale debris.
+		It("ignores a mismatched-service CR from an earlier week", func() {
+			newManager(su(prefix+"-2020w01", "other-service", map[string]string{"app": app}))
+			name, err := manager.FindAdoptable(ctx, ns, app, prefix, service, log.NewEntry(log.New()))
+			Expect(err).To(Succeed())
+			Expect(name).To(BeEmpty())
+		})
+
+		It("returns empty when the family has no CRs", func() {
+			newManager()
+			name, err := manager.FindAdoptable(ctx, ns, app, prefix, service, log.NewEntry(log.New()))
+			Expect(err).To(Succeed())
+			Expect(name).To(BeEmpty())
+		})
+	})
+
+})

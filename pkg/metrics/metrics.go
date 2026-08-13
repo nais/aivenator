@@ -11,6 +11,7 @@ import (
 const (
 	Namespace = "aivenator"
 
+	LabelAivenApp           = "aivenapp"
 	LabelOperation          = "operation"
 	LabelNamespace          = "namespace"
 	LabelPool               = "pool"
@@ -85,6 +86,18 @@ var (
 		Namespace: Namespace,
 		Help:      "number of service users deleted",
 	}, []string{LabelPool})
+
+	ServiceUserFamilyDuplicates = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      "service_user_family_duplicates",
+		Namespace: Namespace,
+		Help:      "orphaned ServiceUser family siblings sighted during adoption; any increase means the recover-before-mint invariant broke — the orphans' names are in the accompanying error log",
+	}, []string{LabelNamespace})
+
+	AppNotConverged = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name:      "app_not_converged",
+		Namespace: Namespace,
+		Help:      "consecutive failed reconciles per application; the series exists only while the app is failing and is removed on success or deletion, so alert on presence over time, not value",
+	}, []string{LabelNamespace, LabelAivenApp})
 
 	ServiceUsersCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name:      "service_users_count",
@@ -171,6 +184,8 @@ func Register(registry prometheus.Registerer) {
 		KubernetesResourcesDeleted,
 		ServiceUsersCreated,
 		ServiceUsersDeleted,
+		ServiceUserFamilyDuplicates,
+		AppNotConverged,
 		ApplicationsProcessed,
 		ApplicationsRequeued,
 		ApplicationProcessingTime,

@@ -302,6 +302,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(kafkaServiceAddresses, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, errors.New("failed to create"))
 
@@ -318,6 +320,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(kafkaServiceAddresses, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, &utils.SecretNotReadyError{Namespace: teamNamespaceName, Secret: "raw-secret"})
 
@@ -340,6 +344,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(kafkaServiceAddresses, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(&operator.ServiceUser{Username: deterministicUsername, Secret: map[string]string{}}, nil)
 
@@ -368,6 +374,88 @@ var _ = Describe("kafka handler", func() {
 
 			// The CR name must come from utils.ServiceUserName (the shared scheme),
 			// while the real '_'-delimited username rides in spec.username.
+			// A recovered name's credentials were never delivered (the annotation and
+			// the credentials persist together), so rollback cleans up the unused
+			// account instead of stranding it.
+			It("rolls back a recovered name nobody uses when credstore generation fails", func() {
+				familyPrefix := utils.ServiceUserNamePrefix(teamAppName, "", aivenProjectName, secretName)
+				staleName := familyPrefix + "-2026w01"
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
+					Return(kafkaServiceAddresses, nil)
+				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(staleName, nil)
+				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(&operator.ServiceUser{Username: deterministicUsername, Secret: fullRawSecret(deterministicUsername)}, nil)
+				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, fmt.Errorf("boom"))
+				mocks.crServiceUser.On("Exists", mock.Anything, teamNamespaceName, staleName).Return(true, nil)
+				mocks.crServiceUser.On("DeleteServiceUser", mock.Anything, teamNamespaceName, staleName, mock.Anything).Return(nil)
+
+				application := applicationBuilder.Build()
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
+
+				Expect(err).To(HaveOccurred())
+				Expect(individualSecrets).To(BeNil())
+				mocks.crServiceUser.AssertCalled(GinkgoT(), "DeleteServiceUser", mock.Anything, teamNamespaceName, staleName, mock.Anything)
+				// Pins the family tuple: a swap of the fold's string args would derive
+				// a different prefix and silently kill recovery in production.
+				mocks.crServiceUser.AssertCalled(GinkgoT(), "FindAdoptable", mock.Anything, teamNamespaceName, teamAppName, familyPrefix, "kafka", mock.Anything)
+			})
+
+			// Kafka usernames are deterministic per generation, so a fresh CR can
+			// reproduce the live legacy username and the operator adopts that account;
+			// rolling it back would delete credentials pods still use.
+			It("does not roll back a fresh account that took over the live legacy user", func() {
+				withReader(newReader(persistedSecret(deterministicUsername, "")))
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
+					Return(kafkaServiceAddresses, nil)
+				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil)
+				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(&operator.ServiceUser{Username: deterministicUsername, Secret: fullRawSecret(deterministicUsername)}, nil)
+				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, fmt.Errorf("boom"))
+
+				application := applicationBuilder.Build()
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
+
+				Expect(err).To(HaveOccurred())
+				Expect(individualSecrets).To(BeNil())
+				mocks.crServiceUser.AssertNotCalled(GinkgoT(), "DeleteServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+				mocks.crServiceUser.AssertNotCalled(GinkgoT(), "Exists", mock.Anything, mock.Anything, mock.Anything)
+			})
+
+			// A recovered CR exists and declared its identity at creation; per the
+			// created-only rule nothing is declared here.
+			It("re-uses a recovered name and leaves the username to the CR", func() {
+				staleName := utils.ServiceUserNamePrefix(teamAppName, "", aivenProjectName, secretName) + "-2026w01"
+				var captured operator.ServiceUserSpec
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
+					Return(kafkaServiceAddresses, nil)
+				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
+					Return(&certificate.CredStoreData{Keystore: []byte("k"), Truststore: []byte("t"), Secret: credStoreSecret}, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(staleName, nil)
+				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
+					captured = spec
+					return true
+				}), mock.Anything).Return(&operator.ServiceUser{Username: deterministicUsername, Secret: fullRawSecret(deterministicUsername)}, nil)
+
+				application := applicationBuilder.Build()
+				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(captured.Name).To(Equal(staleName))
+				Expect(captured.Username).To(BeEmpty())
+				Expect(individualSecrets[0].GetAnnotations()[ServiceUserAnnotation]).To(Equal(staleName))
+			})
+
 			It("mints a valid CR name and carries the real username in spec.username", func() {
 				var captured operator.ServiceUserSpec
 				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
@@ -376,6 +464,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(&certificate.CredStoreData{Keystore: []byte("k"), Truststore: []byte("t"), Secret: credStoreSecret}, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
 					captured = spec
 					return true
@@ -400,6 +490,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(&certificate.CredStoreData{Keystore: []byte("my-keystore"), Truststore: []byte("my-truststore"), Secret: credStoreSecret}, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(&operator.ServiceUser{Username: deterministicUsername, Secret: fullRawSecret(deterministicUsername)}, nil)
 
@@ -452,6 +544,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(&certificate.CredStoreData{Keystore: []byte("k"), Truststore: []byte("t"), Secret: credStoreSecret}, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
 					captured = append(captured, spec)
 					return true
@@ -484,6 +578,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(&certificate.CredStoreData{Keystore: []byte("k"), Truststore: []byte("t"), Secret: credStoreSecret}, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
 					captured = spec
 					return true
@@ -515,6 +611,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(&certificate.CredStoreData{Keystore: []byte("k"), Truststore: []byte("t"), Secret: credStoreSecret}, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
 					captured = spec
 					return true
@@ -547,6 +645,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(&certificate.CredStoreData{Keystore: []byte("k"), Truststore: []byte("t"), Secret: credStoreSecret}, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
 					captured = spec
 					return true
@@ -577,6 +677,33 @@ var _ = Describe("kafka handler", func() {
 				Expect(individualSecrets).To(BeNil())
 			})
 
+			// Re-creating a vanished CR is a creation, so the account identity must be
+			// declared: left empty, the operator would default it to the CR's own name,
+			// which no kafka ACL pattern matches.
+			It("declares the username when re-creating a vanished CR", func() {
+				var captured operator.ServiceUserSpec
+				application := applicationBuilder.Build()
+				crName := crNameFor(application)
+				withReader(newReader(persistedSecret(crName, "")))
+				mocks.nameResolver.On("ResolveKafkaServiceName", mock.Anything, aivenProjectName).Return("kafka", nil)
+				mocks.crServiceUser.On("ServiceName", mock.Anything, teamNamespaceName, crName).Return("", false, nil)
+				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
+					Return(kafkaServiceAddresses, nil)
+				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
+					Return(&certificate.CredStoreData{Keystore: []byte("k"), Truststore: []byte("t"), Secret: credStoreSecret}, nil)
+				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
+					captured = spec
+					return true
+				}), mock.Anything).Return(&operator.ServiceUser{Username: deterministicUsername, Secret: fullRawSecret(deterministicUsername)}, nil)
+
+				_, err := kafkaHandler.Apply(ctx, &application, logger)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(captured.Name).To(Equal(crName)) // frozen name kept for cleanup continuity
+				Expect(captured.Username).To(Equal(deterministicUsername))
+			})
+
 			// The stored username is no longer an input: an adopted secret with the CR-name
 			// annotation but no stored username still provisions, because aivenator leaves
 			// spec.username to the immutable CR rather than reading it back.
@@ -593,6 +720,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
 					Return(&certificate.CredStoreData{Keystore: []byte("k"), Truststore: []byte("t"), Secret: credStoreSecret}, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
 					captured = spec
 					return true
@@ -662,6 +791,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(kafkaServiceAddresses, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(&operator.ServiceUser{Username: deterministicUsername, Secret: fullRawSecret(deterministicUsername)}, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
@@ -694,6 +825,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(kafkaServiceAddresses, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(&operator.ServiceUser{Username: keptUser, Secret: fullRawSecret(keptUser)}, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).
@@ -717,6 +850,8 @@ var _ = Describe("kafka handler", func() {
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(kafkaServiceAddresses, nil)
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).Return(ca, nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(&operator.ServiceUser{Username: deterministicUsername, Secret: fullRawSecret(deterministicUsername)}, nil)
 				mocks.generator.On("MakeCredStores", mock.Anything, mock.Anything, mock.Anything).

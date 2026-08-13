@@ -95,6 +95,9 @@ var _ = Describe("opensearch handler", func() {
 			serviceManager:     service.NewMockServiceManager(GinkgoT()),
 			serviceUserManager: serviceuser.NewMockServiceUserManager(GinkgoT()),
 		}
+		// Fresh mints consult FindAdoptable first; nothing to recover by default.
+		mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return("", nil).Maybe()
 
 		scheme := runtime.NewScheme()
 		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
@@ -332,6 +335,9 @@ var _ = Describe("opensearch handler", func() {
 				Expect(annotations).To(HaveKeyWithValue(ServiceUserAnnotation, mintedUsername))
 				Expect(annotations).To(HaveKeyWithValue(LegacyServiceUserAnnotation, legacySeededUsername))
 				Expect(individualSecrets[0].Finalizers).To(ContainElement(constants.AivenatorFinalizer))
+				// Pins the family tuple: a swap of the fold's string args would derive
+				// a different prefix and silently kill recovery in production.
+				mocks.crServiceUser.AssertCalled(GinkgoT(), "FindAdoptable", mock.Anything, testNamespace, "test-app", utils.ServiceUserNamePrefix("test-app", access, instance, secretName), serviceName, mock.Anything)
 			})
 
 			It("fills the secret with the connection details", func() {

@@ -3,11 +3,15 @@ package operator
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
+	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -17,6 +21,7 @@ import (
 )
 
 const (
+	boundElsewhereFmt             = "ServiceUser %s/%s is bound to Aiven service %q, but the application now targets %q: %w"
 	ServiceUserAccessCert         = "SERVICEUSER_ACCESS_CERT"
 	ServiceUserAccessKey          = "SERVICEUSER_ACCESS_KEY"
 	ServiceUserCACert             = "SERVICEUSER_CA_CERT"
@@ -37,6 +42,7 @@ type ServiceUserManager interface {
 	CreateServiceUser(ctx context.Context, owner client.Object, spec ServiceUserSpec, logger log.FieldLogger) (*ServiceUser, error)
 	DeleteServiceUser(ctx context.Context, namespace, name string, logger log.FieldLogger) error
 	Exists(ctx context.Context, namespace, name string) (bool, error)
+	FindAdoptable(ctx context.Context, namespace, appName, familyPrefix, serviceName string, logger log.FieldLogger) (string, error)
 	ServiceName(ctx context.Context, namespace, name string) (string, bool, error)
 }
 
@@ -72,7 +78,7 @@ func (m *Manager) CreateServiceUser(ctx context.Context, owner client.Object, sp
 		serviceUser.Spec.ConnInfoSecretTarget = aiven_io_v1alpha1.ConnInfoSecretTarget{Name: RawSecretName(spec.Name)}
 		// spec.username is immutable (CRD CEL rule): set it only at creation and leave an
 		// existing value untouched, so aivenator never issues a rejected update.
-		// TODO: this emptiness-check assumes only Kafka ever sets a username - only needed until kafka can migrate service user name's to same scheme as opensearch/valkey
+		// TODO: this emptiness-check assumes only Kafka ever sets a username - only needed until kafka can migrate service user names to same scheme as opensearch/valkey
 		// Revisit before OpenSearch/Valkey do too, or an adopt could get silently stuck or rejected.
 		if serviceUser.Spec.Username == "" {
 			serviceUser.Spec.Username = spec.Username
@@ -145,23 +151,111 @@ func (m *Manager) ServiceName(ctx context.Context, namespace, name string) (stri
 	return serviceUser.Spec.ServiceName, true, nil
 }
 
-func ResolveExistingServiceUser(ctx context.Context, mgr ServiceUserManager, namespace, existingName, existingLegacy, serviceName string) (adopt, legacy string, err error) {
-	legacy = existingLegacy
+// NameResolution answers the service-user name question for one reconcile.
+// Two independent bits matter downstream: Adopted — the name came from the app
+// secret, meaning a prior reconcile delivered its credentials, so pods may be
+// using the account (kafka's rollback must stay off); and Creating — no CR
+// with this name exists, so the account identity is declared now or never
+// (the CRD forbids setting a username after creation).
+type NameResolution struct {
+	Name     string
+	Legacy   string
+	Adopted  bool
+	Creating bool
+}
+
+// ResolveServiceUserName resolves the CR name for one service user: the
+// annotation-frozen name when the app secret carries one (hard-failing when
+// its CR is bound to a different Aiven service), else a stranded family CR's
+// name (see FindAdoptable), else a freshly minted week-stamped name.
+// An annotation value that cannot be a CR name is a pre-CR username, returned
+// as Legacy for the direct-API drain.
+func ResolveServiceUserName(ctx context.Context, mgr ServiceUserManager, namespace, appName, access, instanceName, secretName, serviceName, existingName, existingLegacy string, logger log.FieldLogger) (NameResolution, error) {
+	res := NameResolution{Legacy: existingLegacy}
 	switch {
 	case existingName == "":
 	case !utils.IsValidCRName(existingName):
-		legacy = existingName
+		res.Legacy = existingName
 	default:
-		sn, exists, lookupErr := mgr.ServiceName(ctx, namespace, existingName)
+		sn, exists, err := mgr.ServiceName(ctx, namespace, existingName)
 		switch {
-		case lookupErr != nil:
-			return "", legacy, fmt.Errorf("reading existing ServiceUser %s/%s: %w", namespace, existingName, lookupErr)
+		case err != nil:
+			return res, fmt.Errorf("reading existing ServiceUser %s/%s: %w", namespace, existingName, err)
 		case exists && sn != serviceName:
-			return "", legacy, fmt.Errorf("ServiceUser %s/%s is bound to Aiven service %q, but the application now targets %q: %w", namespace, existingName, sn, serviceName, utils.ErrUnrecoverable)
+			return res, fmt.Errorf(boundElsewhereFmt, namespace, existingName, sn, serviceName, utils.ErrUnrecoverable)
 		}
-		adopt = existingName
+		res.Name = existingName
+		res.Adopted = true
+		res.Creating = !exists
+		return res, nil
 	}
-	return adopt, legacy, nil
+
+	prefix := utils.ServiceUserNamePrefix(appName, access, instanceName, secretName)
+	name, err := mgr.FindAdoptable(ctx, namespace, appName, prefix, serviceName, logger)
+	switch {
+	case err != nil:
+		return res, err
+	case name != "":
+		logger.WithField(utils.FieldInvariant, "recovered ServiceUser name").Infof("recovered ServiceUser name %s/%s", namespace, name)
+		res.Name = name
+		return res, nil
+	}
+	res.Name = utils.ServiceUserName(appName, access, instanceName, secretName, time.Now())
+	res.Creating = true
+	return res, nil
+}
+
+// FindAdoptable returns the newest ServiceUser CR of the family — labelled with
+// the app, named with the week-independent familyPrefix, bound to serviceName —
+// or "" when none exists. A prior reconcile may have created a CR without ever
+// persisting its name on the app secret; adopting it here keeps a retry that
+// crosses an ISO-week boundary from minting a second CR and stranding the first.
+// Names differ only in the zero-padded week tail, so the lexicographic maximum
+// is the newest.
+func (m *Manager) FindAdoptable(ctx context.Context, namespace, appName, familyPrefix, serviceName string, logger log.FieldLogger) (string, error) {
+	list := &aiven_io_v1alpha1.ServiceUserList{}
+	if err := m.client.List(ctx, list, client.InNamespace(namespace), client.MatchingLabels{"app": appName}); err != nil {
+		return "", err
+	}
+	newest := ""
+	mintCollision := error(nil)
+	family := make([]string, 0, 1)
+	for i := range list.Items {
+		su := &list.Items[i]
+		// A terminating CR still matches the family, but its credentials die with
+		// finalization; adopting it would hand the app soon-revoked credentials.
+		if su.GetDeletionTimestamp() != nil {
+			continue
+		}
+		if !strings.HasPrefix(su.GetName(), familyPrefix+"-") {
+			continue
+		}
+		if su.Spec.ServiceName != serviceName {
+			// The mint name is deterministic within the week, so this CR would be
+			// hit by the mint's CreateOrUpdate and its immutable service binding
+			// rejected; fail like the annotation path does instead of colliding.
+			if su.GetName() == familyPrefix+utils.WeekTail(time.Now()) {
+				mintCollision = fmt.Errorf(boundElsewhereFmt, namespace, su.GetName(), su.Spec.ServiceName, serviceName, utils.ErrUnrecoverable)
+			}
+			continue
+		}
+		family = append(family, su.GetName())
+		if su.GetName() > newest {
+			newest = su.GetName()
+		}
+	}
+	if newest == "" && mintCollision != nil {
+		return "", mintCollision
+	}
+	if len(family) > 1 {
+		// Reachable only when a stale cache read straddles an ISO-week rollover and
+		// the mint names a sibling ServiceUser CR; the newest-week choice stays
+		// unambiguous, so log loudly and continue.
+		metrics.ServiceUserFamilyDuplicates.With(prometheus.Labels{metrics.LabelNamespace: namespace}).Add(float64(len(family) - 1))
+		logger.WithField(utils.FieldInvariant, "multiple ServiceUser CRs in family").
+			Errorf("family %s/%s-* has %d members; adopting %s of %v", namespace, familyPrefix, len(family), newest, family)
+	}
+	return newest, nil
 }
 
 func DrainServiceUser(ctx context.Context, crMgr ServiceUserManager, suMgr serviceuser.ServiceUserManager, namespace, crName, directTarget, projectName, serviceName string, logger log.FieldLogger) error {

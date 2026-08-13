@@ -118,7 +118,7 @@ var testInstances = []testData{
 		redisHostKey:             "REDIS_HOST_SESSION_STORE",
 		redisPasswordKey:         "REDIS_PASSWORD_SESSION_STORE",
 		redisUsernameKey:         "REDIS_USERNAME_SESSION_STORE",
-		secretName:               "secret-1",
+		secretName:               "secret-2",
 	},
 	{
 		instanceName:             "with-replica",
@@ -148,7 +148,7 @@ var testInstances = []testData{
 		redisHostKey:             "REDIS_HOST_WITH_REPLICA",
 		redisPasswordKey:         "REDIS_PASSWORD_WITH_REPLICA",
 		redisUsernameKey:         "REDIS_USERNAME_WITH_REPLICA",
-		secretName:               "secret-1",
+		secretName:               "secret-3",
 	},
 }
 
@@ -234,6 +234,9 @@ var _ = Describe("valkey.SecretConfig", func() {
 	// defaultCRServiceUserMock expects a ServiceUser CR for username on the
 	// instance's service and publishes the connection details Apply reprojects.
 	defaultCRServiceUserMock := func(data testData, username string) {
+		// Fresh mints consult FindAdoptable first; nothing to recover by default.
+		mocks.crServiceUser.On("FindAdoptable", mock.Anything, namespace, appName, mock.Anything, data.serviceName, mock.Anything).
+			Return("", nil).Maybe()
 		mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.MatchedBy(func(spec operator.ServiceUserSpec) bool {
 			return spec.Name == username && spec.ServiceName == data.serviceName && spec.Namespace == namespace && spec.AccessControl != nil
 		}), mock.Anything).
@@ -347,6 +350,8 @@ var _ = Describe("valkey.SecretConfig", func() {
 		Context("and the service user cannot be provisioned", func() {
 			BeforeEach(func() {
 				defaultServiceManagerMock(data)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, fmt.Errorf("failed to provision"))
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
@@ -365,6 +370,8 @@ var _ = Describe("valkey.SecretConfig", func() {
 			BeforeEach(func() {
 				defaultServiceManagerMock(data)
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).Return("my-ca", nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, &utils.SecretNotReadyError{Namespace: namespace, Secret: "raw-secret"})
 			})
@@ -387,6 +394,8 @@ var _ = Describe("valkey.SecretConfig", func() {
 			BeforeEach(func() {
 				defaultServiceManagerMock(data)
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).Return("my-ca", nil)
+				mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return("", nil).Maybe()
 				mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(&operator.ServiceUser{
 						Username: "minted",
@@ -522,6 +531,83 @@ var _ = Describe("valkey.SecretConfig", func() {
 			individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
 			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
 			Expect(individualSecrets).To(BeEmpty())
+		})
+	})
+
+	When("multiple instances share a secretName", func() {
+		BeforeEach(func() {
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+						{Instance: testInstances[0].instanceName, Access: testInstances[0].access, SecretName: "shared"},
+						{Instance: testInstances[1].instanceName, Access: testInstances[1].access, SecretName: "shared"},
+					},
+				}).
+				Build()
+		})
+
+		// SaveSecret's update is a wholesale replace, so same-name secrets from
+		// different instances would silently drop all but the last one's data.
+		It("fails instead of returning same-name secrets", func() {
+			individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+			Expect(individualSecrets).To(BeEmpty())
+		})
+	})
+
+	When("recovery reports the mint name is held by a mismatched CR", func() {
+		data := testInstances[0]
+
+		BeforeEach(func() {
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+						{Instance: data.instanceName, Access: data.access, SecretName: data.secretName},
+					},
+				}).
+				Build()
+			defaultServiceManagerMock(data)
+			mocks.projectManager.On("GetCA", mock.Anything, projectName).Return("my-ca", nil)
+			mocks.crServiceUser.On("FindAdoptable", mock.Anything, namespace, appName, mock.Anything, data.serviceName, mock.Anything).
+				Return("", fmt.Errorf("mint name held by a mismatched CR: %w", utils.ErrUnrecoverable))
+		})
+
+		// Creating anyway would hit the mismatched CR by name and mutate its
+		// CEL-immutable service binding; the terminal error must surface instead.
+		It("fails terminally instead of colliding with it", func() {
+			individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+			Expect(individualSecrets).To(BeEmpty())
+		})
+	})
+
+	When("an earlier attempt's CR exists but neither secret nor status recorded it", func() {
+		data := testInstances[1]
+		var staleName string
+
+		BeforeEach(func() {
+			prefix := utils.ServiceUserNamePrefix(appName, data.access, data.instanceName, data.secretName)
+			staleName = prefix + "-2026w01"
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+						{Instance: data.instanceName, Access: data.access, SecretName: data.secretName},
+					},
+				}).
+				Build()
+			// Specific expectation first, so it wins over the helper's Maybe stub.
+			mocks.crServiceUser.On("FindAdoptable", mock.Anything, namespace, appName, prefix, data.serviceName, mock.Anything).
+				Return(staleName, nil)
+			defaultServiceManagerMock(data)
+			defaultCRServiceUserMock(data, staleName)
+			mocks.projectManager.On("GetCA", mock.Anything, projectName).Return("my-ca", nil)
+		})
+
+		It("adopts the stranded CR instead of minting a second one", func() {
+			individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+			Expect(err).To(Succeed())
+			Expect(individualSecrets).To(HaveLen(1))
+			Expect(individualSecrets[0].GetAnnotations()).To(HaveKeyWithValue(data.serviceUserAnnotationKey, staleName))
 		})
 	})
 
@@ -678,6 +764,8 @@ var _ = Describe("valkey.SecretConfig", func() {
 			m.On("ValkeyReplica").Return(service.ServiceAddress{}).Maybe()
 			mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, "valkey-attacker-ns-stolen-cache").
 				Return(&m, nil).Maybe()
+			mocks.crServiceUser.On("FindAdoptable", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				Return("", nil).Maybe()
 			mocks.crServiceUser.On("CreateServiceUser", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(&operator.ServiceUser{
 					Username: "evil-app-stolen-cache-abc",
