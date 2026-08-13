@@ -3,7 +3,9 @@ go = "1.26"
 
 [tasks."check"]
 description = "Run all checks"
-run = "unset MISE_TASK_OUTPUT && mise run check:deadcode ::: check:gosec ::: check:staticcheck ::: check:vulncheck"
+run = [
+    {"task"= "check:*"}
+]
 
 [tasks."check:deadcode"]
 description = "Run deadcode"
@@ -20,6 +22,11 @@ run = "go tool honnef.co/go/tools/cmd/staticcheck ./..."
 [tasks."check:vulncheck"]
 description = "Run vulncheck"
 run = "go tool golang.org/x/vuln/cmd/govulncheck ./..."
+
+[tasks."check:zizmor"]
+description = "Run zizmor"
+tools = {"uv"="latest"}
+run = "uvx zizmor ."
 
 [tasks."fmt"]
 description = "Format all code"
