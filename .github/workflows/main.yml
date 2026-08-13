@@ -80,8 +80,8 @@ jobs:
       - name: Set versions
         run: |-
           for chart in charts/*; do
-            yq e '.version = "${NEEDS_BUILD_OUTPUTS_VERSION}"' --inplace "${chart}/Chart.yaml"
-            yq e '.image.tag = "${NEEDS_BUILD_OUTPUTS_VERSION}"' --inplace "${chart}/values.yaml"
+            yq e '.version = strenv(NEEDS_BUILD_OUTPUTS_VERSION)' --inplace "${chart}/Chart.yaml"
+            yq e '.image.tag = strenv(NEEDS_BUILD_OUTPUTS_VERSION)' --inplace "${chart}/values.yaml"
           done
         env:
           NEEDS_BUILD_OUTPUTS_VERSION: ${{ needs.build.outputs.version }}
