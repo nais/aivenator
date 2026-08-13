@@ -1,0 +1,5 @@
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        nais/platform-build-push-sign: ref-pin
