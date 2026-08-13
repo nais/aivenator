@@ -4,12 +4,13 @@ package certificate
 
 import (
 	"encoding/base64"
-	"github.com/aiven/aiven-go-client/v2"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"path"
 	"testing"
 	"time"
+
+	"github.com/aiven/aiven-go-client/v2"
+	log "github.com/sirupsen/logrus"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -35,7 +36,10 @@ var _ = Describe("CredStoreGenerator", func() {
 	var err error
 
 	BeforeEach(func(ctx SpecContext) {
-		client, err = aiven.NewTokenClient(os.Getenv("AIVEN_TOKEN"), "")
+		token, ok := os.LookupEnv("AIVEN_TOKEN")
+		Expect(ok).To(BeTrueBecause("environment variable AIVEN_TOKEN must be set"))
+
+		client, err = aiven.NewTokenClient(token, "")
 		Expect(err).ToNot(HaveOccurred())
 
 		log.Infof("Attempting to get service user %s in project %s, service %s", username, project, service)
