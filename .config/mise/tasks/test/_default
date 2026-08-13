@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# [MISE] description="Test Go code"
+set -euo pipefail
+
+go test ./...

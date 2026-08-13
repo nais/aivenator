@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Update all dependencies (root, api module, and examples)"
+# [MISE] description="Update all dependencies (root, api module, and examples)"
 set -euo pipefail
 
 echo "📦 Updating Go dependencies (root)..."

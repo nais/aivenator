@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE hide=true
+# [MISE] hide=true
 set -euo pipefail
 
 docker buildx rm aivenator-builder

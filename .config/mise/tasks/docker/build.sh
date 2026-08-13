@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Build docker image for the manager"
+# [MISE] description="Build docker image for the manager"
 set -euo pipefail
 
 docker buildx build --load --tag "${AIVENATOR_IMAGE}" .

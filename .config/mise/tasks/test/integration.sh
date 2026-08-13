@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Run integration tests"
+# [MISE] description="Run integration tests"
 set -euo pipefail
 
 GITHUB_ACTIONS="${GITHUB_ACTIONS:-false}"

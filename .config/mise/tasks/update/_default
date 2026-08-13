@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# [MISE] description="Update all dependencies and tools"
+# [MISE] depends=["update:deps", "update:tools"]
