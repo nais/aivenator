@@ -30,3 +30,7 @@ aiven:
   cidrs: [] # List of additional CIDRs for other Aiven project VPCs
 
 replicationConfig: false # Replicate common resources (e.g. NetworkPolicies) to all namespaces
+
+fasit:
+  env:
+    kind:
