@@ -72,7 +72,7 @@ func (m *Manager) CreateServiceUser(ctx context.Context, owner client.Object, sp
 		serviceUser.Spec.ConnInfoSecretTarget = aiven_io_v1alpha1.ConnInfoSecretTarget{Name: RawSecretName(spec.Name)}
 		// spec.username is immutable (CRD CEL rule): set it only at creation and leave an
 		// existing value untouched, so aivenator never issues a rejected update.
-		// TODO: this emptiness-check assumes only Kafka ever sets a username - only needed until kafka can migrate service user name's to same scheme as opensearch/valkey
+		// TODO: this emptiness-check assumes only Kafka ever sets a username - only needed until kafka can migrate service user names to same scheme as opensearch/valkey
 		// Revisit before OpenSearch/Valkey do too, or an adopt could get silently stuck or rejected.
 		if serviceUser.Spec.Username == "" {
 			serviceUser.Spec.Username = spec.Username

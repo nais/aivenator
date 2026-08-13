@@ -79,6 +79,19 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 		return nil, nil
 	}
 
+	// One Secret object per instance is the contract with SaveSecret, whose update
+	// is a wholesale replace: a duplicate name would silently drop every earlier
+	// instance's credentials and cleanup annotations.
+	seen := make(map[string]bool, len(application.Spec.Valkey))
+	for _, valkeySpec := range application.Spec.Valkey {
+		if seen[valkeySpec.SecretName] {
+			err := fmt.Errorf("multiple valkey instances share secretName %q: %w", valkeySpec.SecretName, utils.ErrUnrecoverable)
+			utils.LocalFail("ValidateSecretNames", application, err, logger)
+			return nil, err
+		}
+		seen[valkeySpec.SecretName] = true
+	}
+
 	// Each instance is provisioned independently: one failing instance collects
 	// its error but never discards the secrets of its healthy siblings.
 	var secrets []corev1.Secret

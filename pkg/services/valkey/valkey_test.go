@@ -118,7 +118,7 @@ var testInstances = []testData{
 		redisHostKey:             "REDIS_HOST_SESSION_STORE",
 		redisPasswordKey:         "REDIS_PASSWORD_SESSION_STORE",
 		redisUsernameKey:         "REDIS_USERNAME_SESSION_STORE",
-		secretName:               "secret-1",
+		secretName:               "secret-2",
 	},
 	{
 		instanceName:             "with-replica",
@@ -148,7 +148,7 @@ var testInstances = []testData{
 		redisHostKey:             "REDIS_HOST_WITH_REPLICA",
 		redisPasswordKey:         "REDIS_PASSWORD_WITH_REPLICA",
 		redisUsernameKey:         "REDIS_USERNAME_WITH_REPLICA",
-		secretName:               "secret-1",
+		secretName:               "secret-3",
 	},
 }
 
@@ -519,6 +519,27 @@ var _ = Describe("valkey.SecretConfig", func() {
 		})
 
 		It("fails instead of re-pointing the CR or minting", func() {
+			individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
+			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
+			Expect(individualSecrets).To(BeEmpty())
+		})
+	})
+
+	When("multiple instances share a secretName", func() {
+		BeforeEach(func() {
+			application = applicationBuilder.
+				WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
+					Valkey: []*aiven_nais_io_v1.ValkeySpec{
+						{Instance: testInstances[0].instanceName, Access: testInstances[0].access, SecretName: "shared"},
+						{Instance: testInstances[1].instanceName, Access: testInstances[1].access, SecretName: "shared"},
+					},
+				}).
+				Build()
+		})
+
+		// SaveSecret's update is a wholesale replace, so same-name secrets from
+		// different instances would silently drop all but the last one's data.
+		It("fails instead of returning same-name secrets", func() {
 			individualSecrets, err := valkeyHandler.Apply(ctx, &application, logger)
 			Expect(errors.Is(err, utils.ErrUnrecoverable)).To(BeTrue())
 			Expect(individualSecrets).To(BeEmpty())
