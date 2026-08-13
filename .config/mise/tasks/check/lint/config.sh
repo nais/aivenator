@@ -2,4 +2,4 @@
 # [MISE] description="Verify golangci-lint linter configuration"
 set -euo pipefail
 
-golangci-lint config verify
+go tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint config verify
