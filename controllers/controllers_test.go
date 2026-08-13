@@ -119,9 +119,9 @@ func newTestRig(ctx context.Context, t *testing.T, logger *log.Logger) (*testRig
 		return nil, fmt.Errorf("unable to set up aiven client: %s", err)
 	}
 
-	credentialsManager := credentials.NewManager(ctx, aivenClient, []string{testProject}, testProject, logger.WithField("component", "CredentialsManager"))
+	credentialsManager := credentials.NewManager(ctx, aivenClient, []string{testProject}, testProject, logger.WithField("component", "CredentialsManager"), rig.client)
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
-	reconciler := aiven_application.NewReconciler(rig.manager, logger, credentialsManager, appChanges)
+	reconciler := aiven_application.NewReconciler(rig.manager, logger, credentialsManager, appChanges, rig.manager.GetEventRecorder("controller-test"))
 
 	err = reconciler.SetupWithManager(rig.manager)
 	if err != nil {
