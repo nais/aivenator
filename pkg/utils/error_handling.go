@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/aiven/aiven-go-client/v2"
-	"github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	"github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 )
 

@@ -7,12 +7,12 @@ import (
 
 	"github.com/aiven/aiven-go-client/v2"
 	"github.com/nais/aivenator/constants"
-	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/opensearch"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -259,7 +259,7 @@ var _ = Describe("opensearch handler", func() {
 			It("Uses the existing user", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 				expected := []corev1.Secret{
 					{
 						ObjectMeta: metav1.ObjectMeta{
@@ -334,7 +334,7 @@ var _ = Describe("opensearch handler", func() {
 			It("uses the existing user", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 				expected := corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      application.Spec.OpenSearch.SecretName,
@@ -515,7 +515,7 @@ var _ = Describe("opensearch handler", func() {
 			It("the service user receives default ACLs", func() {
 				individualSecrets, err := opensearchHandler.Apply(ctx, &application, logger)
 
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 				Expect(individualSecrets).To(HaveLen(1))
 				Expect(application.Spec.OpenSearch.Access).To(Equal(DefaultACLAccess))
 			})

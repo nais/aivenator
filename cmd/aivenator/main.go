@@ -88,7 +88,7 @@ func logLevelHelp() string {
 		if notFirst {
 			help.WriteString(", ")
 		}
-		help.WriteString(fmt.Sprintf("\"%s\"", level.String()))
+		fmt.Fprintf(&help, "\"%s\"", level.String())
 		notFirst = true
 	}
 	return help.String()

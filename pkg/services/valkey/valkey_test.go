@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
-	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	"github.com/nais/aivenator/pkg/aiven/project"
 	"github.com/nais/aivenator/pkg/aiven/service"
 	"github.com/nais/aivenator/pkg/aiven/serviceuser"
 	"github.com/nais/aivenator/pkg/utils"
+	aiven_io_v1alpha1 "github.com/nais/liberator/pkg/apis/aiven.io/v1alpha1"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -461,7 +461,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 				for i, data := range testInstances {
 					assertHappy(&individualSecrets[i], data, err)
 				}
-				Expect(len(individualSecrets)).To(Equal(3))
+				Expect(individualSecrets).To(HaveLen(3))
 			})
 		})
 	})

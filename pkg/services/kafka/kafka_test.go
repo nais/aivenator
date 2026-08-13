@@ -325,7 +325,7 @@ var _ = Describe("kafka handler", func() {
 				Expect(application.Status.GetConditionOfType(aiven_nais_io_v1.AivenApplicationAivenFailure)).ToNot(BeNil())
 				Expect(individualSecrets).To(BeNil())
 			})
-			It("succeeds when succesfully creating missing serviceusers", func() {
+			It("succeeds when successfully creating missing serviceusers", func() {
 				application := applicationBuilder.
 					WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
 						Kafka: &aiven_nais_io_v1.KafkaSpec{

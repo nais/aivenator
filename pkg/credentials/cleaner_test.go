@@ -197,7 +197,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -216,7 +216,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -235,7 +235,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -260,7 +260,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -279,7 +279,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -298,7 +298,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -338,7 +338,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -357,7 +357,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -376,7 +376,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -401,7 +401,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -420,7 +420,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -439,7 +439,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -476,7 +476,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -495,7 +495,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -514,7 +514,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -539,7 +539,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -558,7 +558,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -577,7 +577,7 @@ var _ = Describe("cleaner", func() {
 				for _, tt := range secrets {
 					By(tt.reason)
 					actual := &corev1.Secret{}
-					err = janitor.Client.Get(context.Background(), k8sClient.ObjectKey{
+					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
 						Namespace: tt.namespace,
 						Name:      tt.name,
 					}, actual)
@@ -871,7 +871,7 @@ func makeSecret(name, namespace, secretType, appName string, optFuncs ...MakeSec
 		s.SetAnnotations(map[string]string{
 			constants.AivenatorProtectedKey: strconv.FormatBool(opts.protected),
 		})
-		s.ObjectMeta.Labels[constants.AivenatorProtectedKey] = strconv.FormatBool(opts.protected)
+		s.Labels[constants.AivenatorProtectedKey] = strconv.FormatBool(opts.protected)
 	}
 
 	if opts.hasTimeLimit {

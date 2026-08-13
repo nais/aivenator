@@ -2,6 +2,7 @@ package opensearch
 
 import (
 	"context"
+
 	"github.com/aiven/aiven-go-client/v2"
 )
 
