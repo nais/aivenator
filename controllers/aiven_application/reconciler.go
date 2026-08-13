@@ -59,8 +59,8 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	defer cancel()
 
 	logger := r.Logger.WithFields(log.Fields{
-		"aiven_application": req.Name,
-		"team":              req.Namespace,
+		"aivenapp": req.Name,
+		"team":     req.Namespace,
 	})
 
 	logger.Infof("Processing request")
@@ -77,7 +77,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	fail := func(err error) (ctrl.Result, error) {
 		if err != nil {
-			logger.Error(err)
+			utils.ReportFailure(logger, err, "reconcile failed", err)
 		}
 		application.Status.SynchronizationState = rolloutFailed
 		cr := ctrl.Result{}
@@ -135,7 +135,7 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	applicationDeleted, err := r.HandleProtectedAndTimeLimited(ctx, application, logger)
 	if err != nil {
-		utils.LocalFail("HandleProtectedAndTimeLimited", &application, err, logger)
+		utils.LocalFailBeforeApply("HandleProtectedAndTimeLimited", &application, err, logger)
 		if r.Recorder != nil && application.GetName() != "" {
 			r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "HandleProtectedFailed", "HandleProtected", "Failed handling protection/expiration: %v", err)
 		}
@@ -177,18 +177,17 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	r.appChanges <- application
 
-	// TODO: OpenSearch aivenapps are often manually created w/o naiserator deployment correlation ID
-	logger = logger.WithField(nais_io_v1.DeploymentCorrelationIDAnnotation, application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation])
+	logger = logger.WithField(nais_io_v1.DeploymentCorrelationIDAnnotation, application.GetAnnotations()[nais_io_v1.DeploymentCorrelationIDAnnotation]) // TODO: OpenSearch aivenapps are often manually created w/o naiserator deployment correlation ID
 
 	hash, err := application.Hash()
 	if err != nil {
-		utils.LocalFail("Hash", &application, err, logger)
+		utils.LocalFailBeforeApply("Hash", &application, err, logger)
 		return fail(err)
 	}
 
 	needsSync, err := r.NeedsSynchronization(ctx, application, hash, logger)
 	if err != nil {
-		utils.LocalFail("NeedsSynchronization", &application, err, logger)
+		utils.LocalFailBeforeApply("NeedsSynchronization", &application, err, logger)
 		return fail(err)
 	}
 
@@ -208,29 +207,33 @@ func (r *AivenApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}).Observe(used.Seconds())
 	}()
 
-	logger.Infof("Creating secret(s)")
+	logger.Infof("Processing aivenapp")
 	if r.Recorder != nil {
 		r.Recorder.Eventf(&application, nil, corev1.EventTypeNormal, "CreateSecrets", "CreateSecrets", "Creating Aiven secrets")
 	}
-	secrets, err := r.Manager.CreateSecret(ctx, &application, logger)
+	secrets, err := r.Manager.CreateSecrets(ctx, &application, logger)
 	if err != nil {
 		utils.LocalFail("CreateSecret", &application, err, logger)
 		if r.Recorder != nil {
 			r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "SecretGenerationFailed", "CreateSecrets", "Failed generating secrets: %v", err)
 		}
-		return fail(err)
+		// fall through: still persist whichever secrets did succeed
 	}
 
 	logger.Infof("Saving %d secret(s) to cluster", len(secrets))
 	for _, secret := range secrets {
-		logger := logger.WithFields(log.Fields{"secret_name": secret.Name})
-		if err := r.SaveSecret(ctx, &secret, logger); err != nil {
-			utils.LocalFail("SaveSecret", &application, err, logger)
+		secretLogger := logger.WithField("secretName", secret.Name)
+		if saveErr := r.SaveSecret(ctx, &secret, secretLogger); saveErr != nil {
+			utils.LocalFail("SaveSecret", &application, saveErr, secretLogger)
 			if r.Recorder != nil {
-				r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "SecretWriteFailed", "SaveSecret", "Failed saving secret %s: %v", secret.Name, err)
+				r.Recorder.Eventf(&application, nil, corev1.EventTypeWarning, "SecretWriteFailed", "SaveSecret", "Failed saving secret %s: %v", secret.Name, saveErr)
 			}
-			return fail(err)
+			return fail(saveErr)
 		}
+	}
+
+	if err != nil {
+		return fail(err)
 	}
 
 	success(&application, hash)
@@ -292,7 +295,7 @@ func success(application *aiven_nais_io_v1.AivenApplication, hash string) {
 	s.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
 		Type:   aiven_nais_io_v1.AivenApplicationSucceeded,
 		Status: corev1.ConditionTrue,
-	})
+	}, utils.PendingSecretConditionTypes(s)...)
 	s.AddCondition(aiven_nais_io_v1.AivenApplicationCondition{
 		Type:   aiven_nais_io_v1.AivenApplicationAivenFailure,
 		Status: corev1.ConditionFalse,
