@@ -6,8 +6,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -53,18 +51,8 @@ type testRig struct {
 	scheme       *k8s_runtime.Scheme
 }
 
-func testBinDirectory() string {
-	_, filename, _, _ := runtime.Caller(0)
-	return filepath.Clean(filepath.Join(filepath.Dir(filename), "../.testbin/"))
-}
-
 func newTestRig(ctx context.Context, t *testing.T, logger *log.Logger) (*testRig, error) {
 	ctx, cancelFunc := context.WithCancel(ctx)
-
-	err := os.Setenv("KUBEBUILDER_ASSETS", testBinDirectory())
-	if err != nil {
-		return nil, fmt.Errorf("failed to set environment variable: %w", err)
-	}
 
 	crdPath := crd.YamlDirectory()
 	rig := &testRig{

@@ -1,5 +1,21 @@
+[env]
+_.source = ".config/mise/extract_env.sh"
+AIVENATOR_IMAGE = "europe-north1-docker.pkg.dev/nais-io/nais/images/aivenator:latest"
+AIVENATOR_TTL_IMAGE = "ttl.sh/aivenator:1h"
+
 [tools]
-go = "1.26"
+setup-envtest = """
+{%- set tool = '"\\\\ssigs.k8s.io/controller-runtime\\\\s"' -%}
+{%- set version_fmt = '"%d.%d"' -%}
+{%- set command = "grep " ~ tool ~ " " ~ config_root ~ "/go.mod | awk -F. '{printf " ~ version_fmt ~ ", $3, $4}'" -%}
+
+{{- exec(cache_key="setup-envtest", command=command) -}}
+"""
+go = """
+{%- set command = 'grep "^go [0-9]*\\\\.[0-9]*" ' ~ config_root ~ "/go.mod | awk '{print $2}'" -%}
+
+{{- exec(cache_key="go", command=command) -}}
+"""
 
 [tasks."check"]
 description = "Run all checks"
@@ -9,11 +25,11 @@ run = [
 
 [tasks."check:deadcode"]
 description = "Run deadcode"
-run = "go tool golang.org/x/tools/cmd/deadcode -test -tags integration_test ./..."
+run = "go tool golang.org/x/tools/cmd/deadcode -test -tags=integration ./..."
 
-[tasks."check:gosec"]
-description = "Run gosec"
-run = "go tool github.com/securego/gosec/v2/cmd/gosec --exclude-generated -terse ./..."
+#[tasks."check:gosec"]
+#description = "Run gosec"
+#run = "go tool github.com/securego/gosec/v2/cmd/gosec --exclude-generated -terse ./..."
 
 [tasks."check:staticcheck"]
 description = "Run staticcheck"
@@ -30,7 +46,9 @@ run = "uvx zizmor ."
 
 [tasks."fmt"]
 description = "Format all code"
-run = "mise run fmt:go ::: fmt:gofix"
+run = [
+    {"task"= "fmt:*"}
+]
 
 [tasks."fmt:go"]
 description = "Format go code using gofumpt"

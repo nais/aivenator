@@ -8,6 +8,7 @@ tool (
 	golang.org/x/vuln/cmd/govulncheck
 	honnef.co/go/tools/cmd/staticcheck
 	mvdan.cc/gofumpt
+	github.com/onsi/ginkgo/v2/ginkgo
 )
 
 require (
