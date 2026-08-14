@@ -129,7 +129,7 @@ var _ = Describe("AivenFail", func() {
 	})
 
 	It("adds AivenFailure condition to application status", func() {
-		AivenFail("create", application, fmt.Errorf("boom"), false, logger)
+		Expect(AivenFail("create", application, fmt.Errorf("boom"), false, logger)).To(HaveOccurred())
 		conditions := application.Status.Conditions
 		found := false
 		for _, c := range conditions {
@@ -145,7 +145,7 @@ var _ = Describe("AivenFail", func() {
 			Type:   aiven_nais_io_v1.AivenApplicationSucceeded,
 			Status: corev1.ConditionTrue,
 		})
-		AivenFail("create", application, fmt.Errorf("boom"), false, logger)
+		Expect(AivenFail("create", application, fmt.Errorf("boom"), false, logger)).To(HaveOccurred())
 		for _, c := range application.Status.Conditions {
 			Expect(c.Type).ToNot(Equal(aiven_nais_io_v1.AivenApplicationSucceeded))
 		}

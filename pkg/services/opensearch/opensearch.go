@@ -61,7 +61,11 @@ type OpenSearchHandler struct {
 	k8sReader     client.Reader
 }
 
-func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, logger log.FieldLogger) ([]corev1.Secret, error) {
+func (h OpenSearchHandler) Apply(
+	ctx context.Context,
+	application *aiven_nais_io_v1.AivenApplication,
+	logger log.FieldLogger,
+) ([]corev1.Secret, error) {
 	spec := application.Spec.OpenSearch
 	if spec == nil {
 		return nil, nil
@@ -130,7 +134,13 @@ func (h OpenSearchHandler) Apply(ctx context.Context, application *aiven_nais_io
 	return []corev1.Secret{*individualSecret}, nil
 }
 
-func (h OpenSearchHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (h OpenSearchHandler) provideServiceUser(
+	ctx context.Context,
+	application *aiven_nais_io_v1.AivenApplication,
+	serviceName string,
+	secret *corev1.Secret,
+	logger log.FieldLogger,
+) (*aiven.ServiceUser, error) {
 	var serviceUserName string
 
 	if application.Spec.OpenSearch.Access == "" {
@@ -256,7 +266,8 @@ func (h OpenSearchHandler) Cleanup(ctx context.Context, secret *corev1.Secret, l
 	return nil
 }
 
-// This function's raison d'être is ONLY for backwards compatibility for opensearch instances from BEFORE we perform "does the instance you want belong to your namespace?" check
+// This function's raison d'être is ONLY for backwards compatibility for opensearch instances from BEFORE
+// we perform "does the instance you want belong to your namespace?" check
 func (h OpenSearchHandler) resolveServiceName(ctx context.Context, namespace, instance string) (string, error) {
 	newStyleName := fmt.Sprintf("opensearch-%s-%s", namespace, instance)
 	if cr, err := utils.GetResourceInNamespace(ctx, h.k8sReader, &aiven_io_v1alpha1.OpenSearch{}, newStyleName, namespace); cr != nil {

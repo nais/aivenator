@@ -45,6 +45,12 @@ const (
 	NotMySecretType = "other.nais.io"
 )
 
+// Mock client method names
+const (
+	methodList   = "List"
+	methodDelete = "Delete"
+)
+
 func generateApplication() aiven_nais_io_v1.AivenApplication {
 	application := aiven_nais_io_v1.NewAivenApplicationBuilder(MyAppName, MyNamespace).
 		WithSpec(aiven_nais_io_v1.AivenApplicationSpec{
@@ -85,11 +91,36 @@ func generateAndRegisterKeptPodSecrets(clientBuilder *fake.ClientBuilder) []secr
 		{UnusedSecret, NotMyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret in another namespace should be kept"},
 		{NotOurSecretTypeSecret, MyNamespace, NotMySecretType, MyAppName, []MakeSecretOption{}, true, "Unrelated secret should be kept"},
 		{SecretUsedByPod, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Used secret should be kept"},
-		{ProtectedNotTimeLimited, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected}, true, "Protected secret should be kept"},
-		{SecretBelongingToOtherApp, MyNamespace, constants.AivenatorSecretType, NotMyAppName, []MakeSecretOption{}, true, "Secret belonging to different app should be kept"},
-		{CurrentlyRequestedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, true, "Secret currently requested should be kept"},
-		{ProtectedNotExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(time.Now().Add(48 * time.Hour))}, true, "Protected secret with time-limit that isn't expired should be kept"},
-		{ProtectedTimeLimitedWithNoExpirySet, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit}, true, "Protected secret with time-limit but missing expires date should be kept"},
+		{
+			ProtectedNotTimeLimited, MyNamespace, constants.AivenatorSecretType, MyAppName,
+			[]MakeSecretOption{SecretIsProtected},
+			true,
+			"Protected secret should be kept",
+		},
+		{
+			SecretBelongingToOtherApp, MyNamespace, constants.AivenatorSecretType, NotMyAppName,
+			[]MakeSecretOption{},
+			true,
+			"Secret belonging to different app should be kept",
+		},
+		{
+			CurrentlyRequestedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName,
+			[]MakeSecretOption{},
+			true,
+			"Secret currently requested should be kept",
+		},
+		{
+			ProtectedNotExpired, MyNamespace, constants.AivenatorSecretType, MyAppName,
+			[]MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(time.Now().Add(48 * time.Hour))},
+			true,
+			"Protected secret with time-limit that isn't expired should be kept",
+		},
+		{
+			ProtectedTimeLimitedWithNoExpirySet, MyNamespace, constants.AivenatorSecretType, MyAppName,
+			[]MakeSecretOption{SecretIsProtected, SecretHasTimeLimit},
+			true,
+			"Protected secret with time-limit but missing expires date should be kept",
+		},
 	}
 	for _, s := range secrets {
 		clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
@@ -100,8 +131,18 @@ func generateAndRegisterKeptPodSecrets(clientBuilder *fake.ClientBuilder) []secr
 func generateAndRegisterDeletedPodSecrets(clientBuilder *fake.ClientBuilder) []secretSetup {
 	secrets := []secretSetup{
 		{UnusedSecret, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{}, false, "Unused secret should be deleted"},
-		{UnusedSecretWithNoAnnotations, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretHasNoAnnotations}, false, "Unused secret should be deleted, even if annotations are nil"},
-		{ProtectedExpired, MyNamespace, constants.AivenatorSecretType, MyAppName, []MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(time.Now().Add(-48 * time.Hour))}, false, "Protected secret with time-limit that is expired should be deleted"},
+		{
+			UnusedSecretWithNoAnnotations, MyNamespace, constants.AivenatorSecretType, MyAppName,
+			[]MakeSecretOption{SecretHasNoAnnotations},
+			false,
+			"Unused secret should be deleted, even if annotations are nil",
+		},
+		{
+			ProtectedExpired, MyNamespace, constants.AivenatorSecretType, MyAppName,
+			[]MakeSecretOption{SecretIsProtected, SecretHasTimeLimit, SecretExpiresAt(time.Now().Add(-48 * time.Hour))},
+			false,
+			"Protected secret with time-limit that is expired should be deleted",
+		},
 	}
 	for _, s := range secrets {
 		clientBuilder.WithRuntimeObjects(makeSecret(s.name, s.namespace, s.secretType, s.appName, s.opts...))
@@ -143,6 +184,30 @@ var _ = Describe("cleaner", func() {
 		return buildJanitor(mockClient, logger), mockClient
 	}
 
+	// assertSecretsDeletedAfterClean runs CleanUnusedSecretsForApplication with a pod
+	// mounting the in-use secret via the given factory, then asserts every registered
+	// secret has been deleted.
+	assertSecretsDeletedAfterClean := func(makePod func() *corev1.Pod) {
+		GinkgoHelper()
+		clientBuilder.WithRuntimeObjects(
+			makePod(),
+			&application,
+		)
+		janitor := buildJanitor(clientBuilder.Build(), logger)
+		err := janitor.CleanUnusedSecretsForApplication(ctx, application)
+		Expect(err).ToNot(HaveOccurred())
+
+		for _, tt := range secrets {
+			By(tt.reason)
+			actual := &corev1.Secret{}
+			err = janitor.Get(context.Background(), k8sClient.ObjectKey{
+				Namespace: tt.namespace,
+				Name:      tt.name,
+			}, actual)
+			Expect(err).To(HaveOccurred())
+		}
+	}
+
 	BeforeEach(func() {
 		root := log.New()
 		root.Out = GinkgoWriter
@@ -150,7 +215,8 @@ var _ = Describe("cleaner", func() {
 		ctx = context.Background()
 		clientBuilder = fake.NewClientBuilder()
 		s := runtime.NewScheme()
-		scheme.AddAll(s)
+		_, err := scheme.AddAll(s)
+		Expect(err).ToNot(HaveOccurred())
 		clientBuilder.WithScheme(s)
 	})
 
@@ -187,7 +253,7 @@ var _ = Describe("cleaner", func() {
 			})
 			It("should succeed, when the secrets are mounted as SecretVolume", func() {
 				clientBuilder.WithRuntimeObjects(
-					makePodForSecretVolume(SecretUsedByPod),
+					makePodForSecretVolume(),
 					&application,
 				)
 				janitor := buildJanitor(clientBuilder.Build(), logger)
@@ -206,7 +272,7 @@ var _ = Describe("cleaner", func() {
 			})
 			It("should succeed, when the secrets are mounted as SecretValueFrom", func() {
 				clientBuilder.WithRuntimeObjects(
-					makePodForSecretValueFrom(SecretUsedByPod),
+					makePodForSecretValueFrom(),
 					&application,
 				)
 				janitor := buildJanitor(clientBuilder.Build(), logger)
@@ -225,7 +291,7 @@ var _ = Describe("cleaner", func() {
 			})
 			It("should succeed, when the secrets are mounted as SecretEnvFrom", func() {
 				clientBuilder.WithRuntimeObjects(
-					makePodForSecretEnvFrom(SecretUsedByPod),
+					makePodForSecretEnvFrom(),
 					&application,
 				)
 				janitor := buildJanitor(clientBuilder.Build(), logger)
@@ -249,61 +315,13 @@ var _ = Describe("cleaner", func() {
 				application = generateApplication()
 			})
 			It("should fail, when the secrets are mounted as SecretVolume", func() {
-				clientBuilder.WithRuntimeObjects(
-					makePodForSecretVolume(SecretUsedByPod),
-					&application,
-				)
-				janitor := buildJanitor(clientBuilder.Build(), logger)
-				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, tt := range secrets {
-					By(tt.reason)
-					actual := &corev1.Secret{}
-					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
-						Namespace: tt.namespace,
-						Name:      tt.name,
-					}, actual)
-					Expect(err).To(HaveOccurred())
-				}
+				assertSecretsDeletedAfterClean(makePodForSecretVolume)
 			})
 			It("should fail, when the secrets are mounted as SecretValueFrom", func() {
-				clientBuilder.WithRuntimeObjects(
-					makePodForSecretValueFrom(SecretUsedByPod),
-					&application,
-				)
-				janitor := buildJanitor(clientBuilder.Build(), logger)
-				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, tt := range secrets {
-					By(tt.reason)
-					actual := &corev1.Secret{}
-					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
-						Namespace: tt.namespace,
-						Name:      tt.name,
-					}, actual)
-					Expect(err).To(HaveOccurred())
-				}
+				assertSecretsDeletedAfterClean(makePodForSecretValueFrom)
 			})
 			It("should fail, when the secrets are mounted as SecretEnvFrom", func() {
-				clientBuilder.WithRuntimeObjects(
-					makePodForSecretEnvFrom(SecretUsedByPod),
-					&application,
-				)
-				janitor := buildJanitor(clientBuilder.Build(), logger)
-				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, tt := range secrets {
-					By(tt.reason)
-					actual := &corev1.Secret{}
-					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
-						Namespace: tt.namespace,
-						Name:      tt.name,
-					}, actual)
-					Expect(err).To(HaveOccurred())
-				}
+				assertSecretsDeletedAfterClean(makePodForSecretEnvFrom)
 			})
 		})
 	})
@@ -328,7 +346,7 @@ var _ = Describe("cleaner", func() {
 			})
 			It("should succeed, when the secrets are mounted as SecretVolume", func() {
 				clientBuilder.WithRuntimeObjects(
-					makePodForSecretVolume(SecretUsedByPod),
+					makePodForSecretVolume(),
 					&application,
 				)
 				janitor := buildJanitor(clientBuilder.Build(), logger)
@@ -347,7 +365,7 @@ var _ = Describe("cleaner", func() {
 			})
 			It("should succeed, when the secrets are mounted as SecretValueFrom", func() {
 				clientBuilder.WithRuntimeObjects(
-					makePodForSecretValueFrom(SecretUsedByPod),
+					makePodForSecretValueFrom(),
 					&application,
 				)
 				janitor := buildJanitor(clientBuilder.Build(), logger)
@@ -366,7 +384,7 @@ var _ = Describe("cleaner", func() {
 			})
 			It("should succeed, when the secrets are mounted as SecretEnvFrom", func() {
 				clientBuilder.WithRuntimeObjects(
-					makePodForSecretEnvFrom(SecretUsedByPod),
+					makePodForSecretEnvFrom(),
 					&application,
 				)
 				janitor := buildJanitor(clientBuilder.Build(), logger)
@@ -390,61 +408,13 @@ var _ = Describe("cleaner", func() {
 				application = generateApplication()
 			})
 			It("should fail, when the secrets are mounted as SecretVolume", func() {
-				clientBuilder.WithRuntimeObjects(
-					makePodForSecretVolume(SecretUsedByPod),
-					&application,
-				)
-				janitor := buildJanitor(clientBuilder.Build(), logger)
-				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, tt := range secrets {
-					By(tt.reason)
-					actual := &corev1.Secret{}
-					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
-						Namespace: tt.namespace,
-						Name:      tt.name,
-					}, actual)
-					Expect(err).To(HaveOccurred())
-				}
+				assertSecretsDeletedAfterClean(makePodForSecretVolume)
 			})
 			It("should fail, when the secrets are mounted as SecretValueFrom", func() {
-				clientBuilder.WithRuntimeObjects(
-					makePodForSecretValueFrom(SecretUsedByPod),
-					&application,
-				)
-				janitor := buildJanitor(clientBuilder.Build(), logger)
-				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, tt := range secrets {
-					By(tt.reason)
-					actual := &corev1.Secret{}
-					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
-						Namespace: tt.namespace,
-						Name:      tt.name,
-					}, actual)
-					Expect(err).To(HaveOccurred())
-				}
+				assertSecretsDeletedAfterClean(makePodForSecretValueFrom)
 			})
 			It("should fail, when the secrets are mounted as SecretEnvFrom", func() {
-				clientBuilder.WithRuntimeObjects(
-					makePodForSecretEnvFrom(SecretUsedByPod),
-					&application,
-				)
-				janitor := buildJanitor(clientBuilder.Build(), logger)
-				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, tt := range secrets {
-					By(tt.reason)
-					actual := &corev1.Secret{}
-					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
-						Namespace: tt.namespace,
-						Name:      tt.name,
-					}, actual)
-					Expect(err).To(HaveOccurred())
-				}
+				assertSecretsDeletedAfterClean(makePodForSecretEnvFrom)
 			})
 		})
 	})
@@ -466,7 +436,7 @@ var _ = Describe("cleaner", func() {
 			})
 			It("should succeed, when the secrets are mounted as SecretVolume", func() {
 				clientBuilder.WithRuntimeObjects(
-					makePodForSecretVolume(SecretUsedByPod),
+					makePodForSecretVolume(),
 					&application,
 				)
 				janitor := buildJanitor(clientBuilder.Build(), logger)
@@ -485,7 +455,7 @@ var _ = Describe("cleaner", func() {
 			})
 			It("should succeed, when the secrets are mounted as SecretValueFrom", func() {
 				clientBuilder.WithRuntimeObjects(
-					makePodForSecretValueFrom(SecretUsedByPod),
+					makePodForSecretValueFrom(),
 					&application,
 				)
 				janitor := buildJanitor(clientBuilder.Build(), logger)
@@ -504,7 +474,7 @@ var _ = Describe("cleaner", func() {
 			})
 			It("should succeed, when the secrets are mounted as SecretEnvFrom", func() {
 				clientBuilder.WithRuntimeObjects(
-					makePodForSecretEnvFrom(SecretUsedByPod),
+					makePodForSecretEnvFrom(),
 					&application,
 				)
 				janitor := buildJanitor(clientBuilder.Build(), logger)
@@ -528,69 +498,24 @@ var _ = Describe("cleaner", func() {
 				application = generateApplication()
 			})
 			It("should fail, when the secrets are mounted as SecretVolume", func() {
-				clientBuilder.WithRuntimeObjects(
-					makePodForSecretVolume(SecretUsedByPod),
-					&application,
-				)
-				janitor := buildJanitor(clientBuilder.Build(), logger)
-				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, tt := range secrets {
-					By(tt.reason)
-					actual := &corev1.Secret{}
-					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
-						Namespace: tt.namespace,
-						Name:      tt.name,
-					}, actual)
-					Expect(err).To(HaveOccurred())
-				}
+				assertSecretsDeletedAfterClean(makePodForSecretVolume)
 			})
 			It("should fail, when the secrets are mounted as SecretValueFrom", func() {
-				clientBuilder.WithRuntimeObjects(
-					makePodForSecretValueFrom(SecretUsedByPod),
-					&application,
-				)
-				janitor := buildJanitor(clientBuilder.Build(), logger)
-				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, tt := range secrets {
-					By(tt.reason)
-					actual := &corev1.Secret{}
-					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
-						Namespace: tt.namespace,
-						Name:      tt.name,
-					}, actual)
-					Expect(err).To(HaveOccurred())
-				}
+				assertSecretsDeletedAfterClean(makePodForSecretValueFrom)
 			})
 			It("should fail, when the secrets are mounted as SecretEnvFrom", func() {
-				clientBuilder.WithRuntimeObjects(
-					makePodForSecretEnvFrom(SecretUsedByPod),
-					&application,
-				)
-				janitor := buildJanitor(clientBuilder.Build(), logger)
-				err := janitor.CleanUnusedSecretsForApplication(ctx, application)
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, tt := range secrets {
-					By(tt.reason)
-					actual := &corev1.Secret{}
-					err = janitor.Get(context.Background(), k8sClient.ObjectKey{
-						Namespace: tt.namespace,
-						Name:      tt.name,
-					}, actual)
-					Expect(err).To(HaveOccurred())
-				}
+				assertSecretsDeletedAfterClean(makePodForSecretEnvFrom)
 			})
 		})
 	})
 	It("returns error when listing secrets fails", func() {
 		interactions := []interaction{
 			{
-				method:     "List",
-				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+				method: methodList,
+				arguments: []any{
+					mock.Anything, mock.AnythingOfType("*v1.SecretList"),
+					mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace"),
+				},
 				returnArgs: []any{fmt.Errorf("api error")},
 			},
 		}
@@ -606,32 +531,35 @@ var _ = Describe("cleaner", func() {
 	It("returns error when listing pods fails", func() {
 		interactions := []interaction{
 			{
-				method:     "List",
-				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+				method: methodList,
+				arguments: []any{
+					mock.Anything, mock.AnythingOfType("*v1.SecretList"),
+					mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace"),
+				},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
 				returnArgs: []any{fmt.Errorf("api error")},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
@@ -648,8 +576,11 @@ var _ = Describe("cleaner", func() {
 	It("ignores NotFound when deleting a secret", func() {
 		interactions := []interaction{
 			{
-				method:     "List",
-				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+				method: methodList,
+				arguments: []any{
+					mock.Anything, mock.AnythingOfType("*v1.SecretList"),
+					mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace"),
+				},
 				returnArgs: []any{nil},
 				runFunc: func(arguments mock.Arguments) {
 					if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
@@ -658,32 +589,32 @@ var _ = Describe("cleaner", func() {
 				},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "Delete",
+				method:     methodDelete,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.Secret")},
 				returnArgs: []any{errors.NewNotFound(corev1.Resource("secret"), UnusedSecret)},
 			},
@@ -700,8 +631,11 @@ var _ = Describe("cleaner", func() {
 	It("continues after an error deleting a secret", func() {
 		interactions := []interaction{
 			{
-				method:     "List",
-				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.SecretList"), mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace")},
+				method: methodList,
+				arguments: []any{
+					mock.Anything, mock.AnythingOfType("*v1.SecretList"),
+					mock.AnythingOfType("client.MatchingLabels"), mock.AnythingOfType("client.InNamespace"),
+				},
 				returnArgs: []any{nil},
 				runFunc: func(arguments mock.Arguments) {
 					if secretList, ok := arguments.Get(1).(*corev1.SecretList); ok {
@@ -713,39 +647,39 @@ var _ = Describe("cleaner", func() {
 				},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.PodList")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*aiven_nais_io_v1.AivenApplicationList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.ReplicaSetList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.CronJobList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method:     "List",
+				method:     methodList,
 				arguments:  []any{mock.Anything, mock.AnythingOfType("*v1.JobList"), mock.AnythingOfType("client.MatchingLabels")},
 				returnArgs: []any{nil},
 			},
 			{
-				method: "Delete",
+				method: methodDelete,
 				arguments: []any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
 					return s.GetName() == UnusedSecret
 				})},
 				returnArgs: []any{fmt.Errorf("api error")},
 			},
 			{
-				method: "Delete",
+				method: methodDelete,
 				arguments: []any{mock.Anything, mock.MatchedBy(func(s *corev1.Secret) bool {
 					return s.GetName() == NotOurSecretTypeSecret
 				})},
@@ -762,14 +696,14 @@ var _ = Describe("cleaner", func() {
 	})
 })
 
-func makePodForSecretVolume(secretName string) *corev1.Pod {
+func makePodForSecretVolume() *corev1.Pod {
 	return &corev1.Pod{
 		Spec: corev1.PodSpec{
 			Volumes: []corev1.Volume{
 				{
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							SecretName: secretName,
+							SecretName: SecretUsedByPod,
 						},
 					},
 				},
@@ -778,7 +712,7 @@ func makePodForSecretVolume(secretName string) *corev1.Pod {
 	}
 }
 
-func makePodForSecretValueFrom(secretName string) *corev1.Pod {
+func makePodForSecretValueFrom() *corev1.Pod {
 	return &corev1.Pod{
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
@@ -790,7 +724,7 @@ func makePodForSecretValueFrom(secretName string) *corev1.Pod {
 							ValueFrom: &corev1.EnvVarSource{
 								SecretKeyRef: &corev1.SecretKeySelector{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: secretName,
+										Name: SecretUsedByPod,
 									},
 									Key: "my-secret",
 								},
@@ -803,7 +737,7 @@ func makePodForSecretValueFrom(secretName string) *corev1.Pod {
 	}
 }
 
-func makePodForSecretEnvFrom(secretName string) *corev1.Pod {
+func makePodForSecretEnvFrom() *corev1.Pod {
 	return &corev1.Pod{
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
@@ -813,7 +747,7 @@ func makePodForSecretEnvFrom(secretName string) *corev1.Pod {
 						{
 							SecretRef: &corev1.SecretEnvSource{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: secretName,
+									Name: SecretUsedByPod,
 								},
 							},
 						},

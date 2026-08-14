@@ -16,6 +16,7 @@ import (
 	"github.com/nais/aivenator/pkg/utils"
 	liberator_service "github.com/nais/liberator/pkg/aiven/service"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	nais_io "github.com/nais/liberator/pkg/apis/nais.io"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
@@ -34,6 +35,10 @@ const (
 	secretName       = "my-individual-secret"
 	serviceURI       = "example.com"
 	serviceUserName  = "service-user-name"
+
+	aivenErrorMessage = "aiven-error"
+	aivenErrorInfo    = "aiven-more-info"
+	falseString       = "false"
 )
 
 type mockContainer struct {
@@ -180,13 +185,13 @@ var _ = Describe("kafka handler", func() {
 
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
-						Message:  "aiven-error",
-						MoreInfo: "aiven-more-info",
+						Message:  aivenErrorMessage,
+						MoreInfo: aivenErrorInfo,
 						Status:   404,
 					})
 
 				mocks.serviceUserManager.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return(nil, aiven.Error{Message: "aiven-error", Status: 500})
+					Return(nil, aiven.Error{Message: aivenErrorMessage, Status: 500})
 
 				application := applicationBuilder.Build()
 				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
@@ -220,10 +225,10 @@ var _ = Describe("kafka handler", func() {
 						Name:      application.Spec.Kafka.SecretName,
 						Namespace: application.GetNamespace(),
 						Annotations: map[string]string{
-							ServiceUserAnnotation:             serviceUserName,
-							constants.AivenatorProtectedKey:   "false",
-							"nais.io/deploymentCorrelationID": "",
-							PoolAnnotation:                    aivenProjectName,
+							ServiceUserAnnotation:                     serviceUserName,
+							constants.AivenatorProtectedKey:           falseString,
+							nais_io.DeploymentCorrelationIDAnnotation: "",
+							PoolAnnotation:                            aivenProjectName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
@@ -256,8 +261,8 @@ var _ = Describe("kafka handler", func() {
 
 				mocks.serviceManager.On("GetServiceAddressesFromCache", mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
-						Message:  "aiven-error",
-						MoreInfo: "aiven-more-info",
+						Message:  aivenErrorMessage,
+						MoreInfo: aivenErrorInfo,
 						Status:   500,
 					})
 				individualSecrets, err := kafkaHandler.Apply(ctx, &application, logger)
@@ -281,8 +286,8 @@ var _ = Describe("kafka handler", func() {
 
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
 					Return("", aiven.Error{
-						Message:  "aiven-error",
-						MoreInfo: "aiven-more-info",
+						Message:  aivenErrorMessage,
+						MoreInfo: aivenErrorInfo,
 						Status:   500,
 					})
 
@@ -306,15 +311,15 @@ var _ = Describe("kafka handler", func() {
 					Return(kafkaServiceAddresses, nil)
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
-						Message:  "aiven-error",
-						MoreInfo: "aiven-more-info",
+						Message:  aivenErrorMessage,
+						MoreInfo: aivenErrorInfo,
 						Status:   404,
 					})
 
 				mocks.serviceUserManager.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
-						Message:  "aiven-error",
-						MoreInfo: "aiven-more-info",
+						Message:  aivenErrorMessage,
+						MoreInfo: aivenErrorInfo,
 						Status:   500,
 					})
 				mocks.projectManager.On("GetCA", mock.Anything, mock.Anything).
@@ -339,8 +344,8 @@ var _ = Describe("kafka handler", func() {
 					Return(kafkaServiceAddresses, nil)
 				mocks.serviceUserManager.On("Get", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, aiven.Error{
-						Message:  "aiven-error",
-						MoreInfo: "aiven-more-info",
+						Message:  aivenErrorMessage,
+						MoreInfo: aivenErrorInfo,
 						Status:   404,
 					})
 				mocks.serviceUserManager.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -365,10 +370,10 @@ var _ = Describe("kafka handler", func() {
 						Name:      application.Spec.Kafka.SecretName,
 						Namespace: application.GetNamespace(),
 						Annotations: map[string]string{
-							ServiceUserAnnotation:             serviceUserName,
-							constants.AivenatorProtectedKey:   "false",
-							"nais.io/deploymentCorrelationID": "",
-							PoolAnnotation:                    aivenProjectName,
+							ServiceUserAnnotation:                     serviceUserName,
+							constants.AivenatorProtectedKey:           falseString,
+							nais_io.DeploymentCorrelationIDAnnotation: "",
+							PoolAnnotation:                            aivenProjectName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},
@@ -419,10 +424,10 @@ var _ = Describe("kafka handler", func() {
 						Name:      application.Spec.Kafka.SecretName,
 						Namespace: application.GetNamespace(),
 						Annotations: map[string]string{
-							"nais.io/deploymentCorrelationID": "",
-							constants.AivenatorProtectedKey:   "false",
-							ServiceUserAnnotation:             serviceUserName,
-							PoolAnnotation:                    aivenProjectName,
+							nais_io.DeploymentCorrelationIDAnnotation: "",
+							constants.AivenatorProtectedKey:           falseString,
+							ServiceUserAnnotation:                     serviceUserName,
+							PoolAnnotation:                            aivenProjectName,
 						},
 						Labels:     individualSecrets[0].Labels,
 						Finalizers: []string{constants.AivenatorFinalizer},

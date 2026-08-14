@@ -11,7 +11,6 @@ import (
 	"github.com/nais/aivenator/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/utils/ptr"
 )
 
 const (
@@ -36,8 +35,18 @@ func NewManager(ctx context.Context, serviceUsers *aiven.ServiceUsersHandler) Se
 }
 
 type ServiceUserManager interface {
-	Create(ctx context.Context, serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error)
-	Update(ctx context.Context, serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error)
+	Create(
+		ctx context.Context,
+		serviceUserName, projectName, serviceName string,
+		accessControl *aiven.AccessControl,
+		logger log.FieldLogger,
+	) (*aiven.ServiceUser, error)
+	Update(
+		ctx context.Context,
+		serviceUserName, projectName, serviceName string,
+		accessControl *aiven.AccessControl,
+		logger log.FieldLogger,
+	) (*aiven.ServiceUser, error)
 	Get(ctx context.Context, serviceUserName, projectName, serviceName string, logger log.FieldLogger) (*aiven.ServiceUser, error)
 	Delete(ctx context.Context, serviceUserName, projectName, serviceName string, logger log.FieldLogger) error
 	ObserveServiceUsersCount(ctx context.Context, projectName, serviceName string, logger log.FieldLogger)
@@ -142,7 +151,12 @@ func (m *Manager) Delete(ctx context.Context, serviceUserName, projectName, serv
 	return nil
 }
 
-func (m *Manager) Create(ctx context.Context, serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (m *Manager) Create(
+	ctx context.Context,
+	serviceUserName, projectName, serviceName string,
+	accessControl *aiven.AccessControl,
+	logger log.FieldLogger,
+) (*aiven.ServiceUser, error) {
 	req := aiven.CreateServiceUserRequest{
 		Username:      serviceUserName,
 		AccessControl: accessControl,
@@ -162,9 +176,14 @@ func (m *Manager) Create(ctx context.Context, serviceUserName, projectName, serv
 	return aivenUser, nil
 }
 
-func (m *Manager) Update(ctx context.Context, serviceUserName, projectName, serviceName string, accessControl *aiven.AccessControl, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (m *Manager) Update(
+	ctx context.Context,
+	serviceUserName, projectName, serviceName string,
+	accessControl *aiven.AccessControl,
+	logger log.FieldLogger,
+) (*aiven.ServiceUser, error) {
 	req := aiven.ModifyServiceUserRequest{
-		Operation:     ptr.To("set-access-control"),
+		Operation:     new("set-access-control"),
 		AccessControl: accessControl,
 	}
 

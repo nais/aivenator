@@ -30,7 +30,7 @@ const (
 type schemeAdders func(s *runtime.Scheme) error
 
 func setupScheme() *runtime.Scheme {
-	var scheme = runtime.NewScheme()
+	scheme := runtime.NewScheme()
 
 	adders := []schemeAdders{
 		metav1.AddMetaToScheme,

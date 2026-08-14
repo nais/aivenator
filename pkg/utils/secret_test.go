@@ -100,7 +100,8 @@ var _ = Describe("secret.SecretConfig ApplyIndividualSecret", func() {
 		Expect(secret.Annotations).Should(HaveKey("pre-existing-annotation"), "existing annotation missing")
 		Expect(secret.Annotations).Should(HaveKey(nais_io_v1.DeploymentCorrelationIDAnnotation), "new annotation missing")
 		Expect(secret.Finalizers).Should(ContainElement("pre-existing-finalizer"), "existing finalizer missing")
-		Expect(secret.OwnerReferences).Should(ContainElement(metav1.OwnerReference{Name: "pre-existing-owner-reference"}), "pre-existing ownerReference missing")
+		Expect(secret.OwnerReferences).Should(ContainElement(metav1.OwnerReference{Name: "pre-existing-owner-reference"}),
+			"pre-existing ownerReference missing")
 		Expect(secret.OwnerReferences).Should(HaveLen(1), "additional ownerReferences set")
 	})
 

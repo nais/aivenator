@@ -22,32 +22,13 @@ linters:
     - unparam
     - unused
   settings:
+    lll:
+      line-length: 150
     revive:
       rules:
         - name: comment-spacings
         - name: import-shadowing
-  exclusions:
-    generated: lax
-    rules:
-      - linters:
-          - lll
-        path: api/*
-      - linters:
-          - dupl
-          - lll
-        path: internal/*
-    paths:
-      - third_party$
-      - thirdparty
-      - builtin$
-      - examples$
 formatters:
   enable:
     - gofmt
     - goimports
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$

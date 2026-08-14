@@ -55,8 +55,12 @@ const (
 	LogFormatText = "text"
 )
 
-func init() {
+// Log field keys
+const (
+	logFieldComponent = "component"
+)
 
+func init() {
 	// Automatically read configuration options from environment variables.
 	// i.e. --aiven-token will be configurable using AIVENATOR_AIVEN_TOKEN.
 	viper.SetEnvPrefix("AIVENATOR")
@@ -153,7 +157,6 @@ func main() {
 			BindAddress: viper.GetString(MetricsAddress),
 		},
 	})
-
 	if err != nil {
 		logger.Errorln(err)
 		os.Exit(ExitController)
@@ -207,10 +210,25 @@ func newAivenClient(ctx context.Context, logger log.FieldLogger) (*aiven.Client,
 	return aivenClient, err
 }
 
-func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Logger, mgr manager.Manager, projects []string, mainProjectName string, recorder k8sevents.EventRecorder) error {
+func manageCredentials(
+	ctx context.Context,
+	aiven *aiven.Client,
+	logger *log.Logger,
+	mgr manager.Manager,
+	projects []string,
+	mainProjectName string,
+	recorder k8sevents.EventRecorder,
+) error {
 	appChanges := make(chan aiven_nais_io_v1.AivenApplication)
 
-	credentialsManager := credentials.NewManager(ctx, aiven, projects, mainProjectName, logger.WithFields(log.Fields{"component": "CredentialsManager"}), mgr.GetAPIReader())
+	credentialsManager := credentials.NewManager(
+		ctx,
+		aiven,
+		projects,
+		mainProjectName,
+		logger.WithFields(log.Fields{logFieldComponent: "CredentialsManager"}),
+		mgr.GetAPIReader(),
+	)
 	reconciler := aiven_application.NewReconciler(mgr, logger, credentialsManager, appChanges, recorder)
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
@@ -219,7 +237,7 @@ func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Log
 	logger.Info("Aiven Application reconciler setup complete")
 
 	finalizer := secrets.SecretsFinalizer{
-		Logger:   logger.WithFields(log.Fields{"component": "SecretsFinalizer"}),
+		Logger:   logger.WithFields(log.Fields{logFieldComponent: "SecretsFinalizer"}),
 		Client:   mgr.GetClient(),
 		Manager:  credentialsManager,
 		Recorder: recorder,
@@ -233,10 +251,10 @@ func manageCredentials(ctx context.Context, aiven *aiven.Client, logger *log.Log
 	credentialsCleaner := credentials.Cleaner{
 		Client: mgr.GetClient(),
 		Logger: logger.WithFields(log.Fields{
-			"component": "SecretsCleaner",
+			logFieldComponent: "SecretsCleaner",
 		}),
 	}
-	janitor := secrets.NewJanitor(credentialsCleaner, appChanges, logger.WithFields(log.Fields{"component": "SecretsJanitor"}))
+	janitor := secrets.NewJanitor(credentialsCleaner, appChanges, logger.WithFields(log.Fields{logFieldComponent: "SecretsJanitor"}))
 	if err := mgr.Add(janitor); err != nil {
 		return fmt.Errorf("unable to add janitor to manager: %v", err)
 	}

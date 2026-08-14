@@ -26,7 +26,14 @@ type Manager struct {
 	handlers []ServiceHandler
 }
 
-func NewManager(ctx context.Context, aiven *aiven.Client, kafkaProjects []string, mainProjectName string, logger log.FieldLogger, k8sReader client.Reader) Manager {
+func NewManager(
+	ctx context.Context,
+	aiven *aiven.Client,
+	kafkaProjects []string,
+	mainProjectName string,
+	logger log.FieldLogger,
+	k8sReader client.Reader,
+) Manager {
 	return Manager{
 		handlers: []ServiceHandler{
 			kafka.NewKafkaHandler(ctx, aiven, kafkaProjects, mainProjectName, logger),

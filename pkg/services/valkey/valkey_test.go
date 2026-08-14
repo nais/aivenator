@@ -32,6 +32,10 @@ const (
 	namespace       = "team-a"
 	servicePassword = "service-password"
 	projectName     = "my-project"
+
+	testSecretName    = "secret-1"
+	aivenErrorMessage = "aiven-error"
+	aivenErrorInfo    = "aiven-more-info"
 )
 
 type testData struct {
@@ -72,7 +76,7 @@ var testInstances = []testData{
 		redisServiceURI:          "rediss://my-instance1.example.com:23456",
 		serviceHost:              "my-instance1.example.com",
 		servicePort:              23456,
-		access:                   "read",
+		access:                   accessRead,
 		username:                 "test-app-r-3D_",
 		serviceUserAnnotationKey: "my-instance1.valkey.aiven.nais.io/serviceUser",
 		serviceNameAnnotationKey: "my-instance1.valkey.aiven.nais.io/serviceName",
@@ -86,7 +90,7 @@ var testInstances = []testData{
 		redisHostKey:             "REDIS_HOST_MY_INSTANCE1",
 		redisPasswordKey:         "REDIS_PASSWORD_MY_INSTANCE1",
 		redisUsernameKey:         "REDIS_USERNAME_MY_INSTANCE1",
-		secretName:               "secret-1",
+		secretName:               testSecretName,
 	},
 	{
 		instanceName:             "session-store",
@@ -95,7 +99,7 @@ var testInstances = []testData{
 		redisServiceURI:          "rediss://session-store.example.com:23456",
 		serviceHost:              "session-store.example.com",
 		servicePort:              23456,
-		access:                   "readwrite",
+		access:                   accessReadWrite,
 		username:                 "test-app-rw-3D_",
 		serviceUserAnnotationKey: "session-store.valkey.aiven.nais.io/serviceUser",
 		serviceNameAnnotationKey: "session-store.valkey.aiven.nais.io/serviceName",
@@ -109,7 +113,7 @@ var testInstances = []testData{
 		redisHostKey:             "REDIS_HOST_SESSION_STORE",
 		redisPasswordKey:         "REDIS_PASSWORD_SESSION_STORE",
 		redisUsernameKey:         "REDIS_USERNAME_SESSION_STORE",
-		secretName:               "secret-1",
+		secretName:               testSecretName,
 	},
 	{
 		instanceName:             "with-replica",
@@ -121,7 +125,7 @@ var testInstances = []testData{
 		replicaServiceURI:        "valkeys://replica-with-replica.example.com:23456",
 		replicaServiceHost:       "replica-with-replica.example.com",
 		replicaServicePort:       23456,
-		access:                   "readwrite",
+		access:                   accessReadWrite,
 		username:                 "test-app-rw-3D_",
 		serviceUserAnnotationKey: "with-replica.valkey.aiven.nais.io/serviceUser",
 		serviceNameAnnotationKey: "with-replica.valkey.aiven.nais.io/serviceName",
@@ -138,7 +142,7 @@ var testInstances = []testData{
 		redisHostKey:             "REDIS_HOST_WITH_REPLICA",
 		redisPasswordKey:         "REDIS_PASSWORD_WITH_REPLICA",
 		redisUsernameKey:         "REDIS_USERNAME_WITH_REPLICA",
-		secretName:               "secret-1",
+		secretName:               testSecretName,
 	},
 }
 
@@ -211,7 +215,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 	defaultAccessControl := func(data testData) *aiven.AccessControl {
 		return &aiven.AccessControl{
 			ValkeyACLCategories: getValkeyACLCategories(data.access),
-			ValkeyACLCommands:   []string{"+info", "+cluster|slots"},
+			ValkeyACLCommands:   []string{aclCommandInfo, aclCommandClusterSlots},
 			ValkeyACLKeys:       []string{"*"},
 			ValkeyACLChannels:   []string{"*"},
 		}
@@ -232,9 +236,18 @@ var _ = Describe("valkey.SecretConfig", func() {
 		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
 		// Pre-populate Valkey CRs matching testInstances in namespace "team-a"
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-my-instance1", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
-			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-session-store", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
-			&aiven_io_v1alpha1.Valkey{ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-with-replica", Namespace: namespace}, Status: aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.Valkey{
+				ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-my-instance1", Namespace: namespace},
+				Status:     aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState},
+			},
+			&aiven_io_v1alpha1.Valkey{
+				ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-session-store", Namespace: namespace},
+				Status:     aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState},
+			},
+			&aiven_io_v1alpha1.Valkey{
+				ObjectMeta: metav1.ObjectMeta{Name: "valkey-team-a-with-replica", Namespace: namespace},
+				Status:     aiven_io_v1alpha1.ValkeyStatus{State: utils.ReadyState},
+			},
 		).Build()
 
 		valkeyHandler = ValkeyHandler{
@@ -287,8 +300,8 @@ var _ = Describe("valkey.SecretConfig", func() {
 			BeforeEach(func() {
 				mocks.serviceManager.On("GetServiceAddresses", mock.Anything, projectName, data.serviceName).
 					Return(nil, aiven.Error{
-						Message:  "aiven-error",
-						MoreInfo: "aiven-more-info",
+						Message:  aivenErrorMessage,
+						MoreInfo: aivenErrorInfo,
 						Status:   500,
 					})
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
@@ -309,8 +322,8 @@ var _ = Describe("valkey.SecretConfig", func() {
 				defaultServiceManagerMock(data)
 				mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 					Return(nil, aiven.Error{
-						Message:  "aiven-error",
-						MoreInfo: "aiven-more-info",
+						Message:  aivenErrorMessage,
+						MoreInfo: aivenErrorInfo,
 						Status:   500,
 					})
 				mocks.projectManager.On("GetCA", mock.Anything, projectName).
@@ -424,15 +437,15 @@ var _ = Describe("valkey.SecretConfig", func() {
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
 						{
 							Instance:   "my-instance1",
-							Access:     "read",
+							Access:     accessRead,
 							SecretName: "first-secret",
 						}, {
 							Instance:   "session-store",
-							Access:     "readwrite",
+							Access:     accessReadWrite,
 							SecretName: "second-secret",
 						}, {
 							Instance:   "with-replica",
-							Access:     "readwrite",
+							Access:     accessReadWrite,
 							SecretName: "replica-secret",
 						},
 					},
@@ -483,7 +496,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 					Valkey: []*aiven_nais_io_v1.ValkeySpec{
 						{
 							Instance:   "collided",
-							Access:     "read",
+							Access:     accessRead,
 							SecretName: "collided-secret",
 						},
 					},
@@ -532,7 +545,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 					Password: servicePassword,
 					AccessControl: aiven.AccessControl{
 						ValkeyACLCategories: getValkeyACLCategories("admin"),
-						ValkeyACLCommands:   []string{"+info", "+cluster|slots"},
+						ValkeyACLCommands:   []string{aclCommandInfo, aclCommandClusterSlots},
 						ValkeyACLKeys:       []string{"*"},
 						ValkeyACLChannels:   []string{"*"},
 					},
@@ -550,7 +563,7 @@ var _ = Describe("valkey.SecretConfig", func() {
 
 	When("it receives a spec with multiple instances", func() {
 		BeforeEach(func() {
-			var specs []*aiven_nais_io_v1.ValkeySpec
+			specs := make([]*aiven_nais_io_v1.ValkeySpec, 0, len(testInstances))
 			for _, data := range testInstances {
 				specs = append(specs, &aiven_nais_io_v1.ValkeySpec{
 					Instance:   data.instanceName,
@@ -598,8 +611,8 @@ var _ = Describe("valkey.SecretConfig", func() {
 					defaultServiceManagerMock(data)
 					mocks.serviceUserManager.On("Get", mock.Anything, data.username, projectName, data.serviceName, mock.Anything).
 						Return(nil, aiven.Error{
-							Message:  "aiven-error",
-							MoreInfo: "aiven-more-info",
+							Message:  aivenErrorMessage,
+							MoreInfo: aivenErrorInfo,
 							Status:   404,
 						})
 					mocks.serviceUserManager.On("Create", mock.Anything, data.username, projectName, data.serviceName, defaultAccessControl(data), mock.Anything).

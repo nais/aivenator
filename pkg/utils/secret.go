@@ -34,7 +34,12 @@ func NewSecretConfig(aiven *aiven.Client, projectName string) SecretConfig {
 	}
 }
 
-func (s SecretConfig) ApplyIndividualSecret(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, secret *corev1.Secret, logger log.FieldLogger) ([]corev1.Secret, error) {
+func (s SecretConfig) ApplyIndividualSecret(
+	ctx context.Context,
+	application *aiven_nais_io_v1.AivenApplication,
+	secret *corev1.Secret,
+	logger log.FieldLogger,
+) ([]corev1.Secret, error) {
 	errors := validation.IsDNS1123Label(secret.Name)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("invalid secret name '%s': %w: %v", secret.Name, ErrUnrecoverable, errors)

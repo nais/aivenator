@@ -163,7 +163,14 @@ func (h KafkaHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.A
 	return []corev1.Secret{*individualSecret}, nil
 }
 
-func (h KafkaHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, projectName string, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (h KafkaHandler) provideServiceUser(
+	ctx context.Context,
+	application *aiven_nais_io_v1.AivenApplication,
+	projectName string,
+	serviceName string,
+	secret *corev1.Secret,
+	logger log.FieldLogger,
+) (*aiven.ServiceUser, error) {
 	var aivenUser *aiven.ServiceUser
 	var err error
 

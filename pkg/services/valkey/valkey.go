@@ -29,6 +29,17 @@ const (
 	ProjectAnnotation     = "valkey.aiven.nais.io/project"
 )
 
+// ACL configuration
+const (
+	aclCommandInfo         = "+info"
+	aclCommandClusterSlots = "+cluster|slots"
+
+	accessAdmin     = "admin"
+	accessWrite     = "write"
+	accessReadWrite = "readwrite"
+	accessRead      = "read"
+)
+
 // Environment variables
 const (
 	ValkeyUser        = "VALKEY_USERNAME"
@@ -157,7 +168,14 @@ func (h ValkeyHandler) Apply(ctx context.Context, application *aiven_nais_io_v1.
 	return nil, nil
 }
 
-func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aiven_nais_io_v1.AivenApplication, valkeySpec *aiven_nais_io_v1.ValkeySpec, serviceName string, secret *corev1.Secret, logger log.FieldLogger) (*aiven.ServiceUser, error) {
+func (h ValkeyHandler) provideServiceUser(
+	ctx context.Context,
+	application *aiven_nais_io_v1.AivenApplication,
+	valkeySpec *aiven_nais_io_v1.ValkeySpec,
+	serviceName string,
+	secret *corev1.Secret,
+	logger log.FieldLogger,
+) (*aiven.ServiceUser, error) {
 	var serviceUserName string
 
 	if nameFromAnnotation, ok := secret.GetAnnotations()[ServiceUserAnnotation]; ok {
@@ -175,7 +193,7 @@ func (h ValkeyHandler) provideServiceUser(ctx context.Context, application *aive
 
 	accessControl := aiven.AccessControl{
 		ValkeyACLCategories: getValkeyACLCategories(valkeySpec.Access),
-		ValkeyACLCommands:   []string{"+info", "+cluster|slots"},
+		ValkeyACLCommands:   []string{aclCommandInfo, aclCommandClusterSlots},
 		ValkeyACLKeys:       []string{"*"},
 		ValkeyACLChannels:   []string{"*"},
 	}
@@ -219,11 +237,11 @@ func getValkeyACLCategories(access string) []string {
 	categories := make([]string, 0, 7)
 	categories = append(categories, "-@all", "+@connection", "+@scripting", "+@pubsub", "+@transaction")
 	switch access {
-	case "admin":
+	case accessAdmin:
 		categories = append(categories, "+@admin", "+@write", "+@read")
-	case "readwrite":
+	case accessReadWrite:
 		categories = append(categories, "+@write", "+@read")
-	case "write":
+	case accessWrite:
 		categories = append(categories, "+@write")
 	default:
 		categories = append(categories, "+@read")

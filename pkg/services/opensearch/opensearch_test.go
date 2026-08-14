@@ -37,6 +37,7 @@ const (
 	secretName      = "foo"
 	access          = "read"
 	testNamespace   = "my-namespace"
+	falseString     = "false"
 )
 
 type mockContainer struct {
@@ -77,8 +78,14 @@ var _ = Describe("opensearch handler", func() {
 		Expect(aiven_io_v1alpha1.AddToScheme(scheme)).To(Succeed())
 		// Pre-populate CRs matching test constants in testNamespace.
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-			&aiven_io_v1alpha1.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: testNamespace}, Status: aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState}},
-			&aiven_io_v1alpha1.OpenSearch{ObjectMeta: metav1.ObjectMeta{Name: instance, Namespace: testNamespace}, Status: aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState}},
+			&aiven_io_v1alpha1.OpenSearch{
+				ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: testNamespace},
+				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState},
+			},
+			&aiven_io_v1alpha1.OpenSearch{
+				ObjectMeta: metav1.ObjectMeta{Name: instance, Namespace: testNamespace},
+				Status:     aiven_io_v1alpha1.OpenSearchStatus{State: utils.ReadyState},
+			},
 		).Build()
 
 		opensearchHandler = OpenSearchHandler{
@@ -270,13 +277,13 @@ var _ = Describe("opensearch handler", func() {
 								"app":                               application.Name,
 								"team":                              application.Namespace,
 								"aiven.nais.io/secret-generation":   "0",
-								"aivenator.aiven.nais.io/protected": "false",
+								"aivenator.aiven.nais.io/protected": falseString,
 							},
 							Annotations: map[string]string{
 								ServiceNameAnnotation:             serviceName,
 								ProjectAnnotation:                 projectName,
 								"nais.io/deploymentCorrelationID": "",
-								constants.AivenatorProtectedKey:   "false",
+								constants.AivenatorProtectedKey:   falseString,
 								ServiceUserAnnotation:             serviceUserName,
 							},
 							Finalizers: []string{constants.AivenatorFinalizer},
@@ -296,7 +303,8 @@ var _ = Describe("opensearch handler", func() {
 					Message: "Service user does not exist", Status: 404,
 				})
 
-				mocks.serviceUserManager.On("Create", mock.Anything, testNamespace+"-r-3D_", projectName, serviceName, (*aiven.AccessControl)(nil), mock.Anything).Return(&aiven.ServiceUser{
+				mocks.serviceUserManager.On("Create", mock.Anything, testNamespace+"-r-3D_", projectName, serviceName,
+					(*aiven.AccessControl)(nil), mock.Anything).Return(&aiven.ServiceUser{
 					Username: serviceUserName,
 					Password: servicePassword,
 				}, nil)
@@ -343,7 +351,7 @@ var _ = Describe("opensearch handler", func() {
 							ProjectAnnotation:                 projectName,
 							ServiceNameAnnotation:             instance,
 							ServiceUserAnnotation:             serviceUserName,
-							constants.AivenatorProtectedKey:   "false",
+							constants.AivenatorProtectedKey:   falseString,
 							"nais.io/deploymentCorrelationID": "",
 						},
 						Labels:     individualSecrets[0].Labels,
