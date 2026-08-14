@@ -10,12 +10,14 @@ import (
 	"time"
 
 	"github.com/aiven/aiven-go-client/v2"
+	"github.com/go-logr/logr"
 	"github.com/nais/aivenator/controllers/aiven_application"
 	"github.com/nais/aivenator/controllers/secrets"
 	"github.com/nais/aivenator/pkg/credentials"
 	aivenatormetrics "github.com/nais/aivenator/pkg/metrics"
 	"github.com/nais/aivenator/pkg/utils"
 	aiven_nais_io_v1 "github.com/nais/liberator/pkg/apis/aiven.nais.io/v1"
+	"github.com/nais/liberator/pkg/logrus2logr"
 	liberator_scheme "github.com/nais/liberator/pkg/scheme"
 	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
@@ -145,6 +147,9 @@ func main() {
 	}
 
 	allowedProjects := viper.GetStringSlice(Projects)
+
+	logrSink := (&logrus2logr.Logrus2Logr{Logger: logger}).WithName("controller-runtime")
+	ctrl.SetLogger(logr.New(logrSink))
 
 	syncPeriod := viper.GetDuration(SyncPeriod)
 	cfg := ctrl.GetConfigOrDie()
