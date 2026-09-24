@@ -17,8 +17,8 @@ require (
 	github.com/aiven/aiven-go-client/v2 v2.44.0
 	github.com/go-logr/logr v1.4.4
 	github.com/nais/liberator v0.0.0-20260806073106-795bd72ce898
-	github.com/onsi/ginkgo/v2 v2.32.2
-	github.com/onsi/gomega v1.43.0
+	github.com/onsi/ginkgo/v2 v2.33.0
+	github.com/onsi/gomega v1.43.1
 	github.com/prometheus/client_golang v1.24.1
 	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/pflag v1.0.10
