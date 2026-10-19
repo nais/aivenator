@@ -17,7 +17,7 @@ require (
 	github.com/aiven/aiven-go-client/v2 v2.44.0
 	github.com/go-logr/logr v1.4.4
 	github.com/nais/liberator v0.0.0-20260806073106-795bd72ce898
-	github.com/onsi/ginkgo/v2 v2.33.0
+	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/sirupsen/logrus v1.10.2
@@ -29,7 +29,7 @@ require (
 	k8s.io/client-go v0.36.3
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	sigs.k8s.io/controller-runtime v0.24.1
-	software.sslmate.com/src/go-pkcs12 v0.7.3
+	software.sslmate.com/src/go-pkcs12 v0.7.4
 )
 
 require (
